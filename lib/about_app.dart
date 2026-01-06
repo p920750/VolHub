@@ -11,9 +11,9 @@ class AboutAppPage extends StatelessWidget {
         decoration: const BoxDecoration(
           gradient: LinearGradient(
             colors: [
-              Color(0xFF8B1A3D),
-              Color(0xFF9B1A5A),
-              Color(0xFFAB1A7A),
+              Color(0xFF011638),
+              Color(0xFF011638),
+              Color(0xFF011638),
             ],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
@@ -32,9 +32,9 @@ class AboutAppPage extends StatelessWidget {
                       onPressed: () => Navigator.pop(context),
                     ),
                     const Text(
-                      "About VOLHUB",
+                      "About App",
                       style: TextStyle(
-                        color: Colors.white,
+                        color: const Color(0xFFDFF8EB),
                         fontSize: 24,
                         fontWeight: FontWeight.bold,
                       ),
@@ -63,8 +63,8 @@ class AboutAppPage extends StatelessWidget {
                             decoration: BoxDecoration(
                               gradient: const LinearGradient(
                                 colors: [
-                                  Color(0xFF8B1A3D),
-                                  Color(0xFF9B1A5A),
+                                  Color(0xFFCDCDCD),
+                                  Color(0xFF364156),
                                 ],
                               ),
                               borderRadius: BorderRadius.circular(24),
@@ -91,7 +91,7 @@ class AboutAppPage extends StatelessWidget {
                             style: TextStyle(
                               fontSize: 32,
                               fontWeight: FontWeight.bold,
-                              color: Color(0xFF9B1A5A),
+                              color: Color(0xFF214E34),
                             ),
                           ),
                         ),
@@ -113,7 +113,7 @@ class AboutAppPage extends StatelessWidget {
                           title: "Connect & Discover",
                           description:
                               "VOLHUB bridges the gap between passionate volunteers and meaningful opportunities. Discover volunteer missions that align with your interests, skills, and availability.",
-                          color: const Color(0xFF9B1A5A),
+                          color: const Color(0xFF364156),
                         ),
                         const SizedBox(height: 16),
                         _FeatureCard(
@@ -121,7 +121,7 @@ class AboutAppPage extends StatelessWidget {
                           title: "Make an Impact",
                           description:
                               "Join a community of changemakers dedicated to making a difference. Track your volunteer hours, see your impact, and connect with organizations that need your help.",
-                          color: const Color(0xFF8B1A3D),
+                          color: const Color(0xFF364156),
                         ),
                         const SizedBox(height: 16),
                         _FeatureCard(
@@ -129,7 +129,7 @@ class AboutAppPage extends StatelessWidget {
                           title: "Explore Opportunities",
                           description:
                               "Browse through a wide range of volunteer opportunities across various causes - from environmental conservation to community service, education, and more.",
-                          color: const Color(0xFFAB1A7A),
+                          color: const Color(0xFF364156),
                         ),
                         const SizedBox(height: 24),
                         // Key Features
@@ -138,7 +138,7 @@ class AboutAppPage extends StatelessWidget {
                           style: TextStyle(
                             fontSize: 22,
                             fontWeight: FontWeight.bold,
-                            color: Color(0xFF9B1A5A),
+                            color: Color.fromARGB(255, 0, 0, 0),
                           ),
                         ),
                         const SizedBox(height: 16),
@@ -169,8 +169,8 @@ class AboutAppPage extends StatelessWidget {
                           decoration: BoxDecoration(
                             gradient: const LinearGradient(
                               colors: [
-                                Color(0xFF8B1A3D),
-                                Color(0xFF9B1A5A),
+                                Color(0xFF214E34),
+                                Color(0xFF214E34),
                               ],
                             ),
                             borderRadius: BorderRadius.circular(16),
@@ -312,7 +312,7 @@ class _FeatureItem extends StatelessWidget {
         children: [
           Icon(
             icon,
-            color: const Color(0xFF9B1A5A),
+            color: Color(0xFF011638),
             size: 20,
           ),
           const SizedBox(width: 12),

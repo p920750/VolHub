@@ -11,9 +11,9 @@ class AboutUsPage extends StatelessWidget {
         decoration: const BoxDecoration(
           gradient: LinearGradient(
             colors: [
-              Color(0xFF8B1A3D),
-              Color(0xFF9B1A5A),
-              Color(0xFFAB1A7A),
+              Color(0xFF011638),
+              Color(0xFF011638),
+              Color(0xFF011638),
             ],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
@@ -90,7 +90,7 @@ class AboutUsPage extends StatelessWidget {
                                 style: TextStyle(
                                   fontSize: 28,
                                   fontWeight: FontWeight.bold,
-                                  color: Color(0xFF9B1A5A),
+                                  color: Color(0xFF214E34),
                                 ),
                               ),
                               const SizedBox(height: 8),
@@ -117,13 +117,13 @@ class AboutUsPage extends StatelessWidget {
                           decoration: BoxDecoration(
                             gradient: LinearGradient(
                               colors: [
-                                const Color(0xFF9B1A5A).withOpacity(0.1),
-                                const Color(0xFF8B1A3D).withOpacity(0.1),
+                                const Color(0xFF364156).withOpacity(0.1),
+                                const Color(0xFF364156).withOpacity(0.1),
                               ],
                             ),
                             borderRadius: BorderRadius.circular(16),
                             border: Border.all(
-                              color: const Color(0xFF9B1A5A).withOpacity(0.3),
+                              color: const Color(0xFF214E34).withOpacity(0.3),
                             ),
                           ),
                           child: const Text(
@@ -149,21 +149,21 @@ class AboutUsPage extends StatelessWidget {
                           icon: Icons.connect_without_contact,
                           title: "Connect",
                           description: "Bridge the gap between volunteers and organizations",
-                          color: const Color(0xFF9B1A5A),
+                          color: const Color(0xFF364156),
                         ),
                         const SizedBox(height: 12),
                         _MissionCard(
                           icon: Icons.volunteer_activism,
                           title: "Empower",
                           description: "Empower individuals to create positive change",
-                          color: const Color(0xFF8B1A3D),
+                          color: const Color(0xFF364156),
                         ),
                         const SizedBox(height: 12),
                         _MissionCard(
                           icon: Icons.trending_up,
                           title: "Grow",
                           description: "Build a thriving community of changemakers",
-                          color: const Color(0xFFAB1A7A),
+                          color: const Color(0xFF364156),
                         ),
                         const SizedBox(height: 32),
                         // Our Values Section
@@ -202,7 +202,7 @@ class AboutUsPage extends StatelessWidget {
                                 name: "Development Team",
                                 role: "Building the Future",
                                 icon: Icons.code,
-                                color: const Color(0xFF9B1A5A),
+                                color: const Color(0xFF011638),
                               ),
                             ),
                             const SizedBox(width: 12),
@@ -211,7 +211,7 @@ class AboutUsPage extends StatelessWidget {
                                 name: "Design Team",
                                 role: "Creating Experiences",
                                 icon: Icons.palette,
-                                color: const Color(0xFF8B1A3D),
+                                color: const Color(0xFF011638),
                               ),
                             ),
                           ],
@@ -224,7 +224,7 @@ class AboutUsPage extends StatelessWidget {
                                 name: "Community Team",
                                 role: "Connecting People",
                                 icon: Icons.forum,
-                                color: const Color(0xFFAB1A7A),
+                                color: const Color(0xFF011638),
                               ),
                             ),
                             const SizedBox(width: 12),
@@ -233,7 +233,7 @@ class AboutUsPage extends StatelessWidget {
                                 name: "Support Team",
                                 role: "Helping You Succeed",
                                 icon: Icons.support_agent,
-                                color: const Color(0xFF9B1A5A),
+                                color: const Color(0xFF011638),
                               ),
                             ),
                           ],
@@ -250,8 +250,8 @@ class AboutUsPage extends StatelessWidget {
                           decoration: BoxDecoration(
                             gradient: const LinearGradient(
                               colors: [
-                                Color(0xFF8B1A3D),
-                                Color(0xFF9B1A5A),
+                                Color(0xFF214E34),
+                                Color(0xFF214E34),
                               ],
                             ),
                             borderRadius: BorderRadius.circular(16),
@@ -292,7 +292,7 @@ class AboutUsPage extends StatelessWidget {
                             style: TextStyle(
                               fontSize: 18,
                               fontWeight: FontWeight.bold,
-                              color: Color(0xFF9B1A5A),
+                              color: Color(0xFF214E34),
                             ),
                           ),
                         ),
@@ -326,7 +326,7 @@ class AboutUsPage extends StatelessWidget {
                             const SizedBox(width: 16),
                             _SocialIconButton(
                               icon: Icons.camera_alt,
-                              color: const Color(0xFFE4405F),
+                              color: Color(0xFF214E34),
                               onTap: () {
                                 // TODO: Open Instagram
                               },
@@ -363,7 +363,7 @@ class _SectionTitle extends StatelessWidget {
         Container(
           padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
-            color: const Color(0xFF9B1A5A),
+            color: Color(0xFF214E34),
             borderRadius: BorderRadius.circular(8),
           ),
           child: Icon(icon, color: Colors.white, size: 20),
@@ -374,7 +374,7 @@ class _SectionTitle extends StatelessWidget {
           style: const TextStyle(
             fontSize: 22,
             fontWeight: FontWeight.bold,
-            color: Color(0xFF9B1A5A),
+            color: Color(0xFF214E34),
           ),
         ),
       ],
@@ -464,7 +464,7 @@ class _ValueItem extends StatelessWidget {
         children: [
           Icon(
             icon,
-            color: const Color(0xFF9B1A5A),
+            color: const Color(0xFF214E34),
             size: 22,
           ),
           const SizedBox(width: 12),

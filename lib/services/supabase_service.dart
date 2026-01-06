@@ -19,6 +19,7 @@ class SupabaseService {
     String? fullName,
     String? phone,
     String? dob,
+    String? userType,
   }) async {
     try {
       final response = await client.auth.signUp(
@@ -28,6 +29,7 @@ class SupabaseService {
           if (fullName != null && fullName.isNotEmpty) 'full_name': fullName,
           if (phone != null && phone.isNotEmpty) 'phone': phone,
           if (dob != null && dob.isNotEmpty) 'dob': dob,
+          if (userType != null && userType.isNotEmpty) 'user_type': userType,
         },
         emailRedirectTo: 'io.supabase.volhub://email-confirm', // Deep link for email confirmation
       );
@@ -65,9 +67,32 @@ class SupabaseService {
   // Reset password (send reset email)
   static Future<void> resetPassword(String email) async {
     try {
+      // Always use deep link for mobile apps (works on both phone and when code runs on laptop)
+      // For web, use the current URL with password-reset path
+      String redirectTo;
+      if (kIsWeb) {
+        // For web, use the current URL with password-reset path
+        redirectTo = '${Uri.base.origin}/#/reset-password';
+      } else {
+        // For mobile (Android/iOS), always use deep link
+        // This deep link must be added to Supabase dashboard → Authentication → URL Configuration
+        redirectTo = 'io.supabase.volhub://reset-password';
+      }
+      
       await client.auth.resetPasswordForEmail(
         email,
-        redirectTo: null, // You can set a custom redirect URL here
+        redirectTo: redirectTo,
+      );
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  // Update password (after clicking reset link)
+  static Future<void> updatePassword(String newPassword) async {
+    try {
+      await client.auth.updateUser(
+        UserAttributes(password: newPassword),
       );
     } catch (e) {
       rethrow;

@@ -64,9 +64,9 @@ class _EmailConfirmPageState extends State<EmailConfirmPage> {
         decoration: const BoxDecoration(
           gradient: LinearGradient(
             colors: [
-              Color(0xFF8B1A3D),
-              Color(0xFF9B1A5A),
-              Color(0xFFAB1A7A),
+              Color.fromARGB(255, 1, 22, 56),
+              Color.fromARGB(255, 54, 65, 86),
+              Color.fromARGB(255, 33, 78, 52),
             ],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
@@ -94,7 +94,7 @@ class _EmailConfirmPageState extends State<EmailConfirmPage> {
                   children: [
                     if (_isVerifying) ...[
                       const CircularProgressIndicator(
-                        color: Color(0xFF9B1A5A),
+                        color: Color.fromARGB(255, 33, 78, 52),
                       ),
                       const SizedBox(height: 24),
                       const Text(
@@ -142,7 +142,7 @@ class _EmailConfirmPageState extends State<EmailConfirmPage> {
                           );
                         },
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF9B1A5A),
+                          backgroundColor: const Color.fromARGB(255, 33, 78, 52),
                           foregroundColor: Colors.white,
                           padding: const EdgeInsets.symmetric(
                             horizontal: 32,
@@ -197,7 +197,7 @@ class _EmailConfirmPageState extends State<EmailConfirmPage> {
                           );
                         },
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF9B1A5A),
+                          backgroundColor: const Color.fromARGB(255, 33, 78, 52),
                           foregroundColor: Colors.white,
                           padding: const EdgeInsets.symmetric(
                             horizontal: 32,

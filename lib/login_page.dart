@@ -3,7 +3,9 @@ import 'forget_page.dart';
 import 'services/supabase_service.dart';
 
 class LoginPage extends StatefulWidget {
-  const LoginPage({super.key});
+  final String? userType;
+  
+  const LoginPage({super.key, this.userType});
 
   @override
   LoginPageState createState() => LoginPageState();
@@ -18,6 +20,14 @@ class LoginPageState extends State<LoginPage> {
   final _formKey = GlobalKey<FormState>();
   bool _obscurePassword = true;
   bool _isLogin = true; // Toggle between login and signup
+  late String _userType; // 'event_host' or 'volunteer'
+
+  @override
+  void initState() {
+    super.initState();
+    // Get user type from widget parameter, default to 'volunteer'
+    _userType = widget.userType ?? 'volunteer';
+  }
 
   @override
   void dispose() {
@@ -37,9 +47,9 @@ class LoginPageState extends State<LoginPage> {
         decoration: const BoxDecoration(
           gradient: LinearGradient(
             colors: [
-              Color(0xFF8B1A3D),
-              Color(0xFF9B1A5A),
-              Color(0xFFAB1A7A),
+              Color.fromARGB(255, 1, 22, 56),
+              Color.fromARGB(255, 54, 65, 86),
+              Color.fromARGB(255, 33, 78, 52),
             ],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
@@ -102,13 +112,41 @@ class LoginPageState extends State<LoginPage> {
                     const SizedBox(height: 8),
                     Text(
                       _isLogin
-                          ? "Sign in to continue your volunteer journey"
+                          ? "Sign in to continue your ${_userType == 'event_host' ? 'event hosting' : 'volunteer'} journey"
                           : "Create an account to get started",
                       style: const TextStyle(
                         color: Colors.white70,
                         fontSize: 16,
                       ),
                       textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 8),
+                    // User Type Badge
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            _userType == 'event_host' ? Icons.event_note : Icons.people,
+                            color: Colors.white,
+                            size: 18,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            _userType == 'event_host' ? 'Event Host' : 'Volunteer',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                     const SizedBox(height: 40),
                     // Login Card
@@ -367,7 +405,7 @@ class LoginPageState extends State<LoginPage> {
                                 child: const Text(
                                   "Forgot Password?",
                                   style: TextStyle(
-                                    color: Color(0xFF9B1A5A),
+                                    color: Color.fromARGB(255, 33, 78, 52),
                                   ),
                                 ),
                               ),
@@ -384,7 +422,7 @@ class LoginPageState extends State<LoginPage> {
                                     barrierDismissible: false,
                                     builder: (context) => const Center(
                                       child: CircularProgressIndicator(
-                                        color: Color(0xFF9B1A5A),
+                                        color: Color.fromARGB(255, 33, 78, 52),
                                       ),
                                     ),
                                   );
@@ -404,7 +442,7 @@ class LoginPageState extends State<LoginPage> {
                                       ScaffoldMessenger.of(context).showSnackBar(
                                         const SnackBar(
                                           content: Text('Login successful!'),
-                                          backgroundColor: Color(0xFF9B1A5A),
+                                          backgroundColor: Color.fromARGB(255, 33, 78, 52),
                                         ),
                                       );
                                       // Navigate to home or dashboard
@@ -418,6 +456,7 @@ class LoginPageState extends State<LoginPage> {
                                       fullName: _nameController.text.trim(),
                                       phone: _phoneController.text.trim(),
                                       dob: _dobController.text.trim(),
+                                      userType: _userType,
                                     );
                                     
                                     // Close loading dialog
@@ -428,7 +467,7 @@ class LoginPageState extends State<LoginPage> {
                                       ScaffoldMessenger.of(context).showSnackBar(
                                       const SnackBar(
                                         content: Text('Account created successfully! Please check your email to verify your account.'),
-                                        backgroundColor: Color(0xFF9B1A5A),
+                                        backgroundColor: Color.fromARGB(255, 33, 78, 52),
                                         duration: Duration(seconds: 4),
                                       ),
                                     );
@@ -455,7 +494,7 @@ class LoginPageState extends State<LoginPage> {
                               }
                             },
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFF9B1A5A),
+                              backgroundColor: const Color.fromARGB(255, 33, 78, 52),
                               foregroundColor: Colors.white,
                               padding: const EdgeInsets.symmetric(vertical: 16),
                               shape: RoundedRectangleBorder(
@@ -557,7 +596,7 @@ class LoginPageState extends State<LoginPage> {
                                 child: Text(
                                   _isLogin ? "Sign Up" : "Sign In",
                                   style: const TextStyle(
-                                    color: Color(0xFF9B1A5A),
+                                    color: Color.fromARGB(255, 33, 78, 52),
                                     fontWeight: FontWeight.bold,
                                   ),
                                 ),

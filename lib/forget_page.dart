@@ -26,9 +26,9 @@ class ForgetPageState extends State<ForgetPage> {
         decoration: const BoxDecoration(
           gradient: LinearGradient(
             colors: [
-              Color(0xFF8B1A3D),
-              Color(0xFF9B1A5A),
-              Color(0xFFAB1A7A),
+              Color.fromARGB(255, 1, 22, 56),
+              Color.fromARGB(255, 54, 65, 86),
+              Color.fromARGB(255, 33, 78, 52),
             ],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
@@ -151,7 +151,7 @@ class ForgetPageState extends State<ForgetPage> {
                                     barrierDismissible: false,
                                     builder: (context) => const Center(
                                       child: CircularProgressIndicator(
-                                        color: Color(0xFF9B1A5A),
+                                        color: Color.fromARGB(255, 33, 78, 52),
                                       ),
                                     ),
                                   );
@@ -171,7 +171,7 @@ class ForgetPageState extends State<ForgetPage> {
                                         content: Text(
                                           'Password reset link sent to ${_emailController.text}',
                                         ),
-                                        backgroundColor: const Color(0xFF9B1A5A),
+                                        backgroundColor: const Color.fromARGB(255, 33, 78, 52),
                                       ),
                                     );
                                     // Navigate back to login page after a short delay
@@ -200,7 +200,7 @@ class ForgetPageState extends State<ForgetPage> {
                               }
                             },
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFF9B1A5A),
+                              backgroundColor: const Color.fromARGB(255, 33, 78, 52),
                               foregroundColor: Colors.white,
                               padding: const EdgeInsets.symmetric(vertical: 16),
                               shape: RoundedRectangleBorder(
@@ -223,7 +223,7 @@ class ForgetPageState extends State<ForgetPage> {
                             child: const Text(
                               "Back to Login",
                               style: TextStyle(
-                                color: Color(0xFF9B1A5A),
+                                color: Color.fromARGB(255, 33, 78, 52),
                                 fontWeight: FontWeight.bold,
                               ),
                             ),

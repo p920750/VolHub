@@ -6,14 +6,14 @@ class FrontPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: const Color.fromARGB(255, 255, 255, 255),
       body: Container(
         decoration: const BoxDecoration(
           gradient: LinearGradient(
             colors: [
-              Color(0xFF8B1A3D),
-              Color(0xFF9B1A5A),
-              Color(0xFFAB1A7A),
+              Color.fromARGB(255, 1, 22, 56),
+              Color.fromARGB(255, 54, 65, 86),
+              Color.fromARGB(255, 33, 78, 52),
             ],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
@@ -31,7 +31,7 @@ class FrontPage extends StatelessWidget {
                     const Text(
                       "VOLHUB",
                       style: TextStyle(
-                        color: Colors.white,
+                        color: Color.fromARGB(255, 0, 0, 0),
                         fontSize: 32,
                         fontWeight: FontWeight.bold,
                       ),
@@ -47,9 +47,9 @@ class FrontPage extends StatelessWidget {
                 ),
                 const SizedBox(height: 16),
                 const Text(
-                  "Connecting volunteers with their next mission.",
+                  "Connecting volunteers For the Future.",
                   style: TextStyle(
-                    color: Colors.white70,
+                    color: Color.fromARGB(179, 255, 255, 255),
                     fontSize: 16,
                   ),
                 ),
@@ -115,7 +115,7 @@ class FrontPage extends StatelessWidget {
                           label: "Go to Login",
                           icon: Icons.login,
                           onTap: () {
-                            Navigator.pushNamed(context, '/login');
+                            Navigator.pushNamed(context, '/user-type-selection');
                           },
                         ),
                         const Spacer(),
@@ -164,8 +164,8 @@ class _FrontPageButton extends StatelessWidget {
       padding: const EdgeInsets.only(bottom: 16.0),
       child: ElevatedButton(
         style: ElevatedButton.styleFrom(
-          backgroundColor: const Color(0xFF9B1A5A),
-          foregroundColor: Colors.white,
+          backgroundColor: const Color.fromARGB(255, 33, 78, 52),
+          foregroundColor: const Color.fromARGB(255, 255, 255, 255),
           minimumSize: const Size.fromHeight(56),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
