@@ -10,11 +10,7 @@ class AboutUsPage extends StatelessWidget {
       body: Container(
         decoration: const BoxDecoration(
           gradient: LinearGradient(
-            colors: [
-              Color(0xFF011638),
-              Color(0xFF011638),
-              Color(0xFF011638),
-            ],
+            colors: [Color(0xFF011638), Color(0xFF011638), Color(0xFF011638)],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
@@ -80,7 +76,7 @@ class AboutUsPage extends StatelessWidget {
                                 ),
                                 padding: const EdgeInsets.all(12),
                                 child: Image.asset(
-                                  'assets/images/Volhub_symbol.jpg',
+                                  'assets/icons/icon_1.png',
                                   fit: BoxFit.contain,
                                 ),
                               ),
@@ -107,10 +103,7 @@ class AboutUsPage extends StatelessWidget {
                         ),
                         const SizedBox(height: 32),
                         // Our Story Section
-                        _SectionTitle(
-                          icon: Icons.history,
-                          title: "Our Story",
-                        ),
+                        _SectionTitle(icon: Icons.history, title: "Our Story"),
                         const SizedBox(height: 12),
                         Container(
                           padding: const EdgeInsets.all(20),
@@ -140,29 +133,29 @@ class AboutUsPage extends StatelessWidget {
                         ),
                         const SizedBox(height: 32),
                         // Our Mission Section
-                        _SectionTitle(
-                          icon: Icons.flag,
-                          title: "Our Mission",
-                        ),
+                        _SectionTitle(icon: Icons.flag, title: "Our Mission"),
                         const SizedBox(height: 12),
                         _MissionCard(
                           icon: Icons.connect_without_contact,
                           title: "Connect",
-                          description: "Bridge the gap between volunteers and organizations",
+                          description:
+                              "Bridge the gap between volunteers and organizations",
                           color: const Color(0xFF364156),
                         ),
                         const SizedBox(height: 12),
                         _MissionCard(
                           icon: Icons.volunteer_activism,
                           title: "Empower",
-                          description: "Empower individuals to create positive change",
+                          description:
+                              "Empower individuals to create positive change",
                           color: const Color(0xFF364156),
                         ),
                         const SizedBox(height: 12),
                         _MissionCard(
                           icon: Icons.trending_up,
                           title: "Grow",
-                          description: "Build a thriving community of changemakers",
+                          description:
+                              "Build a thriving community of changemakers",
                           color: const Color(0xFF364156),
                         ),
                         const SizedBox(height: 32),
@@ -190,10 +183,7 @@ class AboutUsPage extends StatelessWidget {
                         ),
                         const SizedBox(height: 32),
                         // Team Members Section
-                        _SectionTitle(
-                          icon: Icons.people,
-                          title: "Our Team",
-                        ),
+                        _SectionTitle(icon: Icons.people, title: "Our Team"),
                         const SizedBox(height: 16),
                         Row(
                           children: [
@@ -249,10 +239,7 @@ class AboutUsPage extends StatelessWidget {
                           padding: const EdgeInsets.all(20),
                           decoration: BoxDecoration(
                             gradient: const LinearGradient(
-                              colors: [
-                                Color(0xFF214E34),
-                                Color(0xFF214E34),
-                              ],
+                              colors: [Color(0xFF214E34), Color(0xFF214E34)],
                             ),
                             borderRadius: BorderRadius.circular(16),
                           ),
@@ -351,10 +338,7 @@ class _SectionTitle extends StatelessWidget {
   final IconData icon;
   final String title;
 
-  const _SectionTitle({
-    required this.icon,
-    required this.title,
-  });
+  const _SectionTitle({required this.icon, required this.title});
 
   @override
   Widget build(BuildContext context) {
@@ -402,10 +386,7 @@ class _MissionCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: color.withOpacity(0.1),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: color.withOpacity(0.3),
-          width: 1,
-        ),
+        border: Border.all(color: color.withOpacity(0.3), width: 1),
       ),
       child: Row(
         children: [
@@ -433,10 +414,7 @@ class _MissionCard extends StatelessWidget {
                 const SizedBox(height: 4),
                 Text(
                   description,
-                  style: const TextStyle(
-                    fontSize: 13,
-                    color: Colors.black87,
-                  ),
+                  style: const TextStyle(fontSize: 13, color: Colors.black87),
                 ),
               ],
             ),
@@ -451,10 +429,7 @@ class _ValueItem extends StatelessWidget {
   final IconData icon;
   final String text;
 
-  const _ValueItem({
-    required this.icon,
-    required this.text,
-  });
+  const _ValueItem({required this.icon, required this.text});
 
   @override
   Widget build(BuildContext context) {
@@ -462,11 +437,7 @@ class _ValueItem extends StatelessWidget {
       padding: const EdgeInsets.only(bottom: 12),
       child: Row(
         children: [
-          Icon(
-            icon,
-            color: const Color(0xFF214E34),
-            size: 22,
-          ),
+          Icon(icon, color: const Color(0xFF214E34), size: 22),
           const SizedBox(width: 12),
           Expanded(
             child: Text(
@@ -504,18 +475,13 @@ class _TeamMemberCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: color.withOpacity(0.1),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: color.withOpacity(0.3),
-        ),
+        border: Border.all(color: color.withOpacity(0.3)),
       ),
       child: Column(
         children: [
           Container(
             padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: color,
-              shape: BoxShape.circle,
-            ),
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
             child: Icon(icon, color: Colors.white, size: 24),
           ),
           const SizedBox(height: 12),
@@ -531,10 +497,7 @@ class _TeamMemberCard extends StatelessWidget {
           const SizedBox(height: 4),
           Text(
             role,
-            style: TextStyle(
-              fontSize: 11,
-              color: Colors.grey[600],
-            ),
+            style: TextStyle(fontSize: 11, color: Colors.grey[600]),
             textAlign: TextAlign.center,
           ),
         ],
@@ -568,10 +531,7 @@ class _ContactItem extends StatelessWidget {
             Expanded(
               child: Text(
                 text,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 14,
-                ),
+                style: const TextStyle(color: Colors.white, fontSize: 14),
               ),
             ),
             const Icon(
@@ -607,9 +567,7 @@ class _SocialIconButton extends StatelessWidget {
         decoration: BoxDecoration(
           color: color.withOpacity(0.1),
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: color.withOpacity(0.3),
-          ),
+          border: Border.all(color: color.withOpacity(0.3)),
         ),
         child: Icon(icon, color: color, size: 24),
       ),

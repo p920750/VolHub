@@ -47,7 +47,10 @@ class ForgetPageState extends State<ForgetPage> {
                     Row(
                       children: [
                         IconButton(
-                          icon: const Icon(Icons.arrow_back, color: Colors.white),
+                          icon: const Icon(
+                            Icons.arrow_back,
+                            color: Colors.white,
+                          ),
                           onPressed: () => Navigator.pop(context),
                         ),
                         const Spacer(),
@@ -72,7 +75,7 @@ class ForgetPageState extends State<ForgetPage> {
                         ),
                         padding: const EdgeInsets.all(8),
                         child: Image.asset(
-                          'assets/images/Volhub_symbol.jpg',
+                          'assets/icons/icon_1.png',
                           fit: BoxFit.contain,
                         ),
                       ),
@@ -91,10 +94,7 @@ class ForgetPageState extends State<ForgetPage> {
                     const SizedBox(height: 8),
                     const Text(
                       "Enter your Gmail account and we'll send you a link to reset your password",
-                      style: TextStyle(
-                        color: Colors.white70,
-                        fontSize: 16,
-                      ),
+                      style: TextStyle(color: Colors.white70, fontSize: 16),
                       textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: 40),
@@ -160,10 +160,10 @@ class ForgetPageState extends State<ForgetPage> {
                                   await SupabaseService.resetPassword(
                                     _emailController.text.trim(),
                                   );
-                                  
+
                                   // Close loading dialog
                                   if (context.mounted) Navigator.pop(context);
-                                  
+
                                   // Show success message
                                   if (context.mounted) {
                                     ScaffoldMessenger.of(context).showSnackBar(
@@ -171,20 +171,28 @@ class ForgetPageState extends State<ForgetPage> {
                                         content: Text(
                                           'Password reset link sent to ${_emailController.text}',
                                         ),
-                                        backgroundColor: const Color.fromARGB(255, 33, 78, 52),
+                                        backgroundColor: const Color.fromARGB(
+                                          255,
+                                          33,
+                                          78,
+                                          52,
+                                        ),
                                       ),
                                     );
                                     // Navigate back to login page after a short delay
-                                    Future.delayed(const Duration(seconds: 2), () {
-                                      if (context.mounted) {
-                                        Navigator.pop(context);
-                                      }
-                                    });
+                                    Future.delayed(
+                                      const Duration(seconds: 2),
+                                      () {
+                                        if (context.mounted) {
+                                          Navigator.pop(context);
+                                        }
+                                      },
+                                    );
                                   }
                                 } catch (e) {
                                   // Close loading dialog
                                   if (context.mounted) Navigator.pop(context);
-                                  
+
                                   // Show error message
                                   if (context.mounted) {
                                     ScaffoldMessenger.of(context).showSnackBar(
@@ -200,7 +208,12 @@ class ForgetPageState extends State<ForgetPage> {
                               }
                             },
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color.fromARGB(255, 33, 78, 52),
+                              backgroundColor: const Color.fromARGB(
+                                255,
+                                33,
+                                78,
+                                52,
+                              ),
                               foregroundColor: Colors.white,
                               padding: const EdgeInsets.symmetric(vertical: 16),
                               shape: RoundedRectangleBorder(
@@ -241,4 +254,3 @@ class ForgetPageState extends State<ForgetPage> {
     );
   }
 }
-

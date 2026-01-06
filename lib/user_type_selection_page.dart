@@ -62,7 +62,7 @@ class _UserTypeSelectionPageState extends State<UserTypeSelectionPage> {
                       ),
                       padding: const EdgeInsets.all(8),
                       child: Image.asset(
-                        'assets/images/Volhub_symbol.jpg',
+                        'assets/icons/icon_1.png',
                         fit: BoxFit.contain,
                       ),
                     ),
@@ -81,10 +81,7 @@ class _UserTypeSelectionPageState extends State<UserTypeSelectionPage> {
                   const SizedBox(height: 8),
                   const Text(
                     "Select your account type to continue",
-                    style: TextStyle(
-                      color: Colors.white70,
-                      fontSize: 16,
-                    ),
+                    style: TextStyle(color: Colors.white70, fontSize: 16),
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 40),
@@ -181,18 +178,18 @@ class _AnimatedUserTypeCardState extends State<_AnimatedUserTypeCard>
       vsync: this,
       duration: const Duration(milliseconds: 200),
     );
-    _scaleAnimation = Tween<double>(begin: 1.0, end: 0.95).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
-    );
-    _elevationAnimation = Tween<double>(begin: 10.0, end: 5.0).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
-    );
+    _scaleAnimation = Tween<double>(
+      begin: 1.0,
+      end: 0.95,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
+    _elevationAnimation = Tween<double>(
+      begin: 10.0,
+      end: 5.0,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
     _colorAnimation = ColorTween(
       begin: Colors.white,
       end: widget.color.withOpacity(0.05),
-    ).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
-    );
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
   }
 
   @override
@@ -239,9 +236,7 @@ class _AnimatedUserTypeCardState extends State<_AnimatedUserTypeCard>
             scale: _scaleAnimation.value,
             child: Container(
               decoration: BoxDecoration(
-                color: widget.isSelected
-                    ? _colorAnimation.value
-                    : Colors.white,
+                color: widget.isSelected ? _colorAnimation.value : Colors.white,
                 borderRadius: BorderRadius.circular(24),
                 border: widget.isSelected
                     ? Border.all(color: widget.color, width: 2)
@@ -334,4 +329,3 @@ class _AnimatedUserTypeCardState extends State<_AnimatedUserTypeCard>
     );
   }
 }
-

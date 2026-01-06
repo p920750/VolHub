@@ -10,27 +10,28 @@ import 'login_page.dart';
 import 'email_confirm_page.dart';
 import 'reset_password_page.dart';
 import 'user_type_selection_page.dart';
+import 'screens/app_opening.dart';
 
 // Global navigator key for deep link navigation
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
+
   // Initialize Supabase
   await Supabase.initialize(
     url: SupabaseConfig.supabaseUrl,
     anonKey: SupabaseConfig.supabaseAnonKey,
   );
-  
+
   // Handle deep links for email confirmation and OAuth (mobile only)
   if (!kIsWeb) {
     final appLinks = AppLinks();
-    
+
     // Helper function to handle deep link navigation
     Future<void> handleDeepLink(Uri uri) async {
       debugPrint('=== Deep link received: ${uri.toString()} ===');
-      
+
       // Check if the URL actually contains Supabase auth parameters
       final hasAuthParams =
           uri.fragment.contains('access_token') ||
@@ -43,7 +44,9 @@ void main() async {
       if (uri.toString().contains('email-confirm')) {
         debugPrint('Processing email-confirm deep link');
         if (!hasAuthParams) {
-          debugPrint('Email-confirm deep link without auth params (likely already handled), navigating only.');
+          debugPrint(
+            'Email-confirm deep link without auth params (likely already handled), navigating only.',
+          );
         }
         // Wait a bit to ensure navigator is ready
         await Future.delayed(const Duration(milliseconds: 100));
@@ -58,7 +61,9 @@ void main() async {
       else if (uri.toString().contains('reset-password')) {
         debugPrint('Processing reset-password deep link');
         if (!hasAuthParams) {
-          debugPrint('Reset-password deep link without auth params (likely already handled), navigating only.');
+          debugPrint(
+            'Reset-password deep link without auth params (likely already handled), navigating only.',
+          );
         }
         // Process the session from URL if it has auth params
         if (hasAuthParams) {
@@ -92,7 +97,9 @@ void main() async {
             // Still navigate even if there's an error, so user can see the login page
           }
         } else {
-          debugPrint('OAuth login-callback deep link without auth params (likely already handled), navigating only.');
+          debugPrint(
+            'OAuth login-callback deep link without auth params (likely already handled), navigating only.',
+          );
         }
         // Wait a bit to ensure navigator is ready
         await Future.delayed(const Duration(milliseconds: 100));
@@ -103,12 +110,14 @@ void main() async {
         debugPrint('Navigated to /login');
       }
     }
-    
+
     // Handle initial link (when app is opened from a link)
     try {
       final initialUri = await appLinks.getInitialLink();
       if (initialUri != null) {
-        debugPrint('=== Initial deep link detected: ${initialUri.toString()} ===');
+        debugPrint(
+          '=== Initial deep link detected: ${initialUri.toString()} ===',
+        );
         // Wait for app to be fully initialized
         await Future.delayed(const Duration(milliseconds: 500));
         await handleDeepLink(initialUri);
@@ -116,23 +125,27 @@ void main() async {
     } catch (e) {
       debugPrint('Error getting initial link: $e');
     }
-    
+
     // Listen for deep links when app is already running
     appLinks.uriLinkStream.listen((uri) async {
       await handleDeepLink(uri);
     });
   }
-  
+
   // Handle web OAuth callbacks and password reset
   if (kIsWeb) {
     // Check if there's an OAuth callback or password reset in the URL
     final uri = Uri.base;
     debugPrint('Web URL at startup: ${uri.toString()}');
-    if (uri.hasFragment && (uri.fragment.contains('access_token') || uri.fragment.contains('error') || uri.fragment.contains('type=recovery'))) {
+    if (uri.hasFragment &&
+        (uri.fragment.contains('access_token') ||
+            uri.fragment.contains('error') ||
+            uri.fragment.contains('type=recovery'))) {
       try {
         await Supabase.instance.client.auth.getSessionFromUrl(uri);
         // Check if it's a password reset link
-        if (uri.fragment.contains('type=recovery') || uri.toString().contains('reset-password')) {
+        if (uri.fragment.contains('type=recovery') ||
+            uri.toString().contains('reset-password')) {
           navigatorKey.currentState?.pushNamedAndRemoveUntil(
             '/reset-password',
             (route) => false,
@@ -143,7 +156,7 @@ void main() async {
       }
     }
   }
-  
+
   runApp(MyApp());
 }
 
@@ -155,9 +168,10 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       navigatorKey: navigatorKey,
       debugShowCheckedModeBanner: false,
-      initialRoute: '/',
+      initialRoute: '/opening',
       routes: {
         '/': (context) => FrontPage(),
+        '/opening': (context) => AppOpeningPage(),
         '/aboutApp': (context) => AboutAppPage(),
         '/aboutUs': (context) => AboutUsPage(),
         '/user-type-selection': (context) => const UserTypeSelectionPage(),
@@ -170,13 +184,13 @@ class MyApp extends StatelessWidget {
       },
       // Handle initial deep link
       onGenerateRoute: (settings) {
-        if (settings.name == '/email-confirm' || 
+        if (settings.name == '/email-confirm' ||
             (settings.name?.contains('email-confirm') ?? false)) {
           return MaterialPageRoute(
             builder: (context) => const EmailConfirmPage(),
           );
         }
-        if (settings.name == '/reset-password' || 
+        if (settings.name == '/reset-password' ||
             (settings.name?.contains('reset-password') ?? false)) {
           return MaterialPageRoute(
             builder: (context) => const ResetPasswordPage(),
@@ -187,4 +201,3 @@ class MyApp extends StatelessWidget {
     );
   }
 }
-

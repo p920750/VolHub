@@ -10,11 +10,7 @@ class AboutAppPage extends StatelessWidget {
       body: Container(
         decoration: const BoxDecoration(
           gradient: LinearGradient(
-            colors: [
-              Color(0xFF011638),
-              Color(0xFF011638),
-              Color(0xFF011638),
-            ],
+            colors: [Color(0xFF011638), Color(0xFF011638), Color(0xFF011638)],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
@@ -62,10 +58,7 @@ class AboutAppPage extends StatelessWidget {
                             height: 100,
                             decoration: BoxDecoration(
                               gradient: const LinearGradient(
-                                colors: [
-                                  Color(0xFFCDCDCD),
-                                  Color(0xFF364156),
-                                ],
+                                colors: [Color(0xFFCDCDCD), Color(0xFF364156)],
                               ),
                               borderRadius: BorderRadius.circular(24),
                               boxShadow: [
@@ -78,7 +71,7 @@ class AboutAppPage extends StatelessWidget {
                             ),
                             padding: const EdgeInsets.all(12),
                             child: Image.asset(
-                              'assets/images/Volhub_symbol.jpg',
+                              'assets/icons/icon_1.png',
                               fit: BoxFit.contain,
                             ),
                           ),
@@ -168,20 +161,13 @@ class AboutAppPage extends StatelessWidget {
                           padding: const EdgeInsets.all(20),
                           decoration: BoxDecoration(
                             gradient: const LinearGradient(
-                              colors: [
-                                Color(0xFF214E34),
-                                Color(0xFF214E34),
-                              ],
+                              colors: [Color(0xFF214E34), Color(0xFF214E34)],
                             ),
                             borderRadius: BorderRadius.circular(16),
                           ),
                           child: const Column(
                             children: [
-                              Icon(
-                                Icons.flag,
-                                color: Colors.white,
-                                size: 32,
-                              ),
+                              Icon(Icons.flag, color: Colors.white, size: 32),
                               SizedBox(height: 12),
                               Text(
                                 "Our Mission",
@@ -248,10 +234,7 @@ class _FeatureCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: color.withOpacity(0.1),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: color.withOpacity(0.3),
-          width: 1,
-        ),
+        border: Border.all(color: color.withOpacity(0.3), width: 1),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -299,10 +282,7 @@ class _FeatureItem extends StatelessWidget {
   final IconData icon;
   final String text;
 
-  const _FeatureItem({
-    required this.icon,
-    required this.text,
-  });
+  const _FeatureItem({required this.icon, required this.text});
 
   @override
   Widget build(BuildContext context) {
@@ -310,19 +290,12 @@ class _FeatureItem extends StatelessWidget {
       padding: const EdgeInsets.only(bottom: 12),
       child: Row(
         children: [
-          Icon(
-            icon,
-            color: Color(0xFF011638),
-            size: 20,
-          ),
+          Icon(icon, color: Color(0xFF011638), size: 20),
           const SizedBox(width: 12),
           Expanded(
             child: Text(
               text,
-              style: const TextStyle(
-                fontSize: 15,
-                color: Colors.black87,
-              ),
+              style: const TextStyle(fontSize: 15, color: Colors.black87),
             ),
           ),
         ],
