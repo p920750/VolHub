@@ -11,6 +11,10 @@ import 'email_confirm_page.dart';
 import 'reset_password_page.dart';
 import 'user_type_selection_page.dart';
 import 'screens/app_opening.dart';
+import 'dashboards/volunteers/volunteer_home_page.dart';
+import 'auth/auth_session_holder.dart';
+
+
 
 // Global navigator key for deep link navigation
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
@@ -84,30 +88,39 @@ void main() async {
         debugPrint('Navigated to /reset-password');
       }
       // Handle OAuth callbacks: Process the session from URL and navigate
+      // else if (uri.toString().contains('login-callback')) {
+      //   debugPrint('Processing login-callback deep link');
+      //   // Process the session from URL if it has auth params
+      //   if (hasAuthParams) {
+      //     try {
+      //       debugPrint('Processing OAuth session from URL...');
+      //       await Supabase.instance.client.auth.getSessionFromUrl(uri);
+      //       debugPrint('OAuth session processed successfully');
+      //     } catch (e) {
+      //       debugPrint('Error processing OAuth session: $e');
+      //       // Still navigate even if there's an error, so user can see the login page
+      //     }
+      //   } else {
+      //     debugPrint(
+      //       'OAuth login-callback deep link without auth params (likely already handled), navigating only.',
+      //     );
+      //   }
+      //   // Wait a bit to ensure navigator is ready
+      //   // await Future.delayed(const Duration(milliseconds: 100));
+      //   // navigatorKey.currentState?.pushNamedAndRemoveUntil(
+      //   //   '/login',
+      //   //   (route) => false,
+      //   // );
+      //   // debugPrint('Navigated to /login');
+      // }
       else if (uri.toString().contains('login-callback')) {
         debugPrint('Processing login-callback deep link');
-        // Process the session from URL if it has auth params
-        if (hasAuthParams) {
-          try {
-            debugPrint('Processing OAuth session from URL...');
-            await Supabase.instance.client.auth.getSessionFromUrl(uri);
-            debugPrint('OAuth session processed successfully');
-          } catch (e) {
-            debugPrint('Error processing OAuth session: $e');
-            // Still navigate even if there's an error, so user can see the login page
-          }
-        } else {
-          debugPrint(
-            'OAuth login-callback deep link without auth params (likely already handled), navigating only.',
-          );
-        }
-        // Wait a bit to ensure navigator is ready
-        await Future.delayed(const Duration(milliseconds: 100));
-        navigatorKey.currentState?.pushNamedAndRemoveUntil(
-          '/login',
-          (route) => false,
-        );
-        debugPrint('Navigated to /login');
+
+        // ✅ DO NOT process session manually
+        // SupabaseFlutter automatically handles OAuth deep links
+        // Navigation will happen via onAuthStateChange listener
+
+        return;
       }
     }
 
@@ -160,8 +173,80 @@ void main() async {
   runApp(MyApp());
 }
 
-class MyApp extends StatelessWidget {
+class MyApp extends StatefulWidget {
   const MyApp({super.key});
+
+  @override
+  State<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> {
+  // @override
+  // void initState() {
+  //   super.initState();
+
+  //   Supabase.instance.client.auth.onAuthStateChange.listen((data) {
+  //     final session = data.session;
+  //     if (session == null) return;
+
+  //     final userType = session.user.userMetadata?['user_type'];
+
+  //     if (userType == 'volunteer') {
+  //       navigatorKey.currentState?.pushNamedAndRemoveUntil(
+  //         '/volunteer-dashboard',
+  //         (route) => false,
+  //       );
+  //     } else if (userType == 'event_host') {
+  //       navigatorKey.currentState?.pushNamedAndRemoveUntil(
+  //         '/event-dashboard',
+  //         (route) => false,
+  //       );
+  //     }
+  //   });
+  // }
+  @override
+void initState() {
+  super.initState();
+
+  Supabase.instance.client.auth.onAuthStateChange.listen((data) {
+  final session = data.session;
+  if (session == null) return;
+
+  AuthSessionHolder.session = session;
+
+  final provider = session.user.appMetadata['provider'];
+  final userType = session.user.userMetadata?['user_type'];
+
+  // ✅ OAuth login (Google/Facebook)
+  if (provider == 'google' || provider == 'facebook') {
+    navigatorKey.currentState?.pushNamedAndRemoveUntil(
+      '/volunteer-dashboard',
+      (route) => false,
+    );
+  }
+});
+//   Supabase.instance.client.auth.onAuthStateChange.listen((data) {
+//   final session = data.session;
+//   if (session == null) return;
+
+//   AuthSessionHolder.session = session;
+
+//   final provider = session.user.appMetadata['provider'];
+//   final userType = session.user.userMetadata?['user_type'];
+
+//   // ✅ OAuth login (Google/Facebook)
+//   if (provider == 'google' || provider == 'facebook') {
+//     navigatorKey.currentState?.pushNamedAndRemoveUntil(
+//       '/volunteer-dashboard',
+//       (route) => false,
+//     );
+//   }
+// });
+// Supabase.instance.client.auth.onAuthStateChange.listen((data) {
+//   AuthSessionHolder.session = data.session;
+// });
+}
+
 
   @override
   Widget build(BuildContext context) {
@@ -174,15 +259,23 @@ class MyApp extends StatelessWidget {
         '/opening': (context) => AppOpeningPage(),
         '/aboutApp': (context) => AboutAppPage(),
         '/aboutUs': (context) => AboutUsPage(),
-        '/user-type-selection': (context) => const UserTypeSelectionPage(),
+        '/user-type-selection': (context) =>
+            const UserTypeSelectionPage(),
         '/login': (context) {
           final args = ModalRoute.of(context)?.settings.arguments;
           return LoginPage(userType: args is String ? args : null);
         },
-        '/email-confirm': (context) => const EmailConfirmPage(),
-        '/reset-password': (context) => const ResetPasswordPage(),
+        '/email-confirm': (context) =>
+            const EmailConfirmPage(),
+        '/reset-password': (context) =>
+            const ResetPasswordPage(),
+
+        // ✅ ADD YOUR DASHBOARD ROUTES
+        '/volunteer-dashboard': (context) =>
+            const VolunteerHomePage(),
+        // '/event-dashboard': (context) =>
+        //     const EventDashboardPage(),
       },
-      // Handle initial deep link
       onGenerateRoute: (settings) {
         if (settings.name == '/email-confirm' ||
             (settings.name?.contains('email-confirm') ?? false)) {
@@ -201,3 +294,4 @@ class MyApp extends StatelessWidget {
     );
   }
 }
+

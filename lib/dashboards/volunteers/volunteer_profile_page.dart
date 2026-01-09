@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class VolunteerProfilePage extends StatefulWidget {
   const VolunteerProfilePage({super.key});
@@ -23,9 +24,10 @@ class _VolunteerProfilePageState extends State<VolunteerProfilePage> {
   String? profileImageError;
 
   File? _profileImage;
-  String email = 'praveenrajan@gmail.com';
+  String? avatarUrl; 
+  String email = ''; 
+  String fullName = ''; 
   double profileCompletion = 0.0;
-  String fullName = '';
   String phone = '';
   String address = '';
 
@@ -89,7 +91,7 @@ class _VolunteerProfilePageState extends State<VolunteerProfilePage> {
   void _calculateProfileCompletion() {
     int completed = 0;
 
-    if (_profileImage != null) completed++;
+    if (_profileImage != null || (avatarUrl != null && avatarUrl!.isNotEmpty)) completed++;
     if (email.isNotEmpty) completed++;
     if (fullName.isNotEmpty) completed++;
     if (phone.isNotEmpty) completed++;
@@ -129,7 +131,7 @@ class _VolunteerProfilePageState extends State<VolunteerProfilePage> {
 
       interestsError = interests.isEmpty ? 'Add at least one interest' : null;
 
-      profileImageError = _profileImage == null
+      profileImageError = (_profileImage == null && (avatarUrl == null || avatarUrl!.isEmpty))
           ? 'Profile photo is required'
           : null;
     });
@@ -314,6 +316,15 @@ class _VolunteerProfilePageState extends State<VolunteerProfilePage> {
   void initState() {
     super.initState();
 
+   final user = Supabase.instance.client.auth.currentUser;
+    if (user != null) {
+      fullName = user.userMetadata?['full_name'] ?? '';
+      email = user.userMetadata?['email'] ?? '';
+      avatarUrl = user.userMetadata?['avatar_url'] ?? '';
+      _fullNameController.text = fullName;
+    }
+
+
     _fullNameFocus.addListener(() {
       if (!_fullNameFocus.hasFocus && editFullName) {
         setState(() {
@@ -388,13 +399,20 @@ class _VolunteerProfilePageState extends State<VolunteerProfilePage> {
                                       _profileImage!,
                                       width: 170,
                                       height: 170,
-                                      fit: BoxFit.cover, // 🔑 KEY LINE
+                                      fit: BoxFit.cover,
                                     )
-                                  : Icon(
-                                      Icons.person,
-                                      size: 80,
-                                      color: Colors.grey.shade600,
-                                    ),
+                                  : (avatarUrl != null && avatarUrl!.isNotEmpty
+                                        ? Image.network(
+                                            avatarUrl!,
+                                            width: 170,
+                                            height: 170,
+                                            fit: BoxFit.cover,
+                                          )
+                                        : Icon(
+                                            Icons.person,
+                                            size: 80,
+                                            color: Colors.grey.shade600,
+                                          )),
                             ),
                           ),
                           Positioned(
@@ -859,7 +877,17 @@ class _VolunteerProfilePageState extends State<VolunteerProfilePage> {
                       borderRadius: BorderRadius.zero,
                     ),
                   ),
-                  onPressed: () {},
+                  onPressed: () async {
+                    await Supabase.instance.client.auth.signOut();
+
+                    if (!mounted) return;
+
+                    Navigator.pushNamedAndRemoveUntil(
+                      context,
+                      '/', // app_opening / initial route
+                      (route) => false,
+                    );
+                  },
                   icon: const SizedBox(),
                   label: Row(
                     mainAxisSize: MainAxisSize.min,

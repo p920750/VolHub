@@ -5,6 +5,8 @@ import 'volunteer_colors.dart';
 // import 'volunteer_chat_page.dart';
 // import 'volunteer_board_page.dart';
 import 'volunteer_profile_page.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
 
 class VolunteerHomePage extends StatefulWidget {
   const VolunteerHomePage({Key? key}) : super(key: key);
@@ -16,12 +18,23 @@ class VolunteerHomePage extends StatefulWidget {
 class _VolunteerHomePageState extends State<VolunteerHomePage> {
   int _currentIndex = 0;
   String _selectedSortLabel = 'Sort by';
+  String? userProfileImage;
 
   final GlobalKey _sortKey = GlobalKey();
   OverlayEntry? _overlayEntry;
 
   bool _isSortOpen = false;
   String? _expandedCategory;
+
+  @override
+  void initState() {
+    super.initState();
+    final user = Supabase.instance.client.auth.currentUser;
+
+    // Use avatar_url or picture
+    userProfileImage = (user?.userMetadata?['avatar_url'] as String?) ??
+                       (user?.userMetadata?['picture'] as String?);
+  }
 
   final Map<String, List<String>> sortOptions = {
     'Day': [
@@ -263,9 +276,9 @@ class _VolunteerHomePageState extends State<VolunteerHomePage> {
               child: CircleAvatar(
                 radius: 20,
                 backgroundColor: VolunteerColors.accentSoftBlue,
-                backgroundImage: const NetworkImage(
-                  'https://cdn.pixabay.com/photo/2016/06/20/04/30/asian-man-1468032_1280.jpg',
-                ),
+                backgroundImage: userProfileImage != null
+                    ? NetworkImage(userProfileImage!)
+                    : null,
               ),
             ),
           ),
