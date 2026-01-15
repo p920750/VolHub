@@ -1,5 +1,5 @@
 // import 'package:supabase_flutter/supabase_flutter.dart';
-// import 'package:flutter/foundation.dart' show kIsWeb;
+// import 'package:flutter/foundation.dart';
 // import '../config/supabase_config.dart';
 
 // class SupabaseService {
@@ -31,7 +31,8 @@
 //           if (dob != null && dob.isNotEmpty) 'dob': dob,
 //           if (userType != null && userType.isNotEmpty) 'user_type': userType,
 //         },
-//         emailRedirectTo: 'io.supabase.volhub://email-confirm', // Deep link for email confirmation
+//         emailRedirectTo:
+//             'io.supabase.volhub://email-confirm', // Deep link for email confirmation
 //       );
 //       return response;
 //     } catch (e) {
@@ -79,10 +80,7 @@
 //         redirectTo = 'io.supabase.volhub://reset-password';
 //       }
 
-//       await client.auth.resetPasswordForEmail(
-//         email,
-//         redirectTo: redirectTo,
-//       );
+//       await client.auth.resetPasswordForEmail(email, redirectTo: redirectTo);
 //     } catch (e) {
 //       rethrow;
 //     }
@@ -91,9 +89,7 @@
 //   // Update password (after clicking reset link)
 //   static Future<void> updatePassword(String newPassword) async {
 //     try {
-//       await client.auth.updateUser(
-//         UserAttributes(password: newPassword),
-//       );
+//       await client.auth.updateUser(UserAttributes(password: newPassword));
 //     } catch (e) {
 //       rethrow;
 //     }
@@ -121,10 +117,7 @@
 //     try {
 //       if (currentUser == null) throw Exception('User not logged in');
 
-//       await client
-//           .from('profiles')
-//           .update(updates)
-//           .eq('id', currentUser!.id);
+//       await client.from('profiles').update(updates).eq('id', currentUser!.id);
 //     } catch (e) {
 //       rethrow;
 //     }
@@ -147,7 +140,9 @@
 //       await client.auth.signInWithOAuth(
 //         OAuthProvider.google,
 //         redirectTo: redirectTo,
-//         authScreenLaunchMode: kIsWeb ? LaunchMode.platformDefault : LaunchMode.externalApplication,
+//         authScreenLaunchMode: kIsWeb
+//             ? LaunchMode.platformDefault
+//             : LaunchMode.externalApplication,
 //       );
 //       return true;
 //     } catch (e) {
@@ -172,7 +167,9 @@
 //       await client.auth.signInWithOAuth(
 //         OAuthProvider.facebook,
 //         redirectTo: redirectTo,
-//         authScreenLaunchMode: kIsWeb ? LaunchMode.platformDefault : LaunchMode.externalApplication,
+//         authScreenLaunchMode: kIsWeb
+//             ? LaunchMode.platformDefault
+//             : LaunchMode.externalApplication,
 //       );
 //       return true;
 //     } catch (e) {
@@ -191,11 +188,30 @@
 //   }
 
 //   // Listen to auth state changes
-//   static Stream<AuthState> get authStateChanges => client.auth.onAuthStateChange;
+//   // Listen to auth state changes
+//   static Stream<AuthState> get authStateChanges =>
+//       client.auth.onAuthStateChange.map((event) {
+//         final session = event.session;
+
+//         if (session != null) {
+//           if (kDebugMode) {
+//             print('--- SUPABASE AUTH SESSION ---');
+//             print('User ID: ${session.user.id}');
+//             print('Email: ${session.user.email}');
+//             print('Access Token: ${session.accessToken}');
+//             print('Refresh Token: ${session.refreshToken}');
+//             print('Provider: ${session.user.appMetadata['provider']}');
+//             print('Expires At: ${session.expiresAt}');
+//             print('--------------------------------');
+//           }
+//         }
+
+//         return event;
+//       });
 // }
 
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:flutter/foundation.dart' show kIsWeb, debugPrint;
+import 'package:flutter/foundation.dart';
 import '../config/supabase_config.dart';
 
 class SupabaseService {
@@ -207,6 +223,43 @@ class SupabaseService {
 
   // Check if user is logged in
   static bool get isLoggedIn => currentUser != null;
+
+  // Insert into public.users (source of truth)
+  static Future<void> insertUserIntoUsersTable({
+    required String id,
+    required String role,
+    required String email,
+    String? fullName,
+    String? avatarUrl,
+  }) async {
+    await client.from('users').insert({
+      'id': id,
+      'role': role,
+      'email': email,
+      'full_name': fullName,
+      'profile_photo_url': avatarUrl,
+    });
+  }
+
+  // Read from public.users ONLY
+  static Future<Map<String, dynamic>?> getUserFromUsersTable() async {
+    if (currentUser == null) return null;
+
+    return await client
+        .from('users')
+        .select()
+        .eq('id', currentUser!.id)
+        .single();
+  }
+
+  // Update public.users ONLY
+  static Future<void> updateUsersTable(Map<String, dynamic> data) async {
+    if (currentUser == null) throw Exception('Not authenticated');
+
+    data['updated_at'] = DateTime.now().toIso8601String();
+
+    await client.from('users').update(data).eq('id', currentUser!.id);
+  }
 
   // Sign up with email and password
   static Future<AuthResponse> signUp({
@@ -230,6 +283,19 @@ class SupabaseService {
         emailRedirectTo:
             'io.supabase.volhub://email-confirm', // Deep link for email confirmation
       );
+
+      final user = response.user;
+
+      if (user != null) {
+        await insertUserIntoUsersTable(
+          id: user.id,
+          role: userType ?? 'volunteer',
+          email: email,
+          fullName: fullName,
+          avatarUrl: user.userMetadata?['avatar_url'],
+        );
+      }
+
       return response;
     } catch (e) {
       rethrow;
@@ -291,32 +357,14 @@ class SupabaseService {
     }
   }
 
-  // Get user profile
+  // Get user profile (from public.users ONLY)
   static Future<Map<String, dynamic>?> getUserProfile() async {
-    try {
-      if (currentUser == null) return null;
-
-      final response = await client
-          .from('profiles')
-          .select()
-          .eq('id', currentUser!.id)
-          .single();
-
-      return response;
-    } catch (e) {
-      return null;
-    }
+    return await getUserFromUsersTable();
   }
 
-  // Update user profile
+  // Update user profile (public.users ONLY)
   static Future<void> updateUserProfile(Map<String, dynamic> updates) async {
-    try {
-      if (currentUser == null) throw Exception('User not logged in');
-
-      await client.from('profiles').update(updates).eq('id', currentUser!.id);
-    } catch (e) {
-      rethrow;
-    }
+    await updateUsersTable(updates);
   }
 
   // Sign in with Google OAuth
@@ -390,14 +438,16 @@ class SupabaseService {
         final session = event.session;
 
         if (session != null) {
-          debugPrint('--- SUPABASE AUTH SESSION ---');
-          debugPrint('User ID: ${session.user.id}');
-          debugPrint('Email: ${session.user.email}');
-          debugPrint('Access Token: ${session.accessToken}');
-          debugPrint('Refresh Token: ${session.refreshToken}');
-          debugPrint('Provider Token (Google): ${session.providerToken}');
-          debugPrint('Expires At: ${session.expiresAt}');
-          debugPrint('--------------------------------');
+          if (kDebugMode) {
+            print('--- SUPABASE AUTH SESSION ---');
+            print('User ID: ${session.user.id}');
+            print('Email: ${session.user.email}');
+            print('Access Token: ${session.accessToken}');
+            print('Refresh Token: ${session.refreshToken}');
+            print('Provider: ${session.user.appMetadata['provider']}');
+            print('Expires At: ${session.expiresAt}');
+            print('--------------------------------');
+          }
         }
 
         return event;

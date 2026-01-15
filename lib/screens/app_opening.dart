@@ -1,4 +1,3 @@
-//libs/screens/app_opening.dart
 import 'package:flutter/material.dart';
 
 class AppOpeningPage extends StatefulWidget {
@@ -106,8 +105,9 @@ class _AppOpeningPageState extends State<AppOpeningPage>
     _logoController.forward();
 
     Future.delayed(const Duration(milliseconds: 1800), () {
-      _iconController.forward();
-    });
+  _iconController.forward();
+});
+
 
     Future.delayed(const Duration(seconds: 15), () {
       if (mounted) {
