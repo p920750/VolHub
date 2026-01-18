@@ -1,5 +1,6 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/foundation.dart';
+import 'dart:io';
 import '../config/supabase_config.dart';
 
 class SupabaseService {
@@ -101,7 +102,7 @@ class SupabaseService {
       if (currentUser == null) return null;
 
       final response = await client
-          .from('profiles')
+          .from('users')
           .select()
           .eq('id', currentUser!.id)
           .single();
@@ -117,7 +118,7 @@ class SupabaseService {
     try {
       if (currentUser == null) throw Exception('User not logged in');
 
-      await client.from('profiles').update(updates).eq('id', currentUser!.id);
+      await client.from('users').update(updates).eq('id', currentUser!.id);
     } catch (e) {
       rethrow;
     }
@@ -208,4 +209,79 @@ class SupabaseService {
 
         return event;
       });
+
+  // Upload verification document
+  static Future<String?> uploadVerificationDocument(
+    File file,
+    String userId,
+  ) async {
+    try {
+      final fileExt = file.path.split('.').last;
+      final timestamp = DateTime.now().toIso8601String().replaceAll(':', '-');
+      final fileName = '$userId/$timestamp.$fileExt';
+      final filePath = fileName;
+
+      await client.storage.from('verification_docs').upload(
+            filePath,
+            file,
+            fileOptions: const FileOptions(cacheControl: '3600', upsert: false),
+          );
+
+      // Get the public URL
+      final String publicUrl = client.storage
+          .from('verification_docs')
+          .getPublicUrl(filePath);
+      
+      return publicUrl;
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error uploading document: $e');
+      }
+      rethrow; 
+      // return null;
+    }
+  }
+
+  // Upload profile image
+  static Future<String?> uploadProfileImage(
+    File file,
+    String userId,
+  ) async {
+    try {
+      final fileExt = file.path.split('.').last;
+      final timestamp = DateTime.now().toIso8601String().replaceAll(':', '-');
+      // Storing directly in userId folder to comply with RLS policy: 
+      // (storage.foldername(name))[1] = auth.uid()::text
+      final fileName = '$userId/avatar_$timestamp.$fileExt';
+      
+      const bucketName = 'verification_docs'; 
+
+      await client.storage.from(bucketName).upload(
+            fileName,
+            file,
+            fileOptions: const FileOptions(cacheControl: '3600', upsert: false),
+          );
+
+      final String publicUrl = client.storage.from(bucketName).getPublicUrl(fileName);
+      return publicUrl;
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error uploading profile image: $e');
+      }
+      rethrow;
+    }
+  }
+
+  // Update user metadata (phone, address, avatar, etc.)
+  static Future<void> updateUserMetadata(Map<String, dynamic> data) async {
+    try {
+      await client.auth.updateUser(
+        UserAttributes(
+          data: data,
+        ),
+      );
+    } catch (e) {
+      rethrow;
+    }
+  }
 }

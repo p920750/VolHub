@@ -13,6 +13,7 @@ class _EmailConfirmPageState extends State<EmailConfirmPage> {
   bool _isVerifying = true;
   bool _isVerified = false;
   String? _errorMessage;
+  String? _email;
 
   @override
   void initState() {
@@ -29,21 +30,26 @@ class _EmailConfirmPageState extends State<EmailConfirmPage> {
         setState(() {
           _isVerifying = false;
           _isVerified = true;
+          _email = session.user.email;
         });
       } else {
         // Wait a moment and check again (in case the session is being updated)
         await Future.delayed(const Duration(seconds: 1));
         final updatedSession = Supabase.instance.client.auth.currentSession;
-        if (updatedSession != null && updatedSession.user.emailConfirmedAt != null) {
+        if (updatedSession != null &&
+            updatedSession.user.emailConfirmedAt != null) {
           setState(() {
             _isVerifying = false;
             _isVerified = true;
+            _email = updatedSession.user.email;
           });
         } else {
           setState(() {
             _isVerifying = false;
             _isVerified = false;
-            _errorMessage = 'Email verification is still pending. Please try again.';
+            _errorMessage =
+                'Email verification is still pending. Please try again.';
+            _email = updatedSession?.user.email;
           });
         }
       }
@@ -97,9 +103,11 @@ class _EmailConfirmPageState extends State<EmailConfirmPage> {
                         color: Color.fromARGB(255, 33, 78, 52),
                       ),
                       const SizedBox(height: 24),
-                      const Text(
-                        'Verifying your email...',
-                        style: TextStyle(
+                      Text(
+                        _email != null
+                            ? 'Verifying ${_email}...'
+                            : 'Verifying your email...',
+                        style: const TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.w600,
                           color: Colors.black87,
@@ -131,6 +139,18 @@ class _EmailConfirmPageState extends State<EmailConfirmPage> {
                         ),
                         textAlign: TextAlign.center,
                       ),
+                      if (_email != null) ...[
+                        const SizedBox(height: 8),
+                        Text(
+                          _email!,
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w600,
+                            color: Color.fromARGB(255, 33, 78, 52),
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
                       const SizedBox(height: 32),
                       ElevatedButton(
                         onPressed: () {

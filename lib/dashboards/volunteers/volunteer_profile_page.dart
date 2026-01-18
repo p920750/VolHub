@@ -4,6 +4,8 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../services/supabase_service.dart';
+import '../../screens/identity_verification_page.dart';
 
 class VolunteerProfilePage extends StatefulWidget {
   const VolunteerProfilePage({super.key});
@@ -15,7 +17,9 @@ class VolunteerProfilePage extends StatefulWidget {
 class _VolunteerProfilePageState extends State<VolunteerProfilePage> {
   String selectedCountryCode = '+91';
   bool isCountryMenuOpen = false;
-  // final List<String> countryCodes = ['+91', '+1', '+44', '+61'];
+  
+  // Verification states: 'unverified', 'pending', 'verified'
+  String verificationStatus = 'unverified';
 
   String? fullNameError;
   String? phoneError;
@@ -63,11 +67,39 @@ class _VolunteerProfilePageState extends State<VolunteerProfilePage> {
     );
 
     if (picked != null) {
+      final file = File(picked.path);
       setState(() {
-        _profileImage = File(picked.path);
+        _profileImage = file;
       });
       _validateProfile();
       _calculateProfileCompletion();
+
+      // Upload to Supabase
+      try {
+        final userId = Supabase.instance.client.auth.currentUser?.id;
+        if (userId == null) return;
+
+        if (mounted) {
+           ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Uploading profile photo...')),
+          );
+        }
+
+        final url = await SupabaseService.uploadProfileImage(file, userId);
+        
+        if (url != null) {
+           setState(() {
+             avatarUrl = url;
+           });
+           await _updateProfile({'avatar_url': url});
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error uploading image: $e'), backgroundColor: Colors.red),
+          );
+        }
+      }
     }
   }
 
@@ -315,15 +347,8 @@ class _VolunteerProfilePageState extends State<VolunteerProfilePage> {
   @override
   void initState() {
     super.initState();
-
-   final user = Supabase.instance.client.auth.currentUser;
-    if (user != null) {
-      fullName = user.userMetadata?['full_name'] ?? '';
-      email = user.userMetadata?['email'] ?? '';
-      avatarUrl = user.userMetadata?['avatar_url'] ?? '';
-      _fullNameController.text = fullName;
-    }
-
+    _loadUserMetadata(); // Load initial data from metadata (fast)
+    _fetchUserProfile(); // Fetch fresh data from DB (authoritative)
 
     _fullNameFocus.addListener(() {
       if (!_fullNameFocus.hasFocus && editFullName) {
@@ -359,6 +384,81 @@ class _VolunteerProfilePageState extends State<VolunteerProfilePage> {
     });
     _validateProfile();
     _calculateProfileCompletion();
+  }
+
+  void _loadUserMetadata() {
+    // This is optional now, but can still pre-fill from metadata if available (e.g. from Signup)
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user != null) {
+      if (fullName.isEmpty) fullName = user.userMetadata?['full_name'] ?? '';
+      if (email.isEmpty) email = user.userMetadata?['email'] ?? '';
+      _fullNameController.text = fullName;
+    }
+  }
+
+  Future<void> _fetchUserProfile() async {
+    try {
+      final user = Supabase.instance.client.auth.currentUser;
+      if (user == null) return;
+
+      final data = await Supabase.instance.client
+          .from('users')
+          .select()
+          .eq('id', user.id)
+          .maybeSingle();
+
+      if (data != null && mounted) {
+        setState(() {
+          verificationStatus = data['verification_status'] ?? 'unverified';
+          if (data['full_name'] != null) fullName = data['full_name'];
+          if (data['phone'] != null) phone = data['phone'];
+          if (data['address'] != null) address = data['address'];
+          if (data['avatar_url'] != null) avatarUrl = data['avatar_url'];
+          
+          if (data['skills'] != null) {
+            skills.clear();
+            skills.addAll(List<String>.from(data['skills']));
+          }
+          if (data['interests'] != null) {
+            interests.clear();
+            interests.addAll(List<String>.from(data['interests']));
+          }
+          
+          _fullNameController.text = fullName;
+          _phoneController.text = phone;
+          _addressController.text = address;
+        });
+        _validateProfile();
+        _calculateProfileCompletion();
+      }
+    } catch (e) {
+      debugPrint('Error fetching user profile: $e');
+    }
+  }
+
+  Future<void> _updateProfile(Map<String, dynamic> updates) async {
+    try {
+      final user = Supabase.instance.client.auth.currentUser;
+      if (user == null) return;
+
+      await Supabase.instance.client
+          .from('users')
+          .update(updates)
+          .eq('id', user.id);
+          
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Profile updated successfully')),
+        );
+      }
+    } catch (e) {
+      debugPrint('Error updating profile: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error updating profile: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
   }
 
   @override
@@ -437,6 +537,58 @@ class _VolunteerProfilePageState extends State<VolunteerProfilePage> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             const SizedBox(height: 15),
+                            
+                            // VERIFICATION BADGE
+                            if (verificationStatus == 'verified')
+                               Container(
+                                margin: const EdgeInsets.only(bottom: 12),
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: Colors.green.shade50,
+                                  borderRadius: BorderRadius.circular(20),
+                                  border: Border.all(color: Colors.green.shade200),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Icon(Icons.verified, size: 14, color: Colors.green),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      'Official Volunteer',
+                                      style: TextStyle(
+                                        color: Colors.green.shade700,
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              )
+                            else if (verificationStatus == 'pending')
+                               Container(
+                                margin: const EdgeInsets.only(bottom: 12),
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: Colors.orange.shade50,
+                                  borderRadius: BorderRadius.circular(20),
+                                  border: Border.all(color: Colors.orange.shade200),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(Icons.hourglass_top, size: 14, color: Colors.orange.shade700),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      'Verification Pending',
+                                      style: TextStyle(
+                                        color: Colors.orange.shade800,
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
 
                             // EMAIL
                             const Text(
@@ -522,6 +674,144 @@ class _VolunteerProfilePageState extends State<VolunteerProfilePage> {
               ),
             ),
 
+            /* ================= IDENTITY VERIFICATION ================= */
+            _card(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        'Identity Verification',
+                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+                      ),
+                      if (verificationStatus == 'verified')
+                        const Icon(Icons.check_circle, color: Colors.green)
+                      else if (verificationStatus == 'pending')
+                        Icon(Icons.hourglass_full, color: Colors.orange.shade400),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  
+                  if (verificationStatus == 'verified')
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.green.shade50,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.green.shade200),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.verified_user, color: Colors.green),
+                          const SizedBox(width: 12),
+                          const Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Identity Verified',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.black87,
+                                  ),
+                                ),
+                                Text(
+                                  'Your identity have been verified.',
+                                  style: TextStyle(fontSize: 12, color: Colors.black54),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
+                  else if (verificationStatus == 'pending')
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.orange.shade50,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.orange.shade200),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(Icons.history, color: Colors.orange.shade700),
+                          const SizedBox(width: 12),
+                          const Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Verification Pending',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.black87,
+                                  ),
+                                ),
+                                Text(
+                                  'Your submitted document is under review.',
+                                  style: TextStyle(fontSize: 12, color: Colors.black54),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
+                  else
+                    Column(
+                      children: [
+                        const Text(
+                          'Upload your Aadhaar card to become an official volunteer and get a verified badge.',
+                          style: TextStyle(color: Colors.grey, height: 1.4),
+                        ),
+                        const SizedBox(height: 16),
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton.icon(
+                            onPressed: () async {
+                              final result = await Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => const IdentityVerificationPage(),
+                                ),
+                              );
+                              
+                              if (result == true) {
+                                setState(() {
+                                  verificationStatus = 'pending';
+                                });
+                                // User metadata is already updated in IdentityVerificationPage
+                                if(mounted) {
+                                   ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text('Document submitted successfully!'),
+                                      backgroundColor: Colors.green,
+                                    ),
+                                  );
+                                }
+                              }
+                            },
+                            icon: const Icon(Icons.upload_file),
+                            label: const Text('Upload Aadhaar Card'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF214E34),
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                ],
+              ),
+            ),
+
             /* ================= INFORMATION ================= */
             _card(
               child: Column(
@@ -544,6 +834,7 @@ class _VolunteerProfilePageState extends State<VolunteerProfilePage> {
                         fullName = _fullNameController.text;
                         editFullName = false;
                       });
+                      _updateProfile({'full_name': fullName});
                       _validateProfile();
                       _calculateProfileCompletion();
                     },
@@ -707,6 +998,7 @@ class _VolunteerProfilePageState extends State<VolunteerProfilePage> {
                         address = _addressController.text;
                         editAddress = false;
                       });
+                      _updateProfile({'address': address});
                       _validateProfile();
                       _calculateProfileCompletion();
                     },
@@ -738,12 +1030,16 @@ class _VolunteerProfilePageState extends State<VolunteerProfilePage> {
                         skills.insert(0, v);
                         _skillController.clear();
                       });
+                      _updateProfile({'skills': skills});
                       _validateProfile(); // ADD
                       _calculateProfileCompletion();
                     },
                   ),
                   const SizedBox(height: 16),
-                  _chipList(skills, (i) => skills.removeAt(i)),
+                  _chipList(skills, (i) { 
+                    setState(() => skills.removeAt(i));
+                    _updateProfile({'skills': skills});
+                  }),
                   if (skillsError != null)
                     Padding(
                       padding: const EdgeInsets.only(top: 6),
@@ -777,13 +1073,17 @@ class _VolunteerProfilePageState extends State<VolunteerProfilePage> {
                       setState(() {
                         interests.insert(0, v);
                         _interestController.clear();
+                        _updateProfile({'interests': interests});
                         _validateProfile();
                         _calculateProfileCompletion();
                       });
                     },
                   ),
                   const SizedBox(height: 16),
-                  _chipList(interests, (i) => interests.removeAt(i)),
+                  _chipList(interests, (i) {
+                    setState(() => interests.removeAt(i));
+                    _updateProfile({'interests': interests});
+                  }),
                   if (interestsError != null)
                     Padding(
                       padding: const EdgeInsets.only(top: 6),

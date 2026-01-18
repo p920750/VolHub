@@ -109,7 +109,7 @@ class _UserTypeSelectionPageState extends State<UserTypeSelectionPage> {
                     },
                   ),
                   const SizedBox(height: 20),
-                  _AnimatedUserTypeCard(
+                    _AnimatedUserTypeCard(
                     title: "Volunteers",
                     description: "Find and join volunteer opportunities",
                     icon: Icons.people,
@@ -126,6 +126,29 @@ class _UserTypeSelectionPageState extends State<UserTypeSelectionPage> {
                             context,
                             '/login',
                             arguments: 'volunteer',
+                          );
+                        }
+                      });
+                    },
+                  ),
+                   const SizedBox(height: 20),
+                   _AnimatedUserTypeCard(
+                    title: "Admin",
+                    description: "Manage users and verify documents",
+                    icon: Icons.admin_panel_settings,
+                    color: const Color(0xFF1E293B),
+                    userType: 'admin',
+                    isSelected: _selectedType == 'admin',
+                    onTap: () {
+                      setState(() {
+                        _selectedType = 'admin';
+                      });
+                      Future.delayed(const Duration(milliseconds: 300), () {
+                        if (mounted) {
+                          Navigator.pushNamed(
+                            context,
+                            '/login',
+                            arguments: 'admin',
                           );
                         }
                       });

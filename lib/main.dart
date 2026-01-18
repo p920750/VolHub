@@ -12,6 +12,7 @@ import 'reset_password_page.dart';
 import 'user_type_selection_page.dart';
 import 'screens/app_opening.dart';
 import 'dashboards/volunteers/volunteer_home_page.dart';
+import 'dashboards/admin/admin_home_page.dart';
 import 'auth/auth_session_holder.dart';
 
 
@@ -209,22 +210,37 @@ void initState() {
   super.initState();
 
   Supabase.instance.client.auth.onAuthStateChange.listen((data) {
-  final session = data.session;
-  if (session == null) return;
+    if (data.event != AuthChangeEvent.signedIn) return; // Only navigate on SIGNED_IN
 
-  AuthSessionHolder.session = session;
+    final session = data.session;
+    if (session == null) return;
 
-  final provider = session.user.appMetadata['provider'];
-  final userType = session.user.userMetadata?['user_type'];
+    AuthSessionHolder.session = session;
 
-  // ✅ OAuth login (Google/Facebook)
-  if (provider == 'google' || provider == 'facebook') {
-    navigatorKey.currentState?.pushNamedAndRemoveUntil(
-      '/volunteer-dashboard',
-      (route) => false,
-    );
-  }
-});
+    final provider = session.user.appMetadata['provider'];
+    final userType = session.user.userMetadata?['user_type'];
+
+    // ✅ OAuth login (Google/Facebook)
+    if (provider == 'google' || provider == 'facebook') {
+      navigatorKey.currentState?.pushNamedAndRemoveUntil(
+        '/volunteer-dashboard',
+        (route) => false,
+      );
+    }
+
+    // Handle email login based on user_type
+    if (userType == 'admin') {
+      navigatorKey.currentState?.pushNamedAndRemoveUntil(
+        '/admin-dashboard',
+        (route) => false,
+      );
+    } else if (userType == 'volunteer') {
+      navigatorKey.currentState?.pushNamedAndRemoveUntil(
+        '/volunteer-dashboard',
+        (route) => false,
+      );
+    }
+  });
 //   Supabase.instance.client.auth.onAuthStateChange.listen((data) {
 //   final session = data.session;
 //   if (session == null) return;
@@ -273,6 +289,7 @@ void initState() {
         // ✅ ADD YOUR DASHBOARD ROUTES
         '/volunteer-dashboard': (context) =>
             const VolunteerHomePage(),
+        '/admin-dashboard': (context) => const AdminHomePage(),
         // '/event-dashboard': (context) =>
         //     const EventDashboardPage(),
       },

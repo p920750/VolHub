@@ -113,9 +113,9 @@ class LoginPageState extends State<LoginPage> {
                       textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: 8),
-                    Text(
+                      Text(
                       _isLogin
-                          ? "Sign in to continue your ${_userType == 'event_host' ? 'event hosting' : 'volunteer'} journey"
+                          ? "Sign in to continue your ${_userType == 'event_host' ? 'event hosting' : (_userType == 'admin' ? 'admin' : 'volunteer')} journey"
                           : "Create an account to get started",
                       style: const TextStyle(
                         color: Colors.white70,
@@ -140,7 +140,9 @@ class LoginPageState extends State<LoginPage> {
                           Icon(
                             _userType == 'event_host'
                                 ? Icons.event_note
-                                : Icons.people,
+                                : (_userType == 'admin'
+                                    ? Icons.admin_panel_settings
+                                    : Icons.people),
                             color: Colors.white,
                             size: 18,
                           ),
@@ -148,7 +150,7 @@ class LoginPageState extends State<LoginPage> {
                           Text(
                             _userType == 'event_host'
                                 ? 'Event Host'
-                                : 'Volunteer',
+                                : (_userType == 'admin' ? 'Admin' : 'Volunteer'),
                             style: const TextStyle(
                               color: Colors.white,
                               fontSize: 14,
@@ -500,17 +502,17 @@ class LoginPageState extends State<LoginPage> {
                                       ScaffoldMessenger.of(
                                         context,
                                       ).showSnackBar(
-                                        const SnackBar(
+                                        SnackBar(
                                           content: Text(
-                                            'Account created successfully! Please check your email to verify your account.',
+                                            'Account created successfully! Please check your email (${_emailController.text.trim()}) to verify your account.',
                                           ),
-                                          backgroundColor: Color.fromARGB(
+                                          backgroundColor: const Color.fromARGB(
                                             255,
                                             33,
                                             78,
                                             52,
                                           ),
-                                          duration: Duration(seconds: 4),
+                                          duration: const Duration(seconds: 4),
                                         ),
                                       );
                                     }
