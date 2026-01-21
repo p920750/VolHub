@@ -1,6 +1,6 @@
 {
-    "name": "main_volhub",
-    "short_name": "main_volhub",
+    "name": "vol_hub",
+    "short_name": "vol_hub",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",

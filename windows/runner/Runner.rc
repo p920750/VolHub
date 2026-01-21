@@ -89,13 +89,13 @@ BEGIN
     BEGIN
         BLOCK "040904e4"
         BEGIN
-            VALUE "CompanyName", "com.example" "\0"
-            VALUE "FileDescription", "main_volhub" "\0"
+            VALUE "CompanyName", "com.volhub" "\0"
+            VALUE "FileDescription", "vol_hub" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
-            VALUE "InternalName", "main_volhub" "\0"
-            VALUE "LegalCopyright", "Copyright (C) 2025 com.example. All rights reserved." "\0"
-            VALUE "OriginalFilename", "main_volhub.exe" "\0"
-            VALUE "ProductName", "main_volhub" "\0"
+            VALUE "InternalName", "vol_hub" "\0"
+            VALUE "LegalCopyright", "Copyright (C) 2026 com.volhub. All rights reserved." "\0"
+            VALUE "OriginalFilename", "vol_hub.exe" "\0"
+            VALUE "ProductName", "vol_hub" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END
