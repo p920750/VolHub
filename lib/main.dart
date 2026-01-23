@@ -13,6 +13,7 @@ import 'user_type_selection_page.dart';
 import 'screens/app_opening.dart';
 import 'dashboards/volunteers/volunteer_home_page.dart';
 import 'dashboards/admin/admin_home_page.dart';
+import 'dashboards/event_manager/event_dashboard_page.dart';
 import 'auth/auth_session_holder.dart';
 
 
@@ -239,6 +240,11 @@ void initState() {
         '/volunteer-dashboard',
         (route) => false,
       );
+    } else if (userType == 'event_manager') {
+      navigatorKey.currentState?.pushNamedAndRemoveUntil(
+        '/event-dashboard',
+        (route) => false,
+      );
     }
   });
 //   Supabase.instance.client.auth.onAuthStateChange.listen((data) {
@@ -290,8 +296,8 @@ void initState() {
         '/volunteer-dashboard': (context) =>
             const VolunteerHomePage(),
         '/admin-dashboard': (context) => const AdminHomePage(),
-        // '/event-dashboard': (context) =>
-        //     const EventDashboardPage(),
+        '/event-dashboard': (context) =>
+            const EventDashboardPage(),
       },
       onGenerateRoute: (settings) {
         if (settings.name == '/email-confirm' ||

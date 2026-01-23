@@ -87,22 +87,22 @@ class _UserTypeSelectionPageState extends State<UserTypeSelectionPage> {
                   const SizedBox(height: 40),
                   // User Type Selection Cards
                   _AnimatedUserTypeCard(
-                    title: "Event Host",
+                    title: "Event Manager",
                     description: "Create and manage volunteer events",
                     icon: Icons.event_note,
                     color: const Color.fromARGB(255, 33, 78, 52),
-                    userType: 'event_host',
-                    isSelected: _selectedType == 'event_host',
+                    userType: 'event_manager',
+                    isSelected: _selectedType == 'event_manager',
                     onTap: () {
                       setState(() {
-                        _selectedType = 'event_host';
+                        _selectedType = 'event_manager';
                       });
                       Future.delayed(const Duration(milliseconds: 300), () {
                         if (mounted) {
                           Navigator.pushNamed(
                             context,
                             '/login',
-                            arguments: 'event_host',
+                            arguments: 'event_manager',
                           );
                         }
                       });

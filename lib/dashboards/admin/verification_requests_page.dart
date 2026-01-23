@@ -4,7 +4,8 @@ import 'admin_colors.dart';
 import 'verification_detail_page.dart';
 
 class VerificationRequestsPage extends StatefulWidget {
-  const VerificationRequestsPage({super.key});
+  final bool isEmbedded;
+  const VerificationRequestsPage({super.key, this.isEmbedded = false});
 
   @override
   State<VerificationRequestsPage> createState() => _VerificationRequestsPageState();
@@ -44,14 +45,7 @@ class _VerificationRequestsPageState extends State<VerificationRequestsPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AdminColors.background,
-      appBar: AppBar(
-        title: const Text('Verification Requests', style: TextStyle(color: Colors.white)),
-        backgroundColor: AdminColors.primary,
-        iconTheme: const IconThemeData(color: Colors.white),
-      ),
-      body: _isLoading
+    final content = _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _requests.isEmpty
               ? _buildEmptyState()
@@ -62,7 +56,23 @@ class _VerificationRequestsPageState extends State<VerificationRequestsPage> {
                     final request = _requests[index];
                     return _buildRequestCard(request);
                   },
-                ),
+                );
+    
+    if (widget.isEmbedded) {
+      return Container(
+        color: AdminColors.background,
+        child: content,
+      );
+    }
+
+    return Scaffold(
+      backgroundColor: AdminColors.background,
+      appBar: AppBar(
+        title: const Text('Verification Requests', style: TextStyle(color: Colors.white)),
+        backgroundColor: AdminColors.primary,
+        iconTheme: const IconThemeData(color: Colors.white),
+      ),
+      body: content,
     );
   }
 
