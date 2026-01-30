@@ -112,10 +112,7 @@ class FrontPage extends StatelessWidget {
                           label: "Go to Login",
                           icon: Icons.login,
                           onTap: () {
-                            Navigator.pushNamed(
-                              context,
-                              '/user-type-selection',
-                            );
+                            Navigator.pushNamed(context, '/login');
                           },
                         ),
                         const Spacer(),

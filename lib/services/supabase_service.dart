@@ -1,215 +1,3 @@
-// import 'package:supabase_flutter/supabase_flutter.dart';
-// import 'package:flutter/foundation.dart';
-// import '../config/supabase_config.dart';
-
-// class SupabaseService {
-//   // Get the Supabase client instance
-//   static SupabaseClient get client => Supabase.instance.client;
-
-//   // Get the current user
-//   static User? get currentUser => client.auth.currentUser;
-
-//   // Check if user is logged in
-//   static bool get isLoggedIn => currentUser != null;
-
-//   // Sign up with email and password
-//   static Future<AuthResponse> signUp({
-//     required String email,
-//     required String password,
-//     String? fullName,
-//     String? phone,
-//     String? dob,
-//     String? userType,
-//   }) async {
-//     try {
-//       final response = await client.auth.signUp(
-//         email: email,
-//         password: password,
-//         data: {
-//           if (fullName != null && fullName.isNotEmpty) 'full_name': fullName,
-//           if (phone != null && phone.isNotEmpty) 'phone': phone,
-//           if (dob != null && dob.isNotEmpty) 'dob': dob,
-//           if (userType != null && userType.isNotEmpty) 'user_type': userType,
-//         },
-//         emailRedirectTo:
-//             'io.supabase.volhub://email-confirm', // Deep link for email confirmation
-//       );
-//       return response;
-//     } catch (e) {
-//       rethrow;
-//     }
-//   }
-
-//   // Sign in with email and password
-//   static Future<AuthResponse> signIn({
-//     required String email,
-//     required String password,
-//   }) async {
-//     try {
-//       final response = await client.auth.signInWithPassword(
-//         email: email,
-//         password: password,
-//       );
-//       return response;
-//     } catch (e) {
-//       rethrow;
-//     }
-//   }
-
-//   // Sign out
-//   static Future<void> signOut() async {
-//     try {
-//       await client.auth.signOut();
-//     } catch (e) {
-//       rethrow;
-//     }
-//   }
-
-//   // Reset password (send reset email)
-//   static Future<void> resetPassword(String email) async {
-//     try {
-//       // Always use deep link for mobile apps (works on both phone and when code runs on laptop)
-//       // For web, use the current URL with password-reset path
-//       String redirectTo;
-//       if (kIsWeb) {
-//         // For web, use the current URL with password-reset path
-//         redirectTo = '${Uri.base.origin}/#/reset-password';
-//       } else {
-//         // For mobile (Android/iOS), always use deep link
-//         // This deep link must be added to Supabase dashboard → Authentication → URL Configuration
-//         redirectTo = 'io.supabase.volhub://reset-password';
-//       }
-
-//       await client.auth.resetPasswordForEmail(email, redirectTo: redirectTo);
-//     } catch (e) {
-//       rethrow;
-//     }
-//   }
-
-//   // Update password (after clicking reset link)
-//   static Future<void> updatePassword(String newPassword) async {
-//     try {
-//       await client.auth.updateUser(UserAttributes(password: newPassword));
-//     } catch (e) {
-//       rethrow;
-//     }
-//   }
-
-//   // Get user profile
-//   static Future<Map<String, dynamic>?> getUserProfile() async {
-//     try {
-//       if (currentUser == null) return null;
-
-//       final response = await client
-//           .from('profiles')
-//           .select()
-//           .eq('id', currentUser!.id)
-//           .single();
-
-//       return response;
-//     } catch (e) {
-//       return null;
-//     }
-//   }
-
-//   // Update user profile
-//   static Future<void> updateUserProfile(Map<String, dynamic> updates) async {
-//     try {
-//       if (currentUser == null) throw Exception('User not logged in');
-
-//       await client.from('profiles').update(updates).eq('id', currentUser!.id);
-//     } catch (e) {
-//       rethrow;
-//     }
-//   }
-
-//   // Sign in with Google OAuth
-//   static Future<bool> signInWithGoogle() async {
-//     try {
-//       // Use appropriate redirect URL based on platform
-//       String redirectTo;
-//       if (kIsWeb) {
-//         // For web, use the Supabase callback URL
-//         // This must match what's configured in Supabase dashboard
-//         redirectTo = '${SupabaseConfig.supabaseUrl}/auth/v1/callback';
-//       } else {
-//         // For mobile, use deep link
-//         redirectTo = 'io.supabase.volhub://login-callback';
-//       }
-
-//       await client.auth.signInWithOAuth(
-//         OAuthProvider.google,
-//         redirectTo: redirectTo,
-//         authScreenLaunchMode: kIsWeb
-//             ? LaunchMode.platformDefault
-//             : LaunchMode.externalApplication,
-//       );
-//       return true;
-//     } catch (e) {
-//       rethrow;
-//     }
-//   }
-
-//   // Sign in with Facebook OAuth
-//   static Future<bool> signInWithFacebook() async {
-//     try {
-//       // Use appropriate redirect URL based on platform
-//       String redirectTo;
-//       if (kIsWeb) {
-//         // For web, use the Supabase callback URL
-//         // This must match what's configured in Supabase dashboard
-//         redirectTo = '${SupabaseConfig.supabaseUrl}/auth/v1/callback';
-//       } else {
-//         // For mobile, use deep link
-//         redirectTo = 'io.supabase.volhub://login-callback';
-//       }
-
-//       await client.auth.signInWithOAuth(
-//         OAuthProvider.facebook,
-//         redirectTo: redirectTo,
-//         authScreenLaunchMode: kIsWeb
-//             ? LaunchMode.platformDefault
-//             : LaunchMode.externalApplication,
-//       );
-//       return true;
-//     } catch (e) {
-//       rethrow;
-//     }
-//   }
-
-//   // Handle OAuth callback (for deep linking)
-//   static Future<AuthSessionUrlResponse?> handleOAuthCallback(Uri uri) async {
-//     try {
-//       final response = await client.auth.getSessionFromUrl(uri);
-//       return response;
-//     } catch (e) {
-//       return null;
-//     }
-//   }
-
-//   // Listen to auth state changes
-//   // Listen to auth state changes
-//   static Stream<AuthState> get authStateChanges =>
-//       client.auth.onAuthStateChange.map((event) {
-//         final session = event.session;
-
-//         if (session != null) {
-//           if (kDebugMode) {
-//             print('--- SUPABASE AUTH SESSION ---');
-//             print('User ID: ${session.user.id}');
-//             print('Email: ${session.user.email}');
-//             print('Access Token: ${session.accessToken}');
-//             print('Refresh Token: ${session.refreshToken}');
-//             print('Provider: ${session.user.appMetadata['provider']}');
-//             print('Expires At: ${session.expiresAt}');
-//             print('--------------------------------');
-//           }
-//         }
-
-//         return event;
-//       });
-// }
-
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/foundation.dart';
 import '../config/supabase_config.dart';
@@ -231,13 +19,19 @@ class SupabaseService {
     required String email,
     String? fullName,
     String? avatarUrl,
+    String? phone,
+    String? countryCode,
+    bool isEmailVerified = false,
   }) async {
     await client.from('users').insert({
       'id': id,
       'role': role,
       'email': email,
       'full_name': fullName,
-      'profile_photo_url': avatarUrl,
+      'profile_photo': avatarUrl,
+      'phone_number': phone,
+      'country_code': countryCode,
+      'is_email_verified': isEmailVerified,
     });
   }
 
@@ -262,44 +56,246 @@ class SupabaseService {
   }
 
   // Sign up with email and password
+  // static Future<AuthResponse> signUp({
+  //   required String email,
+  //   required String password,
+  //   String? fullName,
+  //   String? phone,
+  //   String? dob,
+  //   String? userType,
+  // }) async {
+  //   try {
+  //     final response = await client.auth.signUp(
+  //       email: email,
+  //       password: password,
+  //       data: {
+  //         if (fullName != null && fullName.isNotEmpty) 'full_name': fullName,
+  //         if (phone != null && phone.isNotEmpty) 'phone': phone,
+  //         if (dob != null && dob.isNotEmpty) 'dob': dob,
+  //         if (userType != null && userType.isNotEmpty) 'user_type': userType,
+  //       },
+  //       emailRedirectTo:
+  //           'io.supabase.volhub://email-confirm', // Deep link for email confirmation
+  //     );
+
+  //     final user = response.user;
+
+  //     if (user != null) {
+  //       await insertUserIntoUsersTable(
+  //         id: user.id,
+  //         role: userType ?? 'volunteer',
+  //         email: email,
+  //         fullName: fullName,
+  //         avatarUrl: user.userMetadata?['avatar_url'],
+  //       );
+  //     }
+
+  //     return response;
+  //   } catch (e) {
+  //     rethrow;
+  //   }
+  // }
   static Future<AuthResponse> signUp({
     required String email,
     required String password,
+    required String fullName,
+    required String userType,
+    required String phone,
+    required String dob,
+    String countryCode = '+91',
+  }) async {
+    // We pass all these details as 'data' (user_metadata) so the Trigger
+    // can pick them up and insert them into public.users immediately.
+    final response = await client.auth.signUp(
+      email: email,
+      password: password,
+      data: {
+        'full_name': fullName,
+        'role':
+            userType, // We use 'role' to match the column name logic in trigger
+        'phone_number': phone,
+        'country_code': countryCode,
+        'dob': dob, // Format: YYYY-MM-DD
+      },
+      emailRedirectTo: kIsWeb
+          ? '${Uri.base.origin}/#/email-confirm'
+          : 'io.supabase.volhub://email-confirm',
+    );
+
+    // No need to manually insert into public.users here.
+    // The Postgres Trigger 'on_auth_user_created' handles it securely.
+
+    return response;
+  }
+
+  // Check if user exists in public.users
+  static Future<bool> checkUserExists(String email, String phone,
+      {String? excludeUserId}) async {
+    var query = client
+        .from('users')
+        .select()
+        .or('email.eq.$email,phone_number.eq.$phone');
+
+    if (excludeUserId != null) {
+      query = query.neq('id', excludeUserId);
+    }
+
+    final response = await query.maybeSingle();
+    return response != null;
+  }
+
+  // Check if email exists in public.users
+  static Future<bool> checkEmailExists(String email) async {
+    final response = await client
+        .from('users')
+        .select('id')
+        .eq('email', email)
+        .maybeSingle();
+    return response != null;
+  }
+
+  // Check if phone number exists in public.users
+  static Future<bool> checkPhoneExists(String phone) async {
+    final response = await client
+        .from('users')
+        .select('id')
+        .eq('phone_number', phone)
+        .maybeSingle();
+    return response != null;
+  }
+
+  // Step 1: Send Verification Link (Magic Link) - No password required at this stage
+  static Future<void> startEmailVerification(String email) async {
+    // Uses Magic Link (signInWithOtp).
+    // This creates the user if they don't exist, or logs them in if they do.
+    // In both cases, it verifies the email when clicked.
+    await client.auth.signInWithOtp(
+      email: email,
+      emailRedirectTo: kIsWeb
+          ? '${Uri.base.origin}/#/email-confirm'
+          : 'io.supabase.volhub://email-confirm',
+    );
+  }
+
+  // Step 1: Send Signup Confirmation Link (Uses "Confirm Signup" template)
+  // Note: This will create user in auth.users, but trigger is disabled
+  // so public.users record is NOT created until "Create Account" is clicked
+  static Future<void> sendSignupConfirmation({
+    required String email,
+    required String password,
     String? fullName,
+    String? userType,
     String? phone,
     String? dob,
-    String? userType,
+    String countryCode = '+91',
   }) async {
-    try {
-      final response = await client.auth.signUp(
-        email: email,
-        password: password,
-        data: {
-          if (fullName != null && fullName.isNotEmpty) 'full_name': fullName,
-          if (phone != null && phone.isNotEmpty) 'phone': phone,
-          if (dob != null && dob.isNotEmpty) 'dob': dob,
-          if (userType != null && userType.isNotEmpty) 'user_type': userType,
-        },
-        emailRedirectTo:
-            'io.supabase.volhub://email-confirm', // Deep link for email confirmation
-      );
-
-      final user = response.user;
-
-      if (user != null) {
-        await insertUserIntoUsersTable(
-          id: user.id,
-          role: userType ?? 'volunteer',
-          email: email,
-          fullName: fullName,
-          avatarUrl: user.userMetadata?['avatar_url'],
-        );
-      }
-
-      return response;
-    } catch (e) {
-      rethrow;
+    if (kDebugMode) {
+      print('--- SUPABASE: Sending Email Signup Confirmation ---');
+      print('Email: $email');
     }
+    
+    // Use Confirm Signup template
+    // This creates user in auth.users (but NOT in public.users due to disabled trigger)
+    await client.auth.signUp(
+      email: email,
+      password: password,
+      data: {
+        if (fullName != null) 'full_name': fullName,
+        if (userType != null) 'role': userType,
+        if (phone != null) 'phone_number': phone,
+        'country_code': countryCode,
+        if (dob != null) 'dob': dob,
+      },
+      emailRedirectTo: kIsWeb
+          ? '${Uri.base.origin}/#/email-confirm'
+          : 'io.supabase.volhub://email-confirm',
+    );
+    
+    if (kDebugMode) print('Confirmation email sent');
+  }
+
+  // Step 2: Send OTP to Email for Phone Verification (Uses "Magic Link" template)
+  static Future<void> sendPhoneVerificationOtp(String email) async {
+    await client.auth.signInWithOtp(
+      email: email,
+      // Note: Do NOT provide emailRedirectTo here if you want OTP by default,
+      // but if the dashboard is set to "Magic Link", it will use that template.
+    );
+  }
+
+  // Verify phone OTP
+  static Future<void> verifyPhoneOtp(String phone, String token) async {
+    await client.auth.verifyOTP(phone: phone, token: token, type: OtpType.sms);
+  }
+
+  // Verify email OTP (for phone verification step)
+  static Future<void> verifyEmailOtp(String email, String token) async {
+    await client.auth.verifyOTP(email: email, token: token, type: OtpType.email);
+  }
+
+  // Step 3: Complete Signup (Create public.users record only)
+  // Auth user already exists from email verification step
+  static Future<void> completeSignup({
+    required String email,
+    required String fullName,
+    required String userType,
+    required String phone,
+    required String dob,
+    required bool isEmailVerified,
+    required bool isPhoneVerified,
+    String countryCode = '+91',
+  }) async {
+    final user = currentUser;
+    if (user == null) throw Exception('User not verified or logged in.');
+
+    if (kDebugMode) {
+      print('--- SUPABASE: Creating Account in public.users ---');
+      print('User ID: ${user.id}');
+      print('Email: $email');
+    }
+
+    // Insert into public.users (trigger is disabled, so we do it manually)
+    await client.from('users').insert({
+      'id': user.id,
+      'email': email,
+      'full_name': fullName,
+      'role': userType,
+      'phone_number': phone,
+      'country_code': countryCode,
+      'date_of_birth': dob,
+      'is_email_verified': isEmailVerified,
+      'is_phone_verified': isPhoneVerified,
+    });
+
+    if (kDebugMode) print('User record created in public.users');
+  }
+
+  // Legacy/Direct Sign up (Kept for reference or alternative flow)
+  static Future<AuthResponse> signUpLegacy({
+    required String email,
+    required String password,
+    required String fullName,
+    required String userType,
+    required String phone,
+    required String dob,
+    String countryCode = '+91',
+  }) async {
+    // ... existing implementation ...
+    final response = await client.auth.signUp(
+      email: email,
+      password: password,
+      data: {
+        'full_name': fullName,
+        'role': userType,
+        'phone': phone,
+        'country_code': countryCode,
+        'dob': dob,
+      },
+      emailRedirectTo: kIsWeb
+          ? '${Uri.base.origin}/#/email-confirm'
+          : 'io.supabase.volhub://email-confirm',
+    );
+    return response;
   }
 
   // Sign in with email and password

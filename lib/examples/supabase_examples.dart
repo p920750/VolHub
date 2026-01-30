@@ -1,6 +1,3 @@
-// This file contains examples of how to use Supabase in your VolHub app
-// You can reference these examples when implementing new features
-
 import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
@@ -15,6 +12,9 @@ class SupabaseExamples {
         email: 'user@example.com',
         password: 'securepassword123',
         fullName: 'John Doe',
+        userType: 'volunteer',
+        phone: '9207509857',
+        dob: '2000-01-01',
       );
       print('User signed up: ${response.user?.email}');
     } catch (e) {
@@ -72,11 +72,11 @@ class SupabaseExamples {
       final response = await SupabaseService.client
           .from('volunteer_opportunities') // Replace with your table name
           .insert({
-        'title': 'Community Cleanup',
-        'description': 'Help clean up the local park',
-        'location': 'Central Park',
-        'date': '2024-12-25',
-      });
+            'title': 'Community Cleanup',
+            'description': 'Help clean up the local park',
+            'location': 'Central Park',
+            'date': '2024-12-25',
+          });
       print('Data inserted: $response');
     } catch (e) {
       print('Insert error: $e');
@@ -128,9 +128,9 @@ class SupabaseExamples {
         .from('volunteer_opportunities') // Replace with your table name
         .stream(primaryKey: ['id'])
         .listen((data) {
-      print('Real-time update: $data');
-    });
-    
+          print('Real-time update: $data');
+        });
+
     // Usage:
     // final subscription = exampleRealtimeSubscription();
     // Don't forget to cancel when done: subscription.cancel();
@@ -142,26 +142,26 @@ class SupabaseExamples {
   static Future<void> exampleUploadFile(File file) async {
     try {
       final fileName = 'avatar.jpg';
-      
+
       await SupabaseService.client.storage
           .from('avatars') // Your storage bucket name
           .upload(fileName, file);
-      
+
       print('File uploaded: $fileName');
     } catch (e) {
       print('Upload error: $e');
     }
   }
-  
+
   // Alternative: Upload from bytes using Uint8List
   static Future<void> exampleUploadFileFromBytes(Uint8List fileBytes) async {
     try {
       final fileName = 'avatar.jpg';
-      
+
       await SupabaseService.client.storage
           .from('avatars') // Your storage bucket name
           .uploadBinary(fileName, fileBytes);
-      
+
       print('File uploaded: $fileName');
     } catch (e) {
       print('Upload error: $e');
@@ -174,7 +174,7 @@ class SupabaseExamples {
       final fileBytes = await SupabaseService.client.storage
           .from('avatars') // Your storage bucket name
           .download('avatar.jpg');
-      
+
       print('File downloaded: ${fileBytes.length} bytes');
     } catch (e) {
       print('Download error: $e');
@@ -186,7 +186,7 @@ class SupabaseExamples {
     SupabaseService.authStateChanges.listen((data) {
       final AuthChangeEvent event = data.event;
       final Session? session = data.session;
-      
+
       if (event == AuthChangeEvent.signedIn) {
         print('User signed in: ${session?.user.email}');
       } else if (event == AuthChangeEvent.signedOut) {
@@ -195,4 +195,3 @@ class SupabaseExamples {
     });
   }
 }
-

@@ -3,39 +3,40 @@ import 'forget_page.dart';
 import 'services/supabase_service.dart';
 
 class LoginPage extends StatefulWidget {
-  final String? userType;
+  // final String? userType;
 
-  const LoginPage({super.key, this.userType});
+  // const LoginPage({super.key, this.userType});
+  const LoginPage({super.key});
 
   @override
   LoginPageState createState() => LoginPageState();
 }
 
 class LoginPageState extends State<LoginPage> {
-  final _nameController = TextEditingController();
+  // final _nameController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
-  final _phoneController = TextEditingController();
-  final _dobController = TextEditingController();
+  // final _phoneController = TextEditingController();
+  // final _dobController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
   bool _obscurePassword = true;
-  bool _isLogin = true; // Toggle between login and signup
-  late String _userType; // 'event_host' or 'volunteer'
+  // bool _isLogin = true; // Toggle between login and signup
+  // late String _userType; // 'event_host' or 'volunteer'
 
-  @override
-  void initState() {
-    super.initState();
-    // Get user type from widget parameter, default to 'volunteer'
-    _userType = widget.userType ?? 'volunteer';
-  }
+  // @override
+  // void initState() {
+  //   super.initState();
+  //   // Get user type from widget parameter, default to 'volunteer'
+  //   _userType = widget.userType ?? 'volunteer';
+  // }
 
   @override
   void dispose() {
-    _nameController.dispose();
+    // _nameController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
-    _phoneController.dispose();
-    _dobController.dispose();
+    // _phoneController.dispose();
+    // _dobController.dispose();
     super.dispose();
   }
 
@@ -72,7 +73,11 @@ class LoginPageState extends State<LoginPage> {
                             Icons.arrow_back,
                             color: Colors.white,
                           ),
-                          onPressed: () => Navigator.pop(context),
+                          onPressed: () {
+                            if (Navigator.canPop(context)) {
+                              Navigator.pop(context);
+                            }
+                          },
                         ),
                         const Spacer(),
                       ],
@@ -114,9 +119,11 @@ class LoginPageState extends State<LoginPage> {
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      _isLogin
-                          ? "Sign in to continue your ${_userType == 'event_host' ? 'event hosting' : 'volunteer'} journey"
-                          : "Create an account to get started",
+                      // _isLogin
+                      //     ? "Sign in to continue your ${_userType == 'event_host' ? 'event hosting' : 'volunteer'} journey"
+                      //     : "Create an account to get started",
+                      //
+                      "Sign in to continue",
                       style: const TextStyle(
                         color: Colors.white70,
                         fontSize: 16,
@@ -125,39 +132,39 @@ class LoginPageState extends State<LoginPage> {
                     ),
                     const SizedBox(height: 8),
                     // User Type Badge
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 8,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.2),
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            _userType == 'event_host'
-                                ? Icons.event_note
-                                : Icons.people,
-                            color: Colors.white,
-                            size: 18,
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            _userType == 'event_host'
-                                ? 'Event Host'
-                                : 'Volunteer',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
+                    // Container(
+                    //   padding: const EdgeInsets.symmetric(
+                    //     horizontal: 16,
+                    //     vertical: 8,
+                    //   ),
+                    //   decoration: BoxDecoration(
+                    //     color: Colors.white.withOpacity(0.2),
+                    //     borderRadius: BorderRadius.circular(20),
+                    //   ),
+                    //   child: Row(
+                    //     mainAxisSize: MainAxisSize.min,
+                    //     children: [
+                    //       Icon(
+                    //         _userType == 'event_host'
+                    //             ? Icons.event_note
+                    //             : Icons.people,
+                    //         color: Colors.white,
+                    //         size: 18,
+                    //       ),
+                    //       const SizedBox(width: 8),
+                    //       Text(
+                    //         _userType == 'event_host'
+                    //             ? 'Event Host'
+                    //             : 'Volunteer',
+                    //         style: const TextStyle(
+                    //           color: Colors.white,
+                    //           fontSize: 14,
+                    //           fontWeight: FontWeight.w600,
+                    //         ),
+                    //       ),
+                    //     ],
+                    //   ),
+                    // ),
                     const SizedBox(height: 40),
                     // Login Card
                     Container(
@@ -177,130 +184,130 @@ class LoginPageState extends State<LoginPage> {
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
                           // Name Field (only for signup)
-                          if (!_isLogin) ...[
-                            TextFormField(
-                              controller: _nameController,
-                              decoration: InputDecoration(
-                                labelText: "Full Name",
-                                prefixIcon: const Icon(Icons.person_outlined),
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                filled: true,
-                                fillColor: Colors.grey[50],
-                              ),
-                              validator: (value) {
-                                if (!_isLogin &&
-                                    (value == null || value.isEmpty)) {
-                                  return 'Please enter your name';
-                                }
-                                return null;
-                              },
-                            ),
-                            const SizedBox(height: 16),
-                            // Date of Birth (only for signup)
-                            TextFormField(
-                              controller: _dobController,
-                              readOnly: true,
-                              decoration: InputDecoration(
-                                labelText: "Date of Birth",
-                                hintText:
-                                    "Select your date of birth (18+ only)",
-                                prefixIcon: const Icon(Icons.cake_outlined),
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                filled: true,
-                                fillColor: Colors.grey[50],
-                              ),
-                              onTap: () async {
-                                FocusScope.of(context).unfocus();
-                                final now = DateTime.now();
-                                final initialDate = DateTime(
-                                  now.year - 18,
-                                  now.month,
-                                  now.day,
-                                );
-                                final firstDate = DateTime(1900);
-                                final lastDate = now;
+                          // if (!_isLogin) ...[
+                          //   TextFormField(
+                          //     controller: _nameController,
+                          //     decoration: InputDecoration(
+                          //       labelText: "Full Name",
+                          //       prefixIcon: const Icon(Icons.person_outlined),
+                          //       border: OutlineInputBorder(
+                          //         borderRadius: BorderRadius.circular(12),
+                          //       ),
+                          //       filled: true,
+                          //       fillColor: Colors.grey[50],
+                          //     ),
+                          //     validator: (value) {
+                          //       if (!_isLogin &&
+                          //           (value == null || value.isEmpty)) {
+                          //         return 'Please enter your name';
+                          //       }
+                          //       return null;
+                          //     },
+                          //   ),
+                          //   const SizedBox(height: 16),
+                          //   // Date of Birth (only for signup)
+                          //   TextFormField(
+                          //     controller: _dobController,
+                          //     readOnly: true,
+                          //     decoration: InputDecoration(
+                          //       labelText: "Date of Birth",
+                          //       hintText:
+                          //           "Select your date of birth (18+ only)",
+                          //       prefixIcon: const Icon(Icons.cake_outlined),
+                          //       border: OutlineInputBorder(
+                          //         borderRadius: BorderRadius.circular(12),
+                          //       ),
+                          //       filled: true,
+                          //       fillColor: Colors.grey[50],
+                          //     ),
+                          //     onTap: () async {
+                          //       FocusScope.of(context).unfocus();
+                          //       final now = DateTime.now();
+                          //       final initialDate = DateTime(
+                          //         now.year - 18,
+                          //         now.month,
+                          //         now.day,
+                          //       );
+                          //       final firstDate = DateTime(1900);
+                          //       final lastDate = now;
 
-                                final picked = await showDatePicker(
-                                  context: context,
-                                  initialDate: initialDate,
-                                  firstDate: firstDate,
-                                  lastDate: lastDate,
-                                );
+                          //       final picked = await showDatePicker(
+                          //         context: context,
+                          //         initialDate: initialDate,
+                          //         firstDate: firstDate,
+                          //         lastDate: lastDate,
+                          //       );
 
-                                if (picked != null) {
-                                  _dobController.text =
-                                      "${picked.day.toString().padLeft(2, '0')}/"
-                                      "${picked.month.toString().padLeft(2, '0')}/"
-                                      "${picked.year}";
-                                }
-                              },
-                              validator: (value) {
-                                if (!_isLogin &&
-                                    (value == null || value.isEmpty)) {
-                                  return 'Please select your date of birth';
-                                }
-                                // Enforce minimum age of 18
-                                try {
-                                  final parts = value!.split('/');
-                                  if (parts.length != 3) {
-                                    return 'Invalid date format';
-                                  }
-                                  final day = int.parse(parts[0]);
-                                  final month = int.parse(parts[1]);
-                                  final year = int.parse(parts[2]);
-                                  final dob = DateTime(year, month, day);
-                                  final now = DateTime.now();
-                                  final eighteenYearsAgo = DateTime(
-                                    now.year - 18,
-                                    now.month,
-                                    now.day,
-                                  );
-                                  if (dob.isAfter(eighteenYearsAgo)) {
-                                    return 'You must be at least 18 years old';
-                                  }
-                                } catch (_) {
-                                  return 'Invalid date of birth';
-                                }
-                                return null;
-                              },
-                            ),
-                            const SizedBox(height: 16),
-                            TextFormField(
-                              controller: _phoneController,
-                              keyboardType: TextInputType.phone,
-                              decoration: InputDecoration(
-                                labelText: "Phone Number (India)",
-                                prefixIcon: const Icon(Icons.phone_outlined),
-                                prefixText: "+91 ",
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                filled: true,
-                                fillColor: Colors.grey[50],
-                              ),
-                              validator: (value) {
-                                if (!_isLogin &&
-                                    (value == null || value.isEmpty)) {
-                                  return 'Please enter your Indian mobile number';
-                                }
-                                final digits = value!.replaceAll(
-                                  RegExp(r'[^0-9]'),
-                                  '',
-                                );
-                                // Indian mobile numbers are 10 digits, starting with 6-9
-                                if (digits.length != 10 ||
-                                    !RegExp(r'^[6-9]').hasMatch(digits)) {
-                                  return 'Enter a valid 10-digit Indian mobile number';
-                                }
-                                return null;
-                              },
-                            ),
-                            const SizedBox(height: 16),
-                          ],
+                          //       if (picked != null) {
+                          //         _dobController.text =
+                          //             "${picked.day.toString().padLeft(2, '0')}/"
+                          //             "${picked.month.toString().padLeft(2, '0')}/"
+                          //             "${picked.year}";
+                          //       }
+                          //     },
+                          //     validator: (value) {
+                          //       if (!_isLogin &&
+                          //           (value == null || value.isEmpty)) {
+                          //         return 'Please select your date of birth';
+                          //       }
+                          //       // Enforce minimum age of 18
+                          //       try {
+                          //         final parts = value!.split('/');
+                          //         if (parts.length != 3) {
+                          //           return 'Invalid date format';
+                          //         }
+                          //         final day = int.parse(parts[0]);
+                          //         final month = int.parse(parts[1]);
+                          //         final year = int.parse(parts[2]);
+                          //         final dob = DateTime(year, month, day);
+                          //         final now = DateTime.now();
+                          //         final eighteenYearsAgo = DateTime(
+                          //           now.year - 18,
+                          //           now.month,
+                          //           now.day,
+                          //         );
+                          //         if (dob.isAfter(eighteenYearsAgo)) {
+                          //           return 'You must be at least 18 years old';
+                          //         }
+                          //       } catch (_) {
+                          //         return 'Invalid date of birth';
+                          //       }
+                          //       return null;
+                          //     },
+                          //   ),
+                          //   const SizedBox(height: 16),
+                          //   TextFormField(
+                          //     controller: _phoneController,
+                          //     keyboardType: TextInputType.phone,
+                          //     decoration: InputDecoration(
+                          //       labelText: "Phone Number (India)",
+                          //       prefixIcon: const Icon(Icons.phone_outlined),
+                          //       prefixText: "+91 ",
+                          //       border: OutlineInputBorder(
+                          //         borderRadius: BorderRadius.circular(12),
+                          //       ),
+                          //       filled: true,
+                          //       fillColor: Colors.grey[50],
+                          //     ),
+                          //     validator: (value) {
+                          //       if (!_isLogin &&
+                          //           (value == null || value.isEmpty)) {
+                          //         return 'Please enter your Indian mobile number';
+                          //       }
+                          //       final digits = value!.replaceAll(
+                          //         RegExp(r'[^0-9]'),
+                          //         '',
+                          //       );
+                          //       // Indian mobile numbers are 10 digits, starting with 6-9
+                          //       if (digits.length != 10 ||
+                          //           !RegExp(r'^[6-9]').hasMatch(digits)) {
+                          //         return 'Enter a valid 10-digit Indian mobile number';
+                          //       }
+                          //       return null;
+                          //     },
+                          //   ),
+                          //   const SizedBox(height: 16),
+                          // ],
                           // Email Field
                           TextFormField(
                             controller: _emailController,
@@ -401,137 +408,171 @@ class LoginPageState extends State<LoginPage> {
                                 return 'Please enter your password';
                               }
                               // Apply stronger requirement only during account creation
-                              if (!_isLogin) {
-                                // Must include at least one of # @ _
-                                final hasRequiredSpecial =
-                                    value.contains('#') ||
-                                    value.contains('@') ||
-                                    value.contains('_');
-                                if (!hasRequiredSpecial) {
-                                  return 'Password must include at least one of: #, @, _';
-                                }
-                              }
+                              // if (!_isLogin) {
+                              //   // Must include at least one of # @ _
+                              //   final hasRequiredSpecial =
+                              //       value.contains('#') ||
+                              //       value.contains('@') ||
+                              //       value.contains('_');
+                              //   if (!hasRequiredSpecial) {
+                              //     return 'Password must include at least one of: #, @, _';
+                              //   }
+                              // }
                               return null;
                             },
                           ),
                           const SizedBox(height: 8),
                           // Forgot Password
-                          if (_isLogin)
-                            Align(
-                              alignment: Alignment.centerRight,
-                              child: TextButton(
-                                onPressed: () {
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (context) => const ForgetPage(),
-                                    ),
-                                  );
-                                },
-                                child: const Text(
-                                  "Forgot Password?",
-                                  style: TextStyle(
-                                    color: Color.fromARGB(255, 33, 78, 52),
+                          // if (_isLogin)
+                          Align(
+                            alignment: Alignment.centerRight,
+                            child: TextButton(
+                              onPressed: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => const ForgetPage(),
                                   ),
+                                );
+                              },
+                              child: const Text(
+                                "Forgot Password?",
+                                style: TextStyle(
+                                  color: Color.fromARGB(255, 33, 78, 52),
                                 ),
                               ),
                             ),
+                          ),
                           const SizedBox(height: 24),
                           // Login/Sign Up Button
                           ElevatedButton(
+                            // onPressed: () async {
+                            //   if (_formKey.currentState!.validate()) {
+                            //     try {
+                            //       // Show loading indicator
+                            //       showDialog(
+                            //         context: context,
+                            //         barrierDismissible: false,
+                            //         builder: (context) => const Center(
+                            //           child: CircularProgressIndicator(
+                            //             color: Color.fromARGB(255, 33, 78, 52),
+                            //           ),
+                            //         ),
+                            //       );
+
+                            //       if (_isLogin) {
+                            //         // Sign in
+                            //         await SupabaseService.signIn(
+                            //           email: _emailController.text.trim(),
+                            //           password: _passwordController.text,
+                            //         );
+
+                            //         // Close loading dialog
+                            //         if (context.mounted) Navigator.pop(context);
+
+                            //         // Show success message
+                            //         if (context.mounted) {
+                            //           ScaffoldMessenger.of(
+                            //             context,
+                            //           ).showSnackBar(
+                            //             const SnackBar(
+                            //               content: Text('Login successful!'),
+                            //               backgroundColor: Color.fromARGB(
+                            //                 255,
+                            //                 33,
+                            //                 78,
+                            //                 52,
+                            //               ),
+                            //             ),
+                            //           );
+                            //           // Navigate to home or dashboard
+                            //           Navigator.pop(context);
+                            //         }
+                            //       }
+                            //       // else {
+                            //       //   // Sign up
+                            //       //   await SupabaseService.signUp(
+                            //       //     email: _emailController.text.trim(),
+                            //       //     password: _passwordController.text,
+                            //       //     fullName: _nameController.text.trim(),
+                            //       //     phone: _phoneController.text.trim(),
+                            //       //     dob: _dobController.text.trim(),
+                            //       //   );
+
+                            //       //   // Close loading dialog
+                            //       //   if (context.mounted) Navigator.pop(context);
+
+                            //       //   // Show success message
+                            //       //   if (context.mounted) {
+                            //       //     ScaffoldMessenger.of(
+                            //       //       context,
+                            //       //     ).showSnackBar(
+                            //       //       const SnackBar(
+                            //       //         content: Text(
+                            //       //           'Account created successfully! Please check your email to verify your account.',
+                            //       //         ),
+                            //       //         backgroundColor: Color.fromARGB(
+                            //       //           255,
+                            //       //           33,
+                            //       //           78,
+                            //       //           52,
+                            //       //         ),
+                            //       //         duration: Duration(seconds: 4),
+                            //       //       ),
+                            //       //     );
+                            //       //   }
+                            //       // }
+                            //     } catch (e) {
+                            //       // Close loading dialog
+                            //       if (context.mounted) Navigator.pop(context);
+
+                            //       // Show error message
+                            //       if (context.mounted) {
+                            //         ScaffoldMessenger.of(context).showSnackBar(
+                            //           SnackBar(
+                            //             content: Text(
+                            //               _isLogin
+                            //                   ? 'Login failed: ${e.toString()}'
+                            //                   : 'Sign up failed: ${e.toString()}',
+                            //             ),
+                            //             backgroundColor: Colors.red,
+                            //           ),
+                            //         );
+                            //       }
+                            //     }
+                            //   }
+                            // },
                             onPressed: () async {
                               if (_formKey.currentState!.validate()) {
                                 try {
-                                  // Show loading indicator
                                   showDialog(
                                     context: context,
                                     barrierDismissible: false,
-                                    builder: (context) => const Center(
-                                      child: CircularProgressIndicator(
-                                        color: Color.fromARGB(255, 33, 78, 52),
-                                      ),
+                                    builder: (_) => const Center(
+                                      child: CircularProgressIndicator(),
                                     ),
                                   );
 
-                                  if (_isLogin) {
-                                    // Sign in
-                                    await SupabaseService.signIn(
-                                      email: _emailController.text.trim(),
-                                      password: _passwordController.text,
-                                    );
+                                  await SupabaseService.signIn(
+                                    email: _emailController.text.trim(),
+                                    password: _passwordController.text,
+                                  );
 
-                                    // Close loading dialog
-                                    if (context.mounted) Navigator.pop(context);
-
-                                    // Show success message
-                                    if (context.mounted) {
-                                      ScaffoldMessenger.of(
-                                        context,
-                                      ).showSnackBar(
-                                        const SnackBar(
-                                          content: Text('Login successful!'),
-                                          backgroundColor: Color.fromARGB(
-                                            255,
-                                            33,
-                                            78,
-                                            52,
-                                          ),
-                                        ),
-                                      );
-                                      // Navigate to home or dashboard
-                                      Navigator.pop(context);
-                                    }
-                                  } else {
-                                    // Sign up
-                                    await SupabaseService.signUp(
-                                      email: _emailController.text.trim(),
-                                      password: _passwordController.text,
-                                      fullName: _nameController.text.trim(),
-                                      phone: _phoneController.text.trim(),
-                                      dob: _dobController.text.trim(),
-                                      userType: _userType,
-                                    );
-
-                                    // Close loading dialog
-                                    if (context.mounted) Navigator.pop(context);
-
-                                    // Show success message
-                                    if (context.mounted) {
-                                      ScaffoldMessenger.of(
-                                        context,
-                                      ).showSnackBar(
-                                        const SnackBar(
-                                          content: Text(
-                                            'Account created successfully! Please check your email to verify your account.',
-                                          ),
-                                          backgroundColor: Color.fromARGB(
-                                            255,
-                                            33,
-                                            78,
-                                            52,
-                                          ),
-                                          duration: Duration(seconds: 4),
-                                        ),
-                                      );
-                                    }
-                                  }
-                                } catch (e) {
-                                  // Close loading dialog
                                   if (context.mounted) Navigator.pop(context);
 
-                                  // Show error message
                                   if (context.mounted) {
                                     ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(
-                                        content: Text(
-                                          _isLogin
-                                              ? 'Login failed: ${e.toString()}'
-                                              : 'Sign up failed: ${e.toString()}',
-                                        ),
-                                        backgroundColor: Colors.red,
+                                      const SnackBar(
+                                        content: Text('Login successful!'),
                                       ),
                                     );
+                                    Navigator.pop(context);
                                   }
+                                } catch (e) {
+                                  if (context.mounted) Navigator.pop(context);
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(content: Text('Login failed: $e')),
+                                  );
                                 }
                               }
                             },
@@ -549,9 +590,16 @@ class LoginPageState extends State<LoginPage> {
                               ),
                               elevation: 4,
                             ),
-                            child: Text(
-                              _isLogin ? "Sign In" : "Create Account",
-                              style: const TextStyle(
+                            // child: Text(
+                            //   _isLogin ? "Sign In" : "Create Account",
+                            //   style: const TextStyle(
+                            //     fontSize: 16,
+                            //     fontWeight: FontWeight.bold,
+                            //   ),
+                            // ),
+                            child: const Text(
+                              "Sign In",
+                              style: TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.bold,
                               ),
@@ -623,24 +671,45 @@ class LoginPageState extends State<LoginPage> {
                           ),
                           const SizedBox(height: 24),
                           // Toggle between Login and Sign Up
+                          // Row(
+                          //   mainAxisAlignment: MainAxisAlignment.center,
+                          //   children: [
+                          //     Text(
+                          //       _isLogin
+                          //           ? "Don't have an account? "
+                          //           : "Already have an account? ",
+                          //       style: TextStyle(color: Colors.grey[600]),
+                          //     ),
+                          //     TextButton(
+                          //       onPressed: () {
+                          //         setState(() {
+                          //           _isLogin = !_isLogin;
+                          //         });
+                          //       },
+                          //       child: Text(
+                          //         _isLogin ? "Sign Up" : "Sign In",
+                          //         style: const TextStyle(
+                          //           color: Color.fromARGB(255, 33, 78, 52),
+                          //           fontWeight: FontWeight.bold,
+                          //         ),
+                          //       ),
+                          //     ),
+                          //   ],
+                          // ),
                           Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
                               Text(
-                                _isLogin
-                                    ? "Don't have an account? "
-                                    : "Already have an account? ",
+                                "Don't have an account? ",
                                 style: TextStyle(color: Colors.grey[600]),
                               ),
                               TextButton(
                                 onPressed: () {
-                                  setState(() {
-                                    _isLogin = !_isLogin;
-                                  });
+                                  Navigator.pushNamed(context, '/signup');
                                 },
-                                child: Text(
-                                  _isLogin ? "Sign Up" : "Sign In",
-                                  style: const TextStyle(
+                                child: const Text(
+                                  "Sign Up",
+                                  style: TextStyle(
                                     color: Color.fromARGB(255, 33, 78, 52),
                                     fontWeight: FontWeight.bold,
                                   ),
