@@ -229,18 +229,21 @@ void initState() {
       );
     }
 
-    // Handle email login based on user_type
-    if (userType == 'admin') {
+    // Handle email login based on user_type or role
+    // Check 'role' first (new schema), then 'user_type' (legacy/backup)
+    final effectiveUserType = userType ?? session.user.userMetadata?['role'];
+
+    if (effectiveUserType == 'admin') {
       navigatorKey.currentState?.pushNamedAndRemoveUntil(
         '/admin-dashboard',
         (route) => false,
       );
-    } else if (userType == 'volunteer') {
+    } else if (effectiveUserType == 'volunteer') {
       navigatorKey.currentState?.pushNamedAndRemoveUntil(
         '/volunteer-dashboard',
         (route) => false,
       );
-    } else if (userType == 'event_manager') {
+    } else if (effectiveUserType == 'event_manager') {
       navigatorKey.currentState?.pushNamedAndRemoveUntil(
         '/event-dashboard',
         (route) => false,

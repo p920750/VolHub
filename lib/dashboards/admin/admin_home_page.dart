@@ -375,7 +375,7 @@ class _UserManagementViewState extends State<UserManagementView> with SingleTick
       final response = await SupabaseService.client
           .from('users')
           .select()
-          .eq('user_type', userType)
+          .eq('role', userType)
           .order('created_at', ascending: false);
 
       if (mounted) {
@@ -600,8 +600,9 @@ class _UserManagementViewState extends State<UserManagementView> with SingleTick
                               final id = user['id']?.toString().substring(0, 8) ?? 'N/A';
                               final name = user['full_name'] ?? 'No Name';
                               final email = user['email'] ?? 'No Email';
-                              final phone = user['phone'] ?? 'No Phone';
-                              final status = user['verification_status'] ?? 'unknown';
+                              final phone = user['phone_number'] ?? 'No Phone';
+                              final isVerified = user['is_aadhar_verified'] == true;
+                              final status = isVerified ? 'verified' : 'pending';
                               final joined = user['created_at'] != null 
                                   ? DateTime.parse(user['created_at']).toString().split(' ')[0] 
                                   : 'N/A';

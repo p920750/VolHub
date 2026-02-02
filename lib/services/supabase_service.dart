@@ -28,9 +28,9 @@ class SupabaseService {
         password: password,
         data: {
           if (fullName != null && fullName.isNotEmpty) 'full_name': fullName,
-          if (phone != null && phone.isNotEmpty) 'phone': phone,
-          if (dob != null && dob.isNotEmpty) 'dob': dob,
-          if (userType != null && userType.isNotEmpty) 'user_type': userType,
+          if (phone != null && phone.isNotEmpty) 'phone_number': phone,
+          if (dob != null && dob.isNotEmpty) 'date_of_birth': dob,
+          if (userType != null && userType.isNotEmpty) 'role': userType,
         },
         emailRedirectTo:
             'io.supabase.volhub://email-confirm', // Deep link for email confirmation
@@ -119,6 +119,24 @@ class SupabaseService {
       if (currentUser == null) throw Exception('User not logged in');
 
       await client.from('users').update(updates).eq('id', currentUser!.id);
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  // Upsert user profile (Create if not exists, Update if exists)
+  static Future<void> upsertUserProfile(Map<String, dynamic> data) async {
+    try {
+      if (currentUser == null) throw Exception('User not logged in');
+      
+      final updates = {
+        ...data,
+        'id': currentUser!.id,
+        'updated_at': DateTime.now().toIso8601String(),
+        'email': currentUser!.email, // Ensure email is always present
+      };
+
+      await client.from('users').upsert(updates);
     } catch (e) {
       rethrow;
     }
