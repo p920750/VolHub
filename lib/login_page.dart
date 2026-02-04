@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'forget_page.dart';
 import 'services/supabase_service.dart';
+import 'dashboards/volunteers/volunteer_home_page.dart';
+import 'dashboards/admin/admin_home_page.dart';
 
 class LoginPage extends StatefulWidget {
   // final String? userType;
@@ -558,7 +560,7 @@ class LoginPageState extends State<LoginPage> {
                                     password: _passwordController.text,
                                   );
 
-                                  if (context.mounted) Navigator.pop(context);
+                                  if (context.mounted) Navigator.pop(context); // Pop loading dialog
 
                                   if (context.mounted) {
                                     ScaffoldMessenger.of(context).showSnackBar(
@@ -566,10 +568,12 @@ class LoginPageState extends State<LoginPage> {
                                         content: Text('Login successful!'),
                                       ),
                                     );
-                                    Navigator.pop(context);
+                                    
+                                    // Redirection is handled by the global auth listener in main.dart
+                                    // await SupabaseService.handlePostAuthRedirect(context);
                                   }
                                 } catch (e) {
-                                  if (context.mounted) Navigator.pop(context);
+                                  if (context.mounted) Navigator.pop(context); // Pop loading dialog
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     SnackBar(content: Text('Login failed: $e')),
                                   );
@@ -635,9 +639,17 @@ class LoginPageState extends State<LoginPage> {
                             borderColor: Colors.grey[300]!,
                             onPressed: () async {
                               try {
-                                await SupabaseService.signInWithGoogle();
-                              } catch (e) {
-                                if (context.mounted) {
+                                  await SupabaseService.signInWithGoogle();
+                                  
+                                  // Redirection is handled by the global auth listener in main.dart
+                                  /*
+                                  if (SupabaseService.isLoggedIn) {
+                                    if (context.mounted) {
+                                      await SupabaseService.handlePostAuthRedirect(context);
+                                    }
+                                  }
+                                  */
+                             } catch (e) {
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     SnackBar(
                                       content: Text(
@@ -647,9 +659,36 @@ class LoginPageState extends State<LoginPage> {
                                     ),
                                   );
                                 }
-                              }
-                            },
-                          ),
+
+                                // Handle redirect for Google Sign-In too if needed
+                                // Currently SupabaseService.signInWithGoogle() is minimal
+                                // Logic would ideally naturally flow if we check auth state or use a stream
+                                // But for now, user requested specific flow.
+                                // NOTE: The Google Sign-In implementation in SupabaseService relies on redirects
+                                // and might not return execution here in the same way depending on platform.
+                                // If it does await and complete, we should check role here too.
+                                
+                                // if (SupabaseService.isLoggedIn) {
+                                //    final userProfile = await SupabaseService.getUserFromUsersTable();
+                                //    final role = userProfile?['role'] as String?;
+                                   
+                                //    if (context.mounted) {
+                                //         if (role == 'volunteer') {
+                                //           Navigator.pushReplacementNamed(
+                                //             context,
+                                //             '/volunteer-dashboard',
+                                //           );
+                                //         } else if (role == 'admin') {
+                                //            Navigator.pushReplacementNamed(
+                                //             context,
+                                //             '/admin-dashboard',
+                                //           );
+                                //         } 
+                                //         // ... other roles ...
+                                //    }
+                                // }
+                             },
+                           ),
                           const SizedBox(height: 12),
                           // Facebook Sign In Button
                           _SocialButton(
@@ -670,32 +709,6 @@ class LoginPageState extends State<LoginPage> {
                             },
                           ),
                           const SizedBox(height: 24),
-                          // Toggle between Login and Sign Up
-                          // Row(
-                          //   mainAxisAlignment: MainAxisAlignment.center,
-                          //   children: [
-                          //     Text(
-                          //       _isLogin
-                          //           ? "Don't have an account? "
-                          //           : "Already have an account? ",
-                          //       style: TextStyle(color: Colors.grey[600]),
-                          //     ),
-                          //     TextButton(
-                          //       onPressed: () {
-                          //         setState(() {
-                          //           _isLogin = !_isLogin;
-                          //         });
-                          //       },
-                          //       child: Text(
-                          //         _isLogin ? "Sign Up" : "Sign In",
-                          //         style: const TextStyle(
-                          //           color: Color.fromARGB(255, 33, 78, 52),
-                          //           fontWeight: FontWeight.bold,
-                          //         ),
-                          //       ),
-                          //     ),
-                          //   ],
-                          // ),
                           Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
@@ -740,6 +753,7 @@ class _SocialButton extends StatelessWidget {
   final VoidCallback onPressed;
 
   const _SocialButton({
+    super.key,
     required this.icon,
     required this.label,
     required this.color,

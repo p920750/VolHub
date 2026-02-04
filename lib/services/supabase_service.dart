@@ -1,6 +1,8 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import '../config/supabase_config.dart';
+import 'dart:io';
 
 class SupabaseService {
   // Get the Supabase client instance
@@ -43,7 +45,7 @@ class SupabaseService {
         .from('users')
         .select()
         .eq('id', currentUser!.id)
-        .single();
+        .maybeSingle();
   }
 
   // Update public.users ONLY
@@ -363,6 +365,34 @@ class SupabaseService {
     await updateUsersTable(updates);
   }
 
+  // Alias for updateUsersTable/updateUserProfile
+  static Future<void> upsertUserProfile(Map<String, dynamic> data) async {
+    await updateUsersTable(data);
+  }
+
+  // Upload profile image to storage and return URL
+  static Future<String> uploadProfileImage(File file, String userId) async {
+    try {
+      final fileExt = file.path.split('.').last;
+      final fileName = '$userId/profile_${DateTime.now().millisecondsSinceEpoch}.$fileExt';
+      final filePath = fileName;
+      
+      await client.storage.from('avatars').upload(
+        filePath,
+        file,
+        fileOptions: const FileOptions(cacheControl: '3600', upsert: false),
+      );
+      
+      final imageUrl = client.storage.from('avatars').getPublicUrl(filePath);
+      return imageUrl;
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error uploading profile image: $e');
+      }
+      rethrow;
+    }
+  }
+
   // Sign in with Google OAuth
   static Future<bool> signInWithGoogle() async {
     try {
@@ -448,4 +478,81 @@ class SupabaseService {
 
         return event;
       });
+
+  // Centralized redirection logic after any successful login
+  static Future<void> handlePostAuthRedirect(BuildContext context) async {
+    try {
+      if (kDebugMode) print('--- Handling Post-Auth Redirect ---');
+      
+      final userData = await getUserFromUsersTable();
+      
+      if (!context.mounted) return;
+
+      if (userData == null || userData['role'] == null) {
+        // New user or missing role (e.g., first-time Google user)
+        if (kDebugMode) print('No profile found, redirecting to role selection');
+        Navigator.pushNamedAndRemoveUntil(
+          context,
+          '/end-user-type-selection',
+          (route) => false,
+        );
+      } else {
+        // Existing user with role
+        final role = userData['role'];
+        if (kDebugMode) print('Profile found with role: $role');
+        
+        if (role == 'volunteer') {
+          // Check if volunteer has selected their type (experienced/inexperienced)
+          if (userData['volunteer_type'] == null) {
+            if (kDebugMode) print('Volunteer type not set, redirecting to type selection');
+            Navigator.pushNamedAndRemoveUntil(
+              context,
+              '/volunteer-type-selection',
+              (route) => false,
+            );
+          } else {
+            if (kDebugMode) print('Redirecting to volunteer dashboard');
+            Navigator.pushNamedAndRemoveUntil(
+              context,
+              '/volunteer-dashboard',
+              (route) => false,
+            );
+          }
+        } else if (role == 'admin') {
+          if (kDebugMode) print('Redirecting to admin dashboard');
+          Navigator.pushNamedAndRemoveUntil(
+            context,
+            '/admin-dashboard',
+            (route) => false,
+          );
+        } else if (role == 'organizer') {
+          // TODO: Redirect to Organizer Dashboard when implemented
+          // For now, show message and stay or go to a fallback
+          if (kDebugMode) print('Organizer role detected - TODO: Dashboard');
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Organizer Dashboard coming soon!')),
+          );
+          // Fallback if needed, or just stay on login
+        } else if (role == 'manager') {
+          // TODO: Redirect to Manager Dashboard when implemented
+          if (kDebugMode) print('Manager role detected - TODO: Dashboard');
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Manager Dashboard coming soon!')),
+          );
+        } else {
+            if (kDebugMode) print('Unknown role: $role');
+            ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Unknown role or role not set.')),
+            );
+        }
+      }
+    } catch (e) {
+      if (kDebugMode) print('Error in handlePostAuthRedirect: $e');
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error determining redirection: $e')),
+        );
+      }
+    }
+  }
 }

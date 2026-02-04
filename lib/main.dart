@@ -13,6 +13,7 @@ import 'reset_password_page.dart';
 import 'screens/app_opening.dart';
 import 'dashboards/volunteers/volunteer_home_page.dart';
 import 'auth/auth_session_holder.dart';
+import 'dashboards/admin/admin_home_page.dart';  // Added for admin redirect
 import 'services/verification_stream.dart';
 import 'services/supabase_service.dart';
 import 'enduser_type_selection.dart';
@@ -194,40 +195,9 @@ class _MyAppState extends State<MyApp> {
   }
 
   Future<void> _checkUserRoleAndNavigate(User user) async {
-    try {
-      final userData = await SupabaseService.getUserFromUsersTable();
-      if (userData == null || userData['role'] == null) {
-        // New user or missing role - redirect to selection
-        navigatorKey.currentState?.pushNamedAndRemoveUntil(
-          '/end-user-type-selection',
-          (route) => false,
-        );
-      } else {
-        // Existing user with role
-        final role = userData['role'];
-        if (role == 'volunteer') {
-          // Check if volunteer has selected their type
-          if (userData['volunteer_type'] == null) {
-            navigatorKey.currentState?.pushNamedAndRemoveUntil(
-              '/volunteer-type-selection',
-              (route) => false,
-            );
-          } else {
-            navigatorKey.currentState?.pushNamedAndRemoveUntil(
-              '/volunteer-dashboard',
-              (route) => false,
-            );
-          }
-        } else if (role == 'organizer') {
-          // Placeholder for organizer dashboard
-          navigatorKey.currentState?.pushNamedAndRemoveUntil(
-            '/volunteer-dashboard', // Change when organizer dashboard exists
-            (route) => false,
-          );
-        }
-      }
-    } catch (e) {
-      debugPrint('Error checking user role: $e');
+    final context = navigatorKey.currentContext;
+    if (context != null && context.mounted) {
+      await SupabaseService.handlePostAuthRedirect(context);
     }
   }
 
@@ -250,8 +220,9 @@ class _MyAppState extends State<MyApp> {
         '/end-user-type-selection': (context) => const EndUserTypeSelectionPage(),
         '/volunteer-type-selection': (context) => const VolunteerTypeSelectionPage(),
 
-        // ✅ ADD YOUR DASHBOARD ROUTES
+        // ✅ DASHBOARD ROUTES
         '/volunteer-dashboard': (context) => const VolunteerHomePage(),
+        '/admin-dashboard': (context) => const AdminHomePage(),
         // '/event-dashboard': (context) =>
         //     const EventDashboardPage(),
       },

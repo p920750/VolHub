@@ -74,8 +74,11 @@ DECLARE
   user_role TEXT;
   user_dob DATE;
 BEGIN
-  -- Extract role from metadata, default to 'volunteer' if not provided
-  user_role := COALESCE(new.raw_user_meta_data->>'role', 'volunteer');
+  -- Extract role from metadata, default to NULL if not provided
+  -- Removing the COALESCE default 'volunteer' so first-time users (Google) 
+  -- will fail this insert due to NOT NULL constraint on role, 
+  -- triggering the onboarding flow in Flutter.
+  user_role := new.raw_user_meta_data->>'role';
   
   -- Parse date of birth if provided (format: YYYY-MM-DD)
   BEGIN
@@ -92,7 +95,8 @@ BEGIN
     role,
     phone_number,
     country_code,
-    date_of_birth
+    date_of_birth,
+    is_email_verified
   )
   VALUES (
     new.id, 
@@ -101,13 +105,15 @@ BEGIN
     user_role,
     new.raw_user_meta_data->>'phone_number',
     COALESCE(new.raw_user_meta_data->>'country_code', '+91'),
-    user_dob
+    user_dob,
+    (new.email_confirmed_at IS NOT NULL)
   );
   
   RETURN new;
 EXCEPTION WHEN OTHERS THEN
   -- Log error but don't fail the auth.users insert
-  RAISE WARNING 'Error creating user in public.users: %', SQLERRM;
+  -- This is EXPECTED for first-time Google users (role is NULL)
+  RAISE WARNING 'User record not created in public.users (this is normal for new Google users): %', SQLERRM;
   RETURN new;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;

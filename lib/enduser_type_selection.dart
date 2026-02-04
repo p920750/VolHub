@@ -41,23 +41,7 @@ class _EndUserTypeSelectionPageState extends State<EndUserTypeSelectionPage> {
       }
 
       if (mounted) {
-        if (role == 'volunteer') {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (context) => const VolunteerTypeSelectionPage()),
-          );
-        } else if (role == 'organizer') {
-          // Redirect to organizer dashboard (commented out per request)
-          /*
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (context) => const OrganizerDashboardPage()),
-          );
-          */
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Organizer Dashboard coming soon!')),
-          );
-        }
+        await SupabaseService.handlePostAuthRedirect(context);
       }
     } catch (e) {
       if (mounted) {

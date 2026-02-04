@@ -1034,64 +1034,7 @@ class SignupPageState extends State<SignupPage> {
                               ),
                             ],
                           ),
-                          const SizedBox(height: 24),
-                          // Divider
-                          Row(
-                            children: [
-                              Expanded(child: Divider(color: Colors.grey[300])),
-                              Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 16,
-                                ),
-                                child: Text(
-                                  "OR",
-                                  style: TextStyle(
-                                    color: Colors.grey[600],
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 24),
-                          // Google Sign In Button
-                          OutlinedButton(
-                            onPressed: () async {
-                              try {
-                                await SupabaseService.signInWithGoogle();
-                                // Redirection handled in main.dart or after session update
-                              } catch (e) {
-                                if (mounted) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(content: Text('Google Sign-In failed: $e')),
-                                  );
-                                }
-                              }
-                            },
-                            style: OutlinedButton.styleFrom(
-                              backgroundColor: Colors.white,
-                              foregroundColor: Colors.black87,
-                              padding: const EdgeInsets.symmetric(vertical: 14),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                                side: BorderSide(color: Colors.grey[300]!, width: 1.5),
-                              ),
-                            ),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                const Icon(Icons.g_mobiledata, size: 24),
-                                const SizedBox(width: 12),
-                                const Text(
-                                  "Continue with Google",
-                                  style: TextStyle(
-                                    fontSize: 15,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
+
                         ],
                       ),
                     ),
