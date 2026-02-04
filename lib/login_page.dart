@@ -22,8 +22,14 @@ class LoginPageState extends State<LoginPage> {
   // final _dobController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
   bool _obscurePassword = true;
+<<<<<<< HEAD
   // bool _isLogin = true; // Toggle between login and signup
   // late String _userType; // 'event_host' or 'volunteer'
+=======
+  bool _isLogin = true; // Toggle between login and signup
+  bool _isLoading = false; // Loading state
+  late String _userType; // 'event_manager' or 'volunteer' or 'admin'
+>>>>>>> 4201e22d3ff75ce6fd7d229a06adada811bebc6d
 
   // @override
   // void initState() {
@@ -120,12 +126,19 @@ class LoginPageState extends State<LoginPage> {
                       textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: 8),
+<<<<<<< HEAD
                     Text(
                       // _isLogin
                       //     ? "Sign in to continue your ${_userType == 'event_host' ? 'event hosting' : 'volunteer'} journey"
                       //     : "Create an account to get started",
                       //
                       "Sign in to continue",
+=======
+                      Text(
+                      _isLogin
+                          ? "Sign in to continue your ${_userType == 'event_manager' ? 'event management' : (_userType == 'admin' ? 'admin' : 'volunteer')} journey"
+                          : "Create an account to get started",
+>>>>>>> 4201e22d3ff75ce6fd7d229a06adada811bebc6d
                       style: const TextStyle(
                         color: Colors.white70,
                         fontSize: 16,
@@ -134,6 +147,7 @@ class LoginPageState extends State<LoginPage> {
                     ),
                     const SizedBox(height: 8),
                     // User Type Badge
+<<<<<<< HEAD
                     // Container(
                     //   padding: const EdgeInsets.symmetric(
                     //     horizontal: 16,
@@ -167,6 +181,43 @@ class LoginPageState extends State<LoginPage> {
                     //     ],
                     //   ),
                     // ),
+=======
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 8,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            _userType == 'event_manager'
+                                ? Icons.event_note
+                                : (_userType == 'admin'
+                                    ? Icons.admin_panel_settings
+                                    : Icons.people),
+                            color: Colors.white,
+                            size: 18,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            _userType == 'event_manager'
+                                ? 'Event Manager'
+                                : (_userType == 'admin' ? 'Admin' : 'Volunteer'),
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+>>>>>>> 4201e22d3ff75ce6fd7d229a06adada811bebc6d
                     const SizedBox(height: 40),
                     // Login Card
                     Container(
@@ -448,6 +499,7 @@ class LoginPageState extends State<LoginPage> {
                           const SizedBox(height: 24),
                           // Login/Sign Up Button
                           ElevatedButton(
+<<<<<<< HEAD
                             // onPressed: () async {
                             //   if (_formKey.currentState!.validate()) {
                             //     try {
@@ -580,13 +632,84 @@ class LoginPageState extends State<LoginPage> {
                                 }
                               }
                             },
+=======
+                            onPressed: _isLoading
+                                ? null
+                                : () async {
+                                    if (_formKey.currentState!.validate()) {
+                                      setState(() {
+                                        _isLoading = true;
+                                      });
+
+                                      try {
+                                        if (_isLogin) {
+                                          // Sign in
+                                          await SupabaseService.signIn(
+                                            email: _emailController.text.trim(),
+                                            password: _passwordController.text,
+                                          );
+
+                                          // Navigation is handled by main.dart onAuthStateChange
+                                          // But we can pop this page if we want the underlying listener to take over
+                                          // However, better to let the listener replace the route
+                                          // For now, let's just keep loading until navigation happens
+                                          
+                                          // OLD LOGIC: Navigator.pop(context);
+                                          // We shouldn't pop manually if we want main.dart to handle it.
+                                          // But if main.dart handles it, it replaces the route.
+                                        } else {
+                                          // Sign up
+                                          await SupabaseService.signUp(
+                                            email: _emailController.text.trim(),
+                                            password: _passwordController.text,
+                                            fullName: _nameController.text.trim(),
+                                            phone: _phoneController.text.trim(),
+                                            dob: _dobController.text.trim(),
+                                            userType: _userType,
+                                          );
+
+                                          setState(() {
+                                            _isLoading = false;
+                                            _isLogin = true; // Switch to login mode
+                                          });
+
+                                          // Show success message
+                                          if (context.mounted) {
+                                            ScaffoldMessenger.of(context).showSnackBar(
+                                              SnackBar(
+                                                content: Text(
+                                                  'Account created successfully! Please check your email (${_emailController.text.trim()}) to verify your account.',
+                                                ),
+                                                backgroundColor: const Color.fromARGB(255, 33, 78, 52),
+                                                duration: const Duration(seconds: 4),
+                                              ),
+                                            );
+                                          }
+                                        }
+                                      } catch (e) {
+                                        setState(() {
+                                          _isLoading = false;
+                                        });
+
+                                        // Show error message
+                                        if (context.mounted) {
+                                          ScaffoldMessenger.of(context).showSnackBar(
+                                            SnackBar(
+                                              content: Text(
+                                                _isLogin
+                                                    ? 'Login failed: ${e.toString()}'
+                                                    : 'Sign up failed: ${e.toString()}',
+                                              ),
+                                              backgroundColor: Colors.red,
+                                            ),
+                                          );
+                                        }
+                                      }
+                                    }
+                                  },
+>>>>>>> 4201e22d3ff75ce6fd7d229a06adada811bebc6d
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color.fromARGB(
-                                255,
-                                33,
-                                78,
-                                52,
-                              ),
+                              backgroundColor: const Color.fromARGB(255, 33, 78, 52),
                               foregroundColor: Colors.white,
                               padding: const EdgeInsets.symmetric(vertical: 16),
                               shape: RoundedRectangleBorder(
@@ -594,6 +717,7 @@ class LoginPageState extends State<LoginPage> {
                               ),
                               elevation: 4,
                             ),
+<<<<<<< HEAD
                             // child: Text(
                             //   _isLogin ? "Sign In" : "Create Account",
                             //   style: const TextStyle(
@@ -608,6 +732,24 @@ class LoginPageState extends State<LoginPage> {
                                 fontWeight: FontWeight.bold,
                               ),
                             ),
+=======
+                            child: _isLoading
+                                ? const SizedBox(
+                                    height: 20,
+                                    width: 20,
+                                    child: CircularProgressIndicator(
+                                      color: Colors.white,
+                                      strokeWidth: 2,
+                                    ),
+                                  )
+                                : Text(
+                                    _isLogin ? "Sign In" : "Create Account",
+                                    style: const TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+>>>>>>> 4201e22d3ff75ce6fd7d229a06adada811bebc6d
                           ),
                           const SizedBox(height: 24),
                           // Divider
@@ -639,6 +781,7 @@ class LoginPageState extends State<LoginPage> {
                             borderColor: Colors.grey[300]!,
                             onPressed: () async {
                               try {
+<<<<<<< HEAD
                                   await SupabaseService.signInWithGoogle();
                                   
                                   // Redirection is handled by the global auth listener in main.dart
@@ -650,6 +793,11 @@ class LoginPageState extends State<LoginPage> {
                                   }
                                   */
                              } catch (e) {
+=======
+                                await SupabaseService.signInWithGoogle();
+                              } catch (e) {
+                                if (context.mounted) {
+>>>>>>> 4201e22d3ff75ce6fd7d229a06adada811bebc6d
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     SnackBar(
                                       content: Text(

@@ -298,8 +298,13 @@ class _ReportsAnalyticsPageState extends State<ReportsAnalyticsPage> {
         ),
         titlesData: FlTitlesData(
           show: true,
+<<<<<<< HEAD
           rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
           topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+=======
+          rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+>>>>>>> 4201e22d3ff75ce6fd7d229a06adada811bebc6d
           bottomTitles: AxisTitles(
             sideTitles: SideTitles(
               showTitles: true,
@@ -318,7 +323,11 @@ class _ReportsAnalyticsPageState extends State<ReportsAnalyticsPage> {
                   case 6: text = 'Jan'; break;
                   default: return Container();
                 }
+<<<<<<< HEAD
                 return SideTitleWidget(axisSide: meta.axisSide, child: Text(text, style: style));
+=======
+                return SideTitleWidget(meta: meta, child: Text(text, style: style));
+>>>>>>> 4201e22d3ff75ce6fd7d229a06adada811bebc6d
               },
             ),
           ),
@@ -344,7 +353,11 @@ class _ReportsAnalyticsPageState extends State<ReportsAnalyticsPage> {
         lineBarsData: [
           // Volunteers (Blue)
           LineChartBarData(
+<<<<<<< HEAD
             spots: [
+=======
+            spots: const [
+>>>>>>> 4201e22d3ff75ce6fd7d229a06adada811bebc6d
               FlSpot(0, 45),
               FlSpot(1, 48),
               FlSpot(2, 65),
@@ -357,12 +370,20 @@ class _ReportsAnalyticsPageState extends State<ReportsAnalyticsPage> {
             color: Colors.blue,
             barWidth: 3,
             isStrokeCapRound: true,
+<<<<<<< HEAD
             dotData: FlDotData(show: true),
+=======
+            dotData: const FlDotData(show: true),
+>>>>>>> 4201e22d3ff75ce6fd7d229a06adada811bebc6d
             belowBarData: BarAreaData(show: false),
           ),
           // Managers (Purple)
           LineChartBarData(
+<<<<<<< HEAD
             spots: [
+=======
+            spots: const [
+>>>>>>> 4201e22d3ff75ce6fd7d229a06adada811bebc6d
               FlSpot(0, 8),
               FlSpot(1, 10),
               FlSpot(2, 12),
@@ -375,12 +396,20 @@ class _ReportsAnalyticsPageState extends State<ReportsAnalyticsPage> {
             color: Colors.purple,
             barWidth: 3,
             isStrokeCapRound: true,
+<<<<<<< HEAD
             dotData: FlDotData(show: true),
+=======
+            dotData: const FlDotData(show: true),
+>>>>>>> 4201e22d3ff75ce6fd7d229a06adada811bebc6d
             belowBarData: BarAreaData(show: false),
           ),
           // Hosts (Red/Pink)
           LineChartBarData(
+<<<<<<< HEAD
             spots: [
+=======
+            spots: const [
+>>>>>>> 4201e22d3ff75ce6fd7d229a06adada811bebc6d
               FlSpot(0, 3),
               FlSpot(1, 6),
               FlSpot(2, 8),
@@ -393,7 +422,11 @@ class _ReportsAnalyticsPageState extends State<ReportsAnalyticsPage> {
             color: Colors.pink,
             barWidth: 3,
             isStrokeCapRound: true,
+<<<<<<< HEAD
             dotData: FlDotData(show: true),
+=======
+            dotData: const FlDotData(show: true),
+>>>>>>> 4201e22d3ff75ce6fd7d229a06adada811bebc6d
             belowBarData: BarAreaData(show: false),
           ),
         ],
@@ -452,7 +485,11 @@ class _ReportsAnalyticsPageState extends State<ReportsAnalyticsPage> {
         ),
         titlesData: FlTitlesData(
           show: true,
+<<<<<<< HEAD
           topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+=======
+          topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+>>>>>>> 4201e22d3ff75ce6fd7d229a06adada811bebc6d
           bottomTitles: AxisTitles(
             sideTitles: SideTitles(
               showTitles: true,
@@ -469,7 +506,11 @@ class _ReportsAnalyticsPageState extends State<ReportsAnalyticsPage> {
                   case 6: text = 'Jan'; break;
                   default: return Container();
                 }
+<<<<<<< HEAD
                 return SideTitleWidget(axisSide: meta.axisSide, child: Text(text, style: style));
+=======
+                return SideTitleWidget(meta: meta, child: Text(text, style: style));
+>>>>>>> 4201e22d3ff75ce6fd7d229a06adada811bebc6d
               },
             ),
           ),
