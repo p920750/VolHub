@@ -40,13 +40,10 @@ dependencies:
   image_picker: ^1.2.1
   file_picker: ^10.3.8
   flutter_dotenv: ^6.0.0
-<<<<<<< HEAD
-  fl_chart: ^0.69.0
-=======
   http: ^1.6.0
   url_launcher: ^6.3.2
   fl_chart: ^1.1.1
->>>>>>> 4201e22d3ff75ce6fd7d229a06adada811bebc6d
+  shared_preferences: ^2.5.4
 
 dev_dependencies:
   flutter_test:

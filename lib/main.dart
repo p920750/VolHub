@@ -12,20 +12,13 @@ import 'email_confirm_page.dart';
 import 'reset_password_page.dart';
 import 'screens/app_opening.dart';
 import 'dashboards/volunteers/volunteer_home_page.dart';
-<<<<<<< HEAD
 import 'auth/auth_session_holder.dart';
-import 'dashboards/admin/admin_home_page.dart';  // Added for admin redirect
+import 'dashboards/admin/admin_home_page.dart';
+import 'dashboards/event_manager/event_dashboard_page.dart';
 import 'services/verification_stream.dart';
 import 'services/supabase_service.dart';
 import 'enduser_type_selection.dart';
 import 'volunteer_type_selection.dart';
-=======
-import 'dashboards/admin/admin_home_page.dart';
-import 'dashboards/event_manager/event_dashboard_page.dart';
-import 'auth/auth_session_holder.dart';
-
-
->>>>>>> 4201e22d3ff75ce6fd7d229a06adada811bebc6d
 
 // Global navigator key for deep link navigation
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
@@ -210,15 +203,16 @@ class MyApp extends StatefulWidget {
 }
 
 class _MyAppState extends State<MyApp> {
-<<<<<<< HEAD
-
   @override
   void initState() {
     super.initState();
 
     Supabase.instance.client.auth.onAuthStateChange.listen((data) {
       final session = data.session;
-      if (session == null) return;
+      if (session == null) {
+        AuthSessionHolder.session = null;
+        return;
+      }
 
       // Store session globally
       AuthSessionHolder.session = session;
@@ -234,97 +228,6 @@ class _MyAppState extends State<MyApp> {
       await SupabaseService.handlePostAuthRedirect(context);
     }
   }
-=======
-  // @override
-  // void initState() {
-  //   super.initState();
-
-  //   Supabase.instance.client.auth.onAuthStateChange.listen((data) {
-  //     final session = data.session;
-  //     if (session == null) return;
-
-  //     final userType = session.user.userMetadata?['user_type'];
-
-  //     if (userType == 'volunteer') {
-  //       navigatorKey.currentState?.pushNamedAndRemoveUntil(
-  //         '/volunteer-dashboard',
-  //         (route) => false,
-  //       );
-  //     } else if (userType == 'event_host') {
-  //       navigatorKey.currentState?.pushNamedAndRemoveUntil(
-  //         '/event-dashboard',
-  //         (route) => false,
-  //       );
-  //     }
-  //   });
-  // }
-  @override
-void initState() {
-  super.initState();
-
-  Supabase.instance.client.auth.onAuthStateChange.listen((data) {
-    if (data.event != AuthChangeEvent.signedIn) return; // Only navigate on SIGNED_IN
-
-    final session = data.session;
-    if (session == null) return;
-
-    AuthSessionHolder.session = session;
-
-    final provider = session.user.appMetadata['provider'];
-    final userType = session.user.userMetadata?['user_type'];
-
-    // ✅ OAuth login (Google/Facebook)
-    if (provider == 'google' || provider == 'facebook') {
-      navigatorKey.currentState?.pushNamedAndRemoveUntil(
-        '/volunteer-dashboard',
-        (route) => false,
-      );
-    }
-
-    // Handle email login based on user_type or role
-    // Check 'role' first (new schema), then 'user_type' (legacy/backup)
-    final effectiveUserType = userType ?? session.user.userMetadata?['role'];
-
-    if (effectiveUserType == 'admin') {
-      navigatorKey.currentState?.pushNamedAndRemoveUntil(
-        '/admin-dashboard',
-        (route) => false,
-      );
-    } else if (effectiveUserType == 'volunteer') {
-      navigatorKey.currentState?.pushNamedAndRemoveUntil(
-        '/volunteer-dashboard',
-        (route) => false,
-      );
-    } else if (effectiveUserType == 'event_manager') {
-      navigatorKey.currentState?.pushNamedAndRemoveUntil(
-        '/event-dashboard',
-        (route) => false,
-      );
-    }
-  });
-//   Supabase.instance.client.auth.onAuthStateChange.listen((data) {
-//   final session = data.session;
-//   if (session == null) return;
-
-//   AuthSessionHolder.session = session;
-
-//   final provider = session.user.appMetadata['provider'];
-//   final userType = session.user.userMetadata?['user_type'];
-
-//   // ✅ OAuth login (Google/Facebook)
-//   if (provider == 'google' || provider == 'facebook') {
-//     navigatorKey.currentState?.pushNamedAndRemoveUntil(
-//       '/volunteer-dashboard',
-//       (route) => false,
-//     );
-//   }
-// });
-// Supabase.instance.client.auth.onAuthStateChange.listen((data) {
-//   AuthSessionHolder.session = data.session;
-// });
-}
-
->>>>>>> 4201e22d3ff75ce6fd7d229a06adada811bebc6d
 
   @override
   Widget build(BuildContext context) {
@@ -338,7 +241,6 @@ void initState() {
         '/opening': (context) => AppOpeningPage(),
         '/aboutApp': (context) => AboutAppPage(),
         '/aboutUs': (context) => AboutUsPage(),
-<<<<<<< HEAD
         '/login': (context) => const LoginPage(),
         '/signup': (context) => const SignupPage(),
         '/email-confirm': (context) => const EmailConfirmPage(),
@@ -349,27 +251,7 @@ void initState() {
         // ✅ DASHBOARD ROUTES
         '/volunteer-dashboard': (context) => const VolunteerHomePage(),
         '/admin-dashboard': (context) => const AdminHomePage(),
-        // '/event-dashboard': (context) =>
-        //     const EventDashboardPage(),
-=======
-        '/user-type-selection': (context) =>
-            const UserTypeSelectionPage(),
-        '/login': (context) {
-          final args = ModalRoute.of(context)?.settings.arguments;
-          return LoginPage(userType: args is String ? args : null);
-        },
-        '/email-confirm': (context) =>
-            const EmailConfirmPage(),
-        '/reset-password': (context) =>
-            const ResetPasswordPage(),
-
-        // ✅ ADD YOUR DASHBOARD ROUTES
-        '/volunteer-dashboard': (context) =>
-            const VolunteerHomePage(),
-        '/admin-dashboard': (context) => const AdminHomePage(),
-        '/event-dashboard': (context) =>
-            const EventDashboardPage(),
->>>>>>> 4201e22d3ff75ce6fd7d229a06adada811bebc6d
+        '/event-dashboard': (context) => const EventDashboardPage(),
       },
       onGenerateRoute: (settings) {
         if (settings.name == '/email-confirm' ||

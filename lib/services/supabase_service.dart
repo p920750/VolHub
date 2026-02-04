@@ -1,10 +1,6 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/foundation.dart';
-<<<<<<< HEAD
 import 'package:flutter/material.dart';
-=======
-import 'dart:io';
->>>>>>> 4201e22d3ff75ce6fd7d229a06adada811bebc6d
 import '../config/supabase_config.dart';
 import 'dart:io';
 
@@ -195,30 +191,6 @@ class SupabaseService {
     String? dob,
     String countryCode = '+91',
   }) async {
-<<<<<<< HEAD
-    if (kDebugMode) {
-      print('--- SUPABASE: Sending Email Signup Confirmation ---');
-      print('Email: $email');
-=======
-    try {
-      final response = await client.auth.signUp(
-        email: email,
-        password: password,
-        data: {
-          if (fullName != null && fullName.isNotEmpty) 'full_name': fullName,
-          if (phone != null && phone.isNotEmpty) 'phone_number': phone,
-          if (dob != null && dob.isNotEmpty) 'date_of_birth': dob,
-          if (userType != null && userType.isNotEmpty) 'role': userType,
-        },
-        emailRedirectTo:
-            'io.supabase.volhub://email-confirm', // Deep link for email confirmation
-      );
-      return response;
-    } catch (e) {
-      rethrow;
->>>>>>> 4201e22d3ff75ce6fd7d229a06adada811bebc6d
-    }
-    
     // Use Confirm Signup template
     // This creates user in auth.users (but NOT in public.users due to disabled trigger)
     await client.auth.signUp(
@@ -378,58 +350,13 @@ class SupabaseService {
     }
   }
 
-  // Get user profile (from public.users ONLY)
   static Future<Map<String, dynamic>?> getUserProfile() async {
-<<<<<<< HEAD
     return await getUserFromUsersTable();
-=======
-    try {
-      if (currentUser == null) return null;
-
-      final response = await client
-          .from('users')
-          .select()
-          .eq('id', currentUser!.id)
-          .single();
-
-      return response;
-    } catch (e) {
-      return null;
-    }
->>>>>>> 4201e22d3ff75ce6fd7d229a06adada811bebc6d
   }
 
   // Update user profile (public.users ONLY)
   static Future<void> updateUserProfile(Map<String, dynamic> updates) async {
     await updateUsersTable(updates);
-  }
-
-<<<<<<< HEAD
-  // Alias for updateUsersTable/updateUserProfile
-  static Future<void> upsertUserProfile(Map<String, dynamic> data) async {
-    await updateUsersTable(data);
-  }
-
-  // Upload profile image to storage and return URL
-  static Future<String> uploadProfileImage(File file, String userId) async {
-    try {
-      final fileExt = file.path.split('.').last;
-      final fileName = '$userId/profile_${DateTime.now().millisecondsSinceEpoch}.$fileExt';
-      final filePath = fileName;
-      
-      await client.storage.from('avatars').upload(
-        filePath,
-        file,
-        fileOptions: const FileOptions(cacheControl: '3600', upsert: false),
-      );
-      
-      final imageUrl = client.storage.from('avatars').getPublicUrl(filePath);
-      return imageUrl;
-=======
-      await client.from('users').update(updates).eq('id', currentUser!.id);
-    } catch (e) {
-      rethrow;
-    }
   }
 
   // Upsert user profile (Create if not exists, Update if exists)
@@ -445,13 +372,14 @@ class SupabaseService {
       };
 
       await client.from('users').upsert(updates);
->>>>>>> 4201e22d3ff75ce6fd7d229a06adada811bebc6d
     } catch (e) {
-      if (kDebugMode) {
-        print('Error uploading profile image: $e');
-      }
       rethrow;
     }
+  }
+
+  // Alias for updateUsersTable/updateUserProfile
+  static Future<void> updateUsersTableAlias(Map<String, dynamic> data) async {
+    await updateUsersTable(data);
   }
 
   // Sign in with Google OAuth
@@ -540,7 +468,6 @@ class SupabaseService {
         return event;
       });
 
-<<<<<<< HEAD
   // Centralized redirection logic after any successful login
   static Future<void> handlePostAuthRedirect(BuildContext context) async {
     try {
@@ -615,7 +542,9 @@ class SupabaseService {
           SnackBar(content: Text('Error determining redirection: $e')),
         );
       }
-=======
+    }
+  }
+
   // Upload verification document
   static Future<String?> uploadVerificationDocument(
     File file,
@@ -688,7 +617,6 @@ class SupabaseService {
       );
     } catch (e) {
       rethrow;
->>>>>>> 4201e22d3ff75ce6fd7d229a06adada811bebc6d
     }
   }
 }

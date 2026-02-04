@@ -1,25 +1,8 @@
-<<<<<<< HEAD
-// Placeholder for Identity Verification Page
-// Was missing from the codebase
-
-import 'package:flutter/material.dart';
-
-class IdentityVerificationPage extends StatelessWidget {
-  const IdentityVerificationPage({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Identity Verification')),
-      body: const Center(
-        child: Text('Identity Verification Page - Coming Soon'),
-=======
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import '../services/supabase_service.dart';
-
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class IdentityVerificationPage extends StatefulWidget {
@@ -49,9 +32,11 @@ class _IdentityVerificationPageState extends State<IdentityVerificationPage> {
         });
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error picking file: $e')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error picking file: $e')),
+        );
+      }
     }
   }
 
@@ -68,7 +53,6 @@ class _IdentityVerificationPageState extends State<IdentityVerificationPage> {
 
       // 1. Skip Automatic Verification - Manual Review Process
 
-
       // 2. Upload File to Supabase Storage
       final url = await SupabaseService.uploadVerificationDocument(
         _selectedFile!,
@@ -77,9 +61,6 @@ class _IdentityVerificationPageState extends State<IdentityVerificationPage> {
 
       if (url != null) {
         // 3. Update User Metadata
-        // optimized: 'verified' if automatic verification passed
-        // 3. Update User Metadata
-        // optimized: 'verified' if automatic verification passed
         final fullName = user.userMetadata?['full_name'];
         
         await SupabaseService.client.from('users').update({
@@ -175,8 +156,7 @@ class _IdentityVerificationPageState extends State<IdentityVerificationPage> {
                 border: Border.all(
                   color: _selectedFile != null ? Colors.green : Colors.grey.shade300,
                   width: 2,
-                  style: BorderStyle.values[1], // solid
-                ), // Dotted border effect is harder without package, using solid for now
+                ),
               ),
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -311,7 +291,6 @@ class _IdentityVerificationPageState extends State<IdentityVerificationPage> {
             ),
           ],
         ),
->>>>>>> 4201e22d3ff75ce6fd7d229a06adada811bebc6d
       ),
     );
   }
