@@ -164,8 +164,6 @@ class _ReportsAnalyticsPageState extends State<ReportsAnalyticsPage> {
   }
 
   Widget _buildSummaryCards(bool isMobile, double width) {
-    final cardWidth = isMobile ? width : (width - 48 - 48) / 4; // Approx width calc
-
     final cards = [
       _buildInfoCard('Total Users', '155', '+12% from last month', Icons.people_outline, Colors.blue),
       _buildInfoCard('Total Events', '128', '+18% from last month', Icons.calendar_today, Colors.purple),
@@ -181,7 +179,6 @@ class _ReportsAnalyticsPageState extends State<ReportsAnalyticsPage> {
         )).toList(),
       );
     } else {
-      // Use Table or Row with Expanded for Desktop
        return Row(
          children: cards.map((c) => Expanded(
            child: Padding(
@@ -280,7 +277,7 @@ class _ReportsAnalyticsPageState extends State<ReportsAnalyticsPage> {
         gridData: FlGridData(
           show: true,
           drawVerticalLine: true,
-          horizontalInterval: 30, // Adjusted based on max Y 120
+          horizontalInterval: 30, 
           verticalInterval: 1,
           getDrawingHorizontalLine: (value) {
             return FlLine(
@@ -292,19 +289,14 @@ class _ReportsAnalyticsPageState extends State<ReportsAnalyticsPage> {
             return FlLine(
               color: Colors.grey[200],
               strokeWidth: 1,
-              dashArray: [5, 5], // Dashed vertical lines
+              dashArray: [5, 5],
             );
           },
         ),
         titlesData: FlTitlesData(
           show: true,
-<<<<<<< HEAD
-          rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-          topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-=======
           rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
           topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
->>>>>>> 4201e22d3ff75ce6fd7d229a06adada811bebc6d
           bottomTitles: AxisTitles(
             sideTitles: SideTitles(
               showTitles: true,
@@ -323,11 +315,7 @@ class _ReportsAnalyticsPageState extends State<ReportsAnalyticsPage> {
                   case 6: text = 'Jan'; break;
                   default: return Container();
                 }
-<<<<<<< HEAD
-                return SideTitleWidget(axisSide: meta.axisSide, child: Text(text, style: style));
-=======
                 return SideTitleWidget(meta: meta, child: Text(text, style: style));
->>>>>>> 4201e22d3ff75ce6fd7d229a06adada811bebc6d
               },
             ),
           ),
@@ -349,15 +337,10 @@ class _ReportsAnalyticsPageState extends State<ReportsAnalyticsPage> {
         minX: 0,
         maxX: 6,
         minY: 0,
-        maxY: 120, // Based on image 120 is top
+        maxY: 120,
         lineBarsData: [
-          // Volunteers (Blue)
           LineChartBarData(
-<<<<<<< HEAD
-            spots: [
-=======
             spots: const [
->>>>>>> 4201e22d3ff75ce6fd7d229a06adada811bebc6d
               FlSpot(0, 45),
               FlSpot(1, 48),
               FlSpot(2, 65),
@@ -366,24 +349,15 @@ class _ReportsAnalyticsPageState extends State<ReportsAnalyticsPage> {
               FlSpot(5, 105),
               FlSpot(6, 120),
             ],
-            isCurved: true, // Smooth curve
+            isCurved: true,
             color: Colors.blue,
             barWidth: 3,
             isStrokeCapRound: true,
-<<<<<<< HEAD
-            dotData: FlDotData(show: true),
-=======
             dotData: const FlDotData(show: true),
->>>>>>> 4201e22d3ff75ce6fd7d229a06adada811bebc6d
             belowBarData: BarAreaData(show: false),
           ),
-          // Managers (Purple)
           LineChartBarData(
-<<<<<<< HEAD
-            spots: [
-=======
             spots: const [
->>>>>>> 4201e22d3ff75ce6fd7d229a06adada811bebc6d
               FlSpot(0, 8),
               FlSpot(1, 10),
               FlSpot(2, 12),
@@ -396,20 +370,11 @@ class _ReportsAnalyticsPageState extends State<ReportsAnalyticsPage> {
             color: Colors.purple,
             barWidth: 3,
             isStrokeCapRound: true,
-<<<<<<< HEAD
-            dotData: FlDotData(show: true),
-=======
             dotData: const FlDotData(show: true),
->>>>>>> 4201e22d3ff75ce6fd7d229a06adada811bebc6d
             belowBarData: BarAreaData(show: false),
           ),
-          // Hosts (Red/Pink)
           LineChartBarData(
-<<<<<<< HEAD
-            spots: [
-=======
             spots: const [
->>>>>>> 4201e22d3ff75ce6fd7d229a06adada811bebc6d
               FlSpot(0, 3),
               FlSpot(1, 6),
               FlSpot(2, 8),
@@ -422,11 +387,7 @@ class _ReportsAnalyticsPageState extends State<ReportsAnalyticsPage> {
             color: Colors.pink,
             barWidth: 3,
             isStrokeCapRound: true,
-<<<<<<< HEAD
-            dotData: FlDotData(show: true),
-=======
             dotData: const FlDotData(show: true),
->>>>>>> 4201e22d3ff75ce6fd7d229a06adada811bebc6d
             belowBarData: BarAreaData(show: false),
           ),
         ],
@@ -435,13 +396,6 @@ class _ReportsAnalyticsPageState extends State<ReportsAnalyticsPage> {
   }
 
   Widget _buildEventPerformanceChart() {
-    // Dual Axis Simulation Strategy
-    // Left Axis: Events Hosted (0-28)
-    // Right Axis: Total Attendance (0-1200)
-    // To plot on same chart, normalize Right Axis data to match Left Axis scale.
-    // Scale Ratio = 1200 / 28 ≈ 42.85
-    // plottedValue = actualValue / 42.85
-
     const double maxY = 28;
     const double rightMaxY = 1200;
     const double scaleRatio = rightMaxY / maxY;
@@ -463,7 +417,6 @@ class _ReportsAnalyticsPageState extends State<ReportsAnalyticsPage> {
                 value = rod.toY.round().toString();
               } else {
                 label = 'Attendance';
-                // Reverse calculation to show actual value in tooltip
                 value = (rod.toY * scaleRatio).round().toString();
               }
               return BarTooltipItem(
@@ -485,11 +438,7 @@ class _ReportsAnalyticsPageState extends State<ReportsAnalyticsPage> {
         ),
         titlesData: FlTitlesData(
           show: true,
-<<<<<<< HEAD
-          topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-=======
           topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
->>>>>>> 4201e22d3ff75ce6fd7d229a06adada811bebc6d
           bottomTitles: AxisTitles(
             sideTitles: SideTitles(
               showTitles: true,
@@ -506,18 +455,14 @@ class _ReportsAnalyticsPageState extends State<ReportsAnalyticsPage> {
                   case 6: text = 'Jan'; break;
                   default: return Container();
                 }
-<<<<<<< HEAD
-                return SideTitleWidget(axisSide: meta.axisSide, child: Text(text, style: style));
-=======
                 return SideTitleWidget(meta: meta, child: Text(text, style: style));
->>>>>>> 4201e22d3ff75ce6fd7d229a06adada811bebc6d
               },
             ),
           ),
           leftTitles: AxisTitles(
             sideTitles: SideTitles(
               showTitles: true,
-              interval: 7, // 0, 7, 14, 21, 28
+              interval: 7,
               reservedSize: 30,
               getTitlesWidget: (value, meta) {
                 return Text(
@@ -530,11 +475,9 @@ class _ReportsAnalyticsPageState extends State<ReportsAnalyticsPage> {
           rightTitles: AxisTitles(
             sideTitles: SideTitles(
               showTitles: true,
-              interval: 7, // Aligned with Left Axis steps
+              interval: 7,
               reservedSize: 40,
               getTitlesWidget: (value, meta) {
-                // Map the internal Y value back to the Right Axis scale
-                // value 7 -> 300, 14 -> 600, 21 -> 900, 28 -> 1200
                 final actualValue = (value * scaleRatio).toInt();
                 return Text(
                   actualValue.toString(),
