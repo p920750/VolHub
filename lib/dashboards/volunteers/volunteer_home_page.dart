@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'volunteer_colors.dart';
 // import 'volunteer_menu_page.dart';
-// import 'volunteer_chat_page.dart';
+import 'volunteer_chat/volunteer_chat_page.dart';
 // import 'volunteer_board_page.dart';
 import 'volunteer_profile_page.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -449,10 +449,10 @@ class _VolunteerHomePageState extends State<VolunteerHomePage> {
             //   MaterialPageRoute(builder: (_) => const VolunteerMenuPage()),
             // );
           } else if (index == 2) {
-            // Navigator.push(
-            //   context,
-            //   MaterialPageRoute(builder: (_) => const VolunteerChatPage()),
-            // );
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const VolunteerChatPage()),
+            );
           } else if (index == 3) {
             // Navigator.push(
             //   context,

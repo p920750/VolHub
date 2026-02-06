@@ -472,6 +472,25 @@ class SupabaseService {
   static Future<void> handlePostAuthRedirect(BuildContext context) async {
     try {
       if (kDebugMode) print('--- Handling Post-Auth Redirect ---');
+
+      // Check if we are currently on the signup page
+      // If so, we don't want to redirect automatically, as the user
+      // might be clicking the email confirmation link while still in the app.
+      bool isOnSignup = false;
+      try {
+        final currentRoute = ModalRoute.of(context)?.settings.name;
+        if (kDebugMode) print('Current route: $currentRoute');
+        if (currentRoute == '/signup') {
+          isOnSignup = true;
+        }
+      } catch (e) {
+        if (kDebugMode) print('Error checking current route: $e');
+      }
+
+      if (isOnSignup) {
+        if (kDebugMode) print('User is on signup page, skipping automatic redirection.');
+        return;
+      }
       
       final userData = await getUserFromUsersTable();
       
@@ -551,6 +570,12 @@ class SupabaseService {
     String userId,
   ) async {
     try {
+      // Add file size check (e.g., limit to 10MB)
+      final int sizeInBytes = await file.length();
+      if (sizeInBytes > 10 * 1024 * 1024) {
+        throw Exception('File too large. Maximum size is 10MB.');
+      }
+
       final fileExt = file.path.split('.').last;
       final timestamp = DateTime.now().toIso8601String().replaceAll(':', '-');
       final fileName = '$userId/$timestamp.$fileExt';
@@ -583,6 +608,12 @@ class SupabaseService {
     String userId,
   ) async {
     try {
+      // Add file size check (e.g., limit to 5MB)
+      final int sizeInBytes = await file.length();
+      if (sizeInBytes > 5 * 1024 * 1024) {
+        throw Exception('Profile photo too large. Maximum size is 5MB.');
+      }
+
       final fileExt = file.path.split('.').last;
       final timestamp = DateTime.now().toIso8601String().replaceAll(':', '-');
       // Storing directly in userId folder to comply with RLS policy: 

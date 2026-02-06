@@ -90,6 +90,20 @@ class _ProfileDetailsPageState extends State<ProfileDetailsPage> {
 
     if (picked != null) {
       final file = File(picked.path);
+      final sizeInBytes = await file.length();
+      
+      if (sizeInBytes > 5 * 1024 * 1024) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Profile photo too large. Maximum size is 5MB.'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+        return;
+      }
+
       setState(() {
         _profileImage = file;
       });
@@ -241,6 +255,21 @@ class _ProfileDetailsPageState extends State<ProfileDetailsPage> {
     );
 
     if (result == null) return;
+
+    final file = File(result.files.first.path!);
+    final sizeInBytes = await file.length();
+    
+    if (sizeInBytes > 10 * 1024 * 1024) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Certificate too large. Maximum size is 10MB.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+      return;
+    }
 
     setState(() {
       certificates.insert(0, result.files.first);

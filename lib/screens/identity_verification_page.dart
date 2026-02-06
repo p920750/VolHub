@@ -26,8 +26,23 @@ class _IdentityVerificationPageState extends State<IdentityVerificationPage> {
       );
 
       if (result != null && result.files.single.path != null) {
+        final file = File(result.files.single.path!);
+        final sizeInBytes = await file.length();
+        
+        if (sizeInBytes > 10 * 1024 * 1024) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('File too large. Maximum size is 10MB.'),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
+          return;
+        }
+
         setState(() {
-          _selectedFile = File(result.files.single.path!);
+          _selectedFile = file;
           _fileName = result.files.single.name;
         });
       }
