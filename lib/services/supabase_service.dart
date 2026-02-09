@@ -514,19 +514,19 @@ class SupabaseService {
             '/admin-dashboard',
             (route) => false,
           );
-        } else if (role == 'organizer') {
-          // TODO: Redirect to Organizer Dashboard when implemented
-          // For now, show message and stay or go to a fallback
-          if (kDebugMode) print('Organizer role detected - TODO: Dashboard');
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Organizer Dashboard coming soon!')),
+        } else if (role == 'organizer' || role == 'host') {
+          if (kDebugMode) print('Redirecting to organizer dashboard');
+          Navigator.pushNamedAndRemoveUntil(
+            context,
+            '/organizer-dashboard',
+            (route) => false,
           );
-          // Fallback if needed, or just stay on login
-        } else if (role == 'manager') {
-          // TODO: Redirect to Manager Dashboard when implemented
-          if (kDebugMode) print('Manager role detected - TODO: Dashboard');
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Manager Dashboard coming soon!')),
+        } else if (role == 'manager' || role == 'event_manager') {
+          if (kDebugMode) print('Redirecting to manager dashboard');
+          Navigator.pushNamedAndRemoveUntil(
+            context,
+            '/manager-dashboard',
+            (route) => false,
           );
         } else {
             if (kDebugMode) print('Unknown role: $role');

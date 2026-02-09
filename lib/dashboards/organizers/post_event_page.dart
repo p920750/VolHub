@@ -1,0 +1,338 @@
+import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
+import 'dart:io';
+import '../../services/host_service.dart';
+
+class PostEventPage extends StatefulWidget {
+  const PostEventPage({super.key});
+
+  @override
+  State<PostEventPage> createState() => _PostEventPageState();
+}
+
+class _PostEventPageState extends State<PostEventPage> {
+  final _formKey = GlobalKey<FormState>();
+  File? _image;
+  final _picker = ImagePicker();
+  
+  final _titleController = TextEditingController();
+  final _locationController = TextEditingController();
+  final _dateController = TextEditingController();
+  final _timeController = TextEditingController();
+  final _reqsController = TextEditingController();
+  final _detailsController = TextEditingController();
+
+  @override
+  void dispose() {
+    _titleController.dispose();
+    _locationController.dispose();
+    _dateController.dispose();
+    _timeController.dispose();
+    _reqsController.dispose();
+    _detailsController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _pickImage() async {
+    final pickedFile = await _picker.pickImage(source: ImageSource.gallery);
+    if (pickedFile != null) {
+      setState(() {
+        _image = File(pickedFile.path);
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.white,
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.black),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: const Text(
+          'Post a New Event',
+          style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
+        ),
+        centerTitle: true,
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
+        child: Form(
+          key: _formKey,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Text(
+                    'Post a New Event',
+                    style: TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF001529),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  const Text(
+                    '✨',
+                    style: TextStyle(fontSize: 20),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              const Text(
+                'Reach out to top event managers for your upcoming occasion.',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Colors.grey,
+                ),
+              ),
+              const SizedBox(height: 32),
+              
+              // Event Title and Location
+              Row(
+                children: [
+                  Expanded(
+                    child: _buildTextField(
+                      controller: _titleController,
+                      label: 'Event Title',
+                      placeholder: 'e.g. Summer Music Festival 2026',
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: _buildTextField(
+                      controller: _locationController,
+                      label: 'Location',
+                      placeholder: 'e.g. Central Park, NY',
+                      icon: Icons.location_on_outlined,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
+              
+              // Date and Time
+              Row(
+                children: [
+                  Expanded(
+                    child: _buildTextField(
+                      controller: _dateController,
+                      label: 'Date',
+                      placeholder: 'mm/dd/yyyy',
+                      icon: Icons.calendar_today_outlined,
+                      readOnly: true,
+                      onTap: () async {
+                        final date = await showDatePicker(
+                          context: context,
+                          initialDate: DateTime.now(),
+                          firstDate: DateTime.now(),
+                          lastDate: DateTime.now().add(const Duration(days: 365)),
+                        );
+                        if (date != null) {
+                          _dateController.text = "${date.month}/${date.day}/${date.year}";
+                        }
+                      },
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: _buildTextField(
+                      controller: _timeController,
+                      label: 'Time',
+                      placeholder: '--:-- --',
+                      icon: Icons.access_time,
+                      readOnly: true,
+                      onTap: () async {
+                        final time = await showTimePicker(
+                          context: context,
+                          initialTime: TimeOfDay.now(),
+                        );
+                        if (time != null) {
+                          _timeController.text = time.format(context);
+                        }
+                      },
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
+              
+              // Specific Requirements
+              _buildTextField(
+                controller: _reqsController,
+                label: 'Specific Requirements',
+                placeholder: 'e.g. Needs 5+ years experience in festival management...',
+                maxLines: 4,
+              ),
+              const SizedBox(height: 20),
+              
+              // Event Details
+              _buildTextField(
+                controller: _detailsController,
+                label: 'Event Details',
+                placeholder: 'Describe your event in detail...',
+                maxLines: 4,
+              ),
+              const SizedBox(height: 24),
+              
+              // Cover Image Upload
+              const Text(
+                'Cover Image',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF001529),
+                ),
+              ),
+              const SizedBox(height: 8),
+              GestureDetector(
+                onTap: _pickImage,
+                child: Container(
+                  height: 180,
+                  width: double.infinity,
+                  decoration: BoxDecoration(
+                    border: Border.all(
+                      color: Colors.grey.withOpacity(0.3),
+                      style: BorderStyle.solid,
+                    ),
+                    borderRadius: BorderRadius.circular(12),
+                    color: Colors.grey.withOpacity(0.02),
+                  ),
+                  child: _image != null
+                      ? ClipRRect(
+                          borderRadius: BorderRadius.circular(12),
+                          child: Image.file(_image!, fit: BoxFit.cover),
+                        )
+                      : Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(Icons.cloud_upload_outlined, color: Colors.grey, size: 32),
+                            const SizedBox(height: 12),
+                            const Text(
+                              'Click to upload or drag and drop',
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w500,
+                                color: Color(0xFF001529),
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'PNG, JPG up to 10MB',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey.withOpacity(0.8),
+                              ),
+                            ),
+                          ],
+                        ),
+                ),
+              ),
+              const SizedBox(height: 32),
+              
+              // Post Event Button
+              SizedBox(
+                width: double.infinity,
+                height: 56,
+                child: ElevatedButton(
+                  onPressed: () {
+                    // Save to HostService
+                    if (_titleController.text.isNotEmpty) {
+                      HostService.addEvent({
+                        'title': _titleController.text,
+                        'date': _dateController.text.isEmpty ? 'TBD' : _dateController.text,
+                        'location': _locationController.text.isEmpty ? 'Online' : _locationController.text,
+                        'stats': '0 Managers Applied',
+                        'status': 'Pending',
+                        'imageUrl': _image?.path ?? 'https://images.unsplash.com/photo-1501281668745-f7f57925c3b4?w=500',
+                      });
+                      
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Event Posted Successfully!')),
+                      );
+                      Navigator.pop(context, true);
+                    }
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF001529),
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    elevation: 0,
+                  ),
+                  child: const Text(
+                    'Post Event',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 24),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTextField({
+    TextEditingController? controller,
+    required String label,
+    required String placeholder,
+    IconData? icon,
+    int maxLines = 1,
+    bool readOnly = false,
+    VoidCallback? onTap,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            if (icon != null) ...[
+              Icon(icon, size: 16, color: Colors.grey),
+              const SizedBox(width: 4),
+            ],
+            Text(
+              label,
+              style: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF001529),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        TextFormField(
+          controller: controller,
+          readOnly: readOnly,
+          onTap: onTap,
+          maxLines: maxLines,
+          decoration: InputDecoration(
+            hintText: placeholder,
+            hintStyle: TextStyle(color: Colors.grey.withOpacity(0.5), fontSize: 14),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(color: Colors.grey.withOpacity(0.3)),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(color: Colors.grey.withOpacity(0.3)),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: Color(0xFF001529), width: 1.5),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}

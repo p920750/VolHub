@@ -165,7 +165,7 @@ class SignupPageState extends State<SignupPage> {
     if (_selectedRole == "Volunteers") {
       role = "volunteer";
     } else if (_selectedRole == "Event Organizers") {
-      role = "organizer";
+      role = "event_manager";
     } else {
       // This should not happen if validation works
       role = _selectedRole ?? "volunteer";
@@ -445,7 +445,7 @@ class SignupPageState extends State<SignupPage> {
     if (_selectedRole == "Volunteers") {
       mappedRole = "volunteer";
     } else if (_selectedRole == "Event Organizers") {
-      mappedRole = "organizer";
+      mappedRole = "event_manager";
     } else {
       mappedRole = _selectedRole ?? "volunteer";
     }

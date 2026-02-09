@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:app_links/app_links.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
@@ -14,11 +15,27 @@ import 'screens/app_opening.dart';
 import 'dashboards/volunteers/volunteer_home_page.dart';
 import 'auth/auth_session_holder.dart';
 import 'dashboards/admin/admin_home_page.dart';
-import 'dashboards/event_manager/event_dashboard_page.dart';
+
+import 'dashboards/organizers/host_dashboard_page.dart';
+import 'dashboards/organizers/post_event_page.dart';
+import 'dashboards/organizers/host_messages_page.dart';
+import 'dashboards/organizers/my_events_page.dart';
+import 'dashboards/organizers/host_profile_page.dart';
+import 'dashboards/managers/dashboard/dashboard_screen.dart';
 import 'services/verification_stream.dart';
 import 'services/supabase_service.dart';
 import 'enduser_type_selection.dart';
 import 'volunteer_type_selection.dart';
+
+// Manager Module Imports
+import 'dashboards/managers/marketplace/marketplace_screen.dart';
+import 'dashboards/managers/messages/messages_screen.dart';
+import 'dashboards/managers/portfolio/portfolio_screen.dart';
+import 'dashboards/managers/proposals/proposals_screen.dart';
+import 'dashboards/managers/recruit/recruit_screen.dart';
+import 'dashboards/managers/teams/my_teams_screen.dart';
+import 'dashboards/managers/profile/profile_screen.dart';
+import 'dashboards/managers/profile/edit_profile_screen.dart';
 
 // Global navigator key for deep link navigation
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
@@ -192,7 +209,11 @@ void main() async {
     }
   }
 
-  runApp(const MyApp());
+  runApp(
+    const ProviderScope(
+      child: MyApp(),
+    ),
+  );
 }
 
 class MyApp extends StatefulWidget {
@@ -251,7 +272,21 @@ class _MyAppState extends State<MyApp> {
         // ✅ DASHBOARD ROUTES
         '/volunteer-dashboard': (context) => const VolunteerHomePage(),
         '/admin-dashboard': (context) => const AdminHomePage(),
-        '/event-dashboard': (context) => const EventDashboardPage(),
+
+        '/organizer-dashboard': (context) => const HostDashboardPage(),
+        '/post-event': (context) => const PostEventPage(),
+        '/organizer-messages': (context) => const HostMessagesPage(),
+        '/my-events': (context) => const MyEventsPage(),
+        '/organizer-profile': (context) => const HostProfilePage(),
+        '/manager-dashboard': (context) => const DashboardScreen(),
+        '/manager-marketplace': (context) => const MarketplaceScreen(),
+        '/manager-messages': (context) => const MessagesScreen(),
+        '/manager-portfolio': (context) => const PortfolioScreen(),
+        '/manager-proposals': (context) => const ProposalsScreen(),
+        '/manager-recruit': (context) => const RecruitScreen(),
+        '/manager-teams': (context) => const MyTeamsScreen(),
+        '/manager-profile': (context) => const ProfileScreen(),
+        '/manager-profile-edit': (context) => const EditProfileScreen(),
       },
       onGenerateRoute: (settings) {
         if (settings.name == '/email-confirm' ||
