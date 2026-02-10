@@ -341,7 +341,25 @@ class SupabaseService {
     }
   }
 
-  // Update password (after clicking reset link)
+  // Verify current password by attempting a silent sign-in
+  static Future<bool> verifyCurrentPassword(String password) async {
+    try {
+      final email = currentUser?.email;
+      if (email == null) return false;
+      
+      // Attempt to sign in with the provided password to verify it
+      await client.auth.signInWithPassword(
+        email: email,
+        password: password,
+      );
+      return true;
+    } catch (e) {
+      if (kDebugMode) print('Password verification failed: $e');
+      return false;
+    }
+  }
+
+  // Update password for logged in user
   static Future<void> updatePassword(String newPassword) async {
     try {
       await client.auth.updateUser(UserAttributes(password: newPassword));

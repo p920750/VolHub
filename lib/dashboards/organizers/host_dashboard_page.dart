@@ -65,11 +65,19 @@ class _HostDashboardPageState extends State<HostDashboardPage> {
             icon: const Icon(Icons.notifications_none, color: Colors.black),
             onPressed: () {},
           ),
-          Padding(
-            padding: const EdgeInsets.only(right: 16.0),
-            child: CircleAvatar(
-              radius: 16,
-              backgroundImage: NetworkImage(_profilePhoto),
+          GestureDetector(
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const HostProfilePage()),
+              );
+            },
+            child: Padding(
+              padding: const EdgeInsets.only(right: 16.0),
+              child: CircleAvatar(
+                radius: 16,
+                backgroundImage: NetworkImage(_profilePhoto),
+              ),
             ),
           ),
         ],
@@ -289,13 +297,6 @@ class _HostDashboardPageState extends State<HostDashboardPage> {
             Navigator.push(
               context,
               MaterialPageRoute(builder: (context) => const MyEventsPage()),
-            );
-          }),
-          _buildDrawerItem(Icons.person_outline, 'Profile', false, onTap: () {
-            Navigator.pop(context);
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (context) => const HostProfilePage()),
             );
           }),
           const Divider(),
