@@ -32,15 +32,19 @@ class _ProfileDetailsPageState extends State<ProfileDetailsPage> {
   String address = '';
   String fullName = ''; // Needed for completion calc
   String email = ''; // Needed for completion calc
+  String bio = '';
 
   final _phoneController = TextEditingController();
   final _addressController = TextEditingController();
+  final _bioController = TextEditingController();
 
   final _phoneFocus = FocusNode();
   final _addressFocus = FocusNode();
+  final _bioFocus = FocusNode();
 
   bool editPhone = false;
   bool editAddress = false;
+  bool editBio = false;
 
   final TextEditingController _skillController = TextEditingController();
   final TextEditingController _interestController = TextEditingController();
@@ -72,6 +76,17 @@ class _ProfileDetailsPageState extends State<ProfileDetailsPage> {
         setState(() {
           address = _addressController.text;
           editAddress = false;
+        });
+        _validateProfile();
+        _calculateProfileCompletion();
+      }
+    });
+
+    _bioFocus.addListener(() {
+      if (!_bioFocus.hasFocus && editBio) {
+        setState(() {
+          bio = _bioController.text;
+          editBio = false;
         });
         _validateProfile();
         _calculateProfileCompletion();
@@ -126,7 +141,7 @@ class _ProfileDetailsPageState extends State<ProfileDetailsPage> {
 
   void _calculateProfileCompletion() {
     int completed = 0;
-    // We check 8 fields
+    // We check 9 fields
     if (_profileImage != null || (avatarUrl != null && avatarUrl!.isNotEmpty)) completed++;
     if (email.isNotEmpty) completed++;
     if (fullName.isNotEmpty) completed++;
@@ -135,9 +150,10 @@ class _ProfileDetailsPageState extends State<ProfileDetailsPage> {
     if (skills.isNotEmpty) completed++;
     if (interests.isNotEmpty) completed++;
     if (certificates.isNotEmpty) completed++;
+    if (bio.isNotEmpty) completed++;
 
     setState(() {
-      profileCompletion = (completed / 8) * 100;
+      profileCompletion = (completed / 9) * 100;
     });
   }
 
@@ -163,6 +179,7 @@ class _ProfileDetailsPageState extends State<ProfileDetailsPage> {
           if (data['full_name'] != null) fullName = data['full_name'];
           if (data['phone'] != null) phone = data['phone'];
           if (data['address'] != null) address = data['address'];
+          if (data['bio'] != null) bio = data['bio'];
           if (data['avatar_url'] != null) avatarUrl = data['avatar_url'];
           
           if (data['skills'] != null) {
@@ -176,6 +193,7 @@ class _ProfileDetailsPageState extends State<ProfileDetailsPage> {
           
           _phoneController.text = phone;
           _addressController.text = address;
+          _bioController.text = bio;
           _isLoading = false;
         });
         _validateProfile();
@@ -513,6 +531,26 @@ class _ProfileDetailsPageState extends State<ProfileDetailsPage> {
                          editAddress = false;
                        });
                        _updateProfile({'address': address});
+                       _validateProfile();
+                    }
+                  ),
+                  _inlineEditableField(
+                    label: 'Bio',
+                    controller: _bioController,
+                    focusNode: _bioFocus,
+                    isEditing: editBio,
+                    maxLines: 4, // multiline
+                    onEdit: () {
+                       _bioController.text = bio;
+                       setState(() => editBio = true);
+                       WidgetsBinding.instance.addPostFrameCallback((_) => _bioFocus.requestFocus());
+                    },
+                    onSave: () {
+                       setState(() {
+                         bio = _bioController.text;
+                         editBio = false;
+                       });
+                       _updateProfile({'bio': bio});
                        _validateProfile();
                     }
                   ),

@@ -15,7 +15,6 @@ import 'screens/app_opening.dart';
 import 'dashboards/volunteers/volunteer_home_page.dart';
 import 'auth/auth_session_holder.dart';
 import 'dashboards/admin/admin_home_page.dart';
-
 import 'dashboards/organizers/host_dashboard_page.dart';
 import 'dashboards/organizers/post_event_page.dart';
 import 'dashboards/organizers/host_messages_page.dart';
@@ -26,7 +25,6 @@ import 'services/verification_stream.dart';
 import 'services/supabase_service.dart';
 import 'enduser_type_selection.dart';
 import 'volunteer_type_selection.dart';
-
 // Manager Module Imports
 import 'dashboards/managers/marketplace/marketplace_screen.dart';
 import 'dashboards/managers/messages/messages_screen.dart';
