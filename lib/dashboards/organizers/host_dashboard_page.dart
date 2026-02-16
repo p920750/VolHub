@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:fl_chart/fl_chart.dart';
+import 'dart:io';
 import '../../services/supabase_service.dart';
 import 'post_event_page.dart';
 import 'host_messages_page.dart';
 import 'my_events_page.dart';
 import 'host_profile_page.dart';
+import 'event_detail_page.dart';
 import '../../services/host_service.dart';
 
 class HostDashboardPage extends StatefulWidget {
@@ -18,11 +21,21 @@ class _HostDashboardPageState extends State<HostDashboardPage> {
   String _fullName = 'Alex Rivera';
   String _profilePhoto = 'https://i.pravatar.cc/150?u=alex';
   bool _isLoading = true;
+  List<Map<String, dynamic>> _events = [];
 
   @override
   void initState() {
     super.initState();
-    _loadProfile();
+    _loadData();
+  }
+
+  Future<void> _loadData() async {
+    setState(() => _isLoading = true);
+    await Future.wait([
+      _loadProfile(),
+      _loadEvents(),
+    ]);
+    if (mounted) setState(() => _isLoading = false);
   }
 
   Future<void> _loadProfile() async {
@@ -32,13 +45,23 @@ class _HostDashboardPageState extends State<HostDashboardPage> {
         setState(() {
           _fullName = userData['full_name'] ?? _fullName;
           _profilePhoto = userData['profile_photo'] ?? _profilePhoto;
-          _isLoading = false;
         });
-      } else if (mounted) {
-        setState(() => _isLoading = false);
       }
     } catch (e) {
-      if (mounted) setState(() => _isLoading = false);
+      if (kDebugMode) print('Error loading profile: $e');
+    }
+  }
+
+  Future<void> _loadEvents() async {
+    try {
+      final events = await HostService.getEvents();
+      if (mounted) {
+        setState(() {
+          _events = events;
+        });
+      }
+    } catch (e) {
+      if (kDebugMode) print('Error loading events: $e');
     }
   }
 
@@ -85,161 +108,166 @@ class _HostDashboardPageState extends State<HostDashboardPage> {
       drawer: _buildDrawer(),
       body: _isLoading 
         ? const Center(child: CircularProgressIndicator())
-        : SingleChildScrollView(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Welcome back, ${_fullName.split(' ')[0]}! 👋',
-                  style: const TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF1A1A1A),
-                  ),
-                ),
-                const SizedBox(height: 4),
-                const Text(
-                  "Here's what's happening with your events today.",
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Colors.grey,
-                  ),
-                ),
-                const SizedBox(height: 24),
-                
-                // Stat Cards Grid
-                GridView.count(
-                  crossAxisCount: 2,
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  crossAxisSpacing: 12,
-                  mainAxisSpacing: 12,
-                  childAspectRatio: 1.5,
-                  children: [
-                    _buildStatCard('Active Events', '12', Icons.calendar_today, Colors.green),
-                    _buildStatCard('Pending Applications', '48', Icons.people_outline, Colors.blue),
-                    GestureDetector(
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (context) => const HostMessagesPage()),
-                        );
-                      },
-                      child: _buildStatCard('New Messages', '5', Icons.mail_outline, Colors.orange),
+        : RefreshIndicator(
+            onRefresh: _loadData,
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Welcome back, ${_fullName.split(' ')[0]}! 👋',
+                    style: const TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF1A1A1A),
                     ),
-                    _buildStatCard('Monthly Reach', '+24%', Icons.trending_up, Colors.teal),
-                  ],
-                ),
-                const SizedBox(height: 24),
-                
-                // Engagement Overview Chart
-                const Text(
-                  'Engagement Overview',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF1A1A1A),
                   ),
-                ),
-                const SizedBox(height: 16),
-                Container(
-                  height: 220,
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(16),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.05),
-                        blurRadius: 10,
-                        offset: const Offset(0, 4),
+                  const SizedBox(height: 4),
+                  const Text(
+                    "Here's what's happening with your events today.",
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.grey,
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  
+                  // Stat Cards Grid
+                  GridView.count(
+                    crossAxisCount: 2,
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    crossAxisSpacing: 12,
+                    mainAxisSpacing: 12,
+                    childAspectRatio: 1.5,
+                    children: [
+                      _buildStatCard('Active Events', _events.where((e) => e['status'] == 'Active').length.toString(), Icons.calendar_today, Colors.green),
+                      _buildStatCard('Pending Applications', '48', Icons.people_outline, Colors.blue),
+                      GestureDetector(
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (context) => const HostMessagesPage()),
+                          );
+                        },
+                        child: _buildStatCard('New Messages', '5', Icons.mail_outline, Colors.orange),
                       ),
+                      _buildStatCard('Monthly Reach', '+24%', Icons.trending_up, Colors.teal),
                     ],
                   ),
-                  child: LineChart(
-                    LineChartData(
-                      gridData: const FlGridData(show: false),
-                      titlesData: const FlTitlesData(show: false),
-                      borderData: FlBorderData(show: false),
-                      lineBarsData: [
-                        LineChartBarData(
-                          spots: const [
-                            FlSpot(0, 3),
-                            FlSpot(1, 2),
-                            FlSpot(2, 5),
-                            FlSpot(3, 3),
-                            FlSpot(4, 4),
-                            FlSpot(5, 6),
-                          ],
-                          isCurved: true,
-                          color: const Color(0xFF1E4D40),
-                          barWidth: 4,
-                          isStrokeCapRound: true,
-                          dotData: const FlDotData(show: false),
-                          belowBarData: BarAreaData(
-                            show: true,
-                            color: const Color(0xFF1E4D40).withOpacity(0.1),
-                          ),
+                  const SizedBox(height: 24),
+                  
+                  // Engagement Overview Chart
+                  const Text(
+                    'Engagement Overview',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF1A1A1A),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Container(
+                    height: 220,
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.05),
+                          blurRadius: 10,
+                          offset: const Offset(0, 4),
                         ),
                       ],
                     ),
-                  ),
-                ),
-                const SizedBox(height: 24),
-                
-                // Featured Events
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text(
-                      'Featured Events',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFF1A1A1A),
+                    child: LineChart(
+                      LineChartData(
+                        gridData: const FlGridData(show: false),
+                        titlesData: const FlTitlesData(show: false),
+                        borderData: FlBorderData(show: false),
+                        lineBarsData: [
+                          LineChartBarData(
+                            spots: const [
+                              FlSpot(0, 3),
+                              FlSpot(1, 2),
+                              FlSpot(2, 5),
+                              FlSpot(3, 3),
+                              FlSpot(4, 4),
+                              FlSpot(5, 6),
+                            ],
+                            isCurved: true,
+                            color: const Color(0xFF1E4D40),
+                            barWidth: 4,
+                            isStrokeCapRound: true,
+                            dotData: const FlDotData(show: false),
+                            belowBarData: BarAreaData(
+                              show: true,
+                              color: const Color(0xFF1E4D40).withOpacity(0.1),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                    TextButton(
-                      onPressed: () {},
-                      child: const Text('View All', style: TextStyle(color: Color(0xFF1E4D40))),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                ListView.separated(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  itemCount: HostService.events.length,
-                  separatorBuilder: (context, index) => const SizedBox(height: 12),
-                  itemBuilder: (context, index) {
-                    final event = HostService.events[index];
-                    return _buildEventCard(
-                      event['title'],
-                      event['date'],
-                      event['location'],
-                      event['stats'],
-                      event['status'],
-                      event['imageUrl'],
-                    );
-                  },
-                ),
-                const SizedBox(height: 12),
-                // Add a "Post a new event" button/card
-                GestureDetector(
-                  onTap: () async {
-                    final result = await Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (context) => const PostEventPage()),
-                    );
-                    if (result == true) {
-                      _loadProfile(); // Refresh profile if needed, though mostly for events
-                      setState(() {});
-                    }
-                  },
-                  child: _buildPostEventCard(),
-                ),
-              ],
+                  ),
+                  const SizedBox(height: 24),
+                  
+                  // Featured Events
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        'Featured Events',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF1A1A1A),
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (context) => const MyEventsPage()),
+                          ).then((_) => _loadData());
+                        },
+                        child: const Text('View All', style: TextStyle(color: Color(0xFF1E4D40))),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  _events.isEmpty 
+                    ? const Center(child: Padding(
+                        padding: EdgeInsets.all(20.0),
+                        child: Text('No events found.'),
+                      ))
+                    : ListView.separated(
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        itemCount: _events.length > 3 ? 3 : _events.length,
+                        separatorBuilder: (context, index) => const SizedBox(height: 12),
+                        itemBuilder: (context, index) {
+                          final event = _events[index];
+                          return _buildEventCard(event);
+                        },
+                      ),
+                  const SizedBox(height: 12),
+                  // Add a "Post a new event" button/card
+                  GestureDetector(
+                    onTap: () async {
+                      final result = await Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (context) => const PostEventPage()),
+                      );
+                      if (result == true) {
+                        _loadData();
+                      }
+                    },
+                    child: _buildPostEventCard(),
+                  ),
+                ],
+              ),
             ),
           ),
     );
@@ -367,7 +395,14 @@ class _HostDashboardPageState extends State<HostDashboardPage> {
     );
   }
 
-  Widget _buildEventCard(String title, String date, String location, String stats, String status, String imageUrl) {
+  Widget _buildEventCard(Map<String, dynamic> event) {
+    final String title = event['title'];
+    final String date = event['date'];
+    final String location = event['location'];
+    final String stats = event['stats'];
+    final String status = event['status'];
+    final String imageUrl = event['imageUrl'];
+
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
@@ -387,12 +422,7 @@ class _HostDashboardPageState extends State<HostDashboardPage> {
             children: [
               ClipRRect(
                 borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
-                child: Image.network(
-                  imageUrl,
-                  height: 120,
-                  width: double.infinity,
-                  fit: BoxFit.cover,
-                ),
+                child: _buildImageWidget(imageUrl),
               ),
               Positioned(
                 top: 8,
@@ -441,7 +471,24 @@ class _HostDashboardPageState extends State<HostDashboardPage> {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(stats, style: const TextStyle(fontSize: 12, color: Colors.grey)),
-                    const Text('View Details', style: TextStyle(fontSize: 12, color: Color(0xFF1E4D40), fontWeight: FontWeight.bold)),
+                    GestureDetector(
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => EventDetailPage(event: event),
+                          ),
+                        );
+                      },
+                      child: const Text(
+                        'View Details', 
+                        style: TextStyle(
+                          fontSize: 12, 
+                          color: Color(0xFF1E4D40), 
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
                   ],
                 ),
               ],
@@ -450,6 +497,34 @@ class _HostDashboardPageState extends State<HostDashboardPage> {
         ],
       ),
     );
+  }
+
+  Widget _buildImageWidget(String url) {
+    if (url.startsWith('http')) {
+      return Image.network(
+        url,
+        height: 120,
+        width: double.infinity,
+        fit: BoxFit.cover,
+        errorBuilder: (context, error, stackTrace) => Container(
+          height: 120,
+          color: Colors.grey[200],
+          child: const Icon(Icons.broken_image, color: Colors.grey),
+        ),
+      );
+    } else {
+      return Image.file(
+        File(url),
+        height: 120,
+        width: double.infinity,
+        fit: BoxFit.cover,
+        errorBuilder: (context, error, stackTrace) => Container(
+          height: 120,
+          color: Colors.grey[200],
+          child: const Icon(Icons.broken_image, color: Colors.grey),
+        ),
+      );
+    }
   }
 
   Widget _buildPostEventCard() {
