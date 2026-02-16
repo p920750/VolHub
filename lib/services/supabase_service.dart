@@ -23,6 +23,7 @@ class SupabaseService {
     String? avatarUrl,
     String? phone,
     String? countryCode,
+    String? bio,
     bool isEmailVerified = false,
   }) async {
     await client.from('users').insert({
@@ -33,6 +34,7 @@ class SupabaseService {
       'profile_photo': avatarUrl,
       'phone_number': phone,
       'country_code': countryCode,
+      'bio': bio,
       'is_email_verified': isEmailVerified,
     });
   }
@@ -240,6 +242,7 @@ class SupabaseService {
     required String dob,
     required bool isEmailVerified,
     required bool isPhoneVerified,
+    String? bio,
     String countryCode = '+91',
   }) async {
     final user = currentUser;
@@ -260,6 +263,7 @@ class SupabaseService {
       'phone_number': phone,
       'country_code': countryCode,
       'date_of_birth': dob,
+      'bio': bio,
       'is_email_verified': isEmailVerified,
       'is_phone_verified': isPhoneVerified,
     });
@@ -495,14 +499,23 @@ class SupabaseService {
       
       if (!context.mounted) return;
 
+      final session = client.auth.currentSession;
+      final provider = session?.user.appMetadata?['provider'];
+
       if (userData == null || userData['role'] == null) {
         // New user or missing role (e.g., first-time Google user)
-        if (kDebugMode) print('No profile found, redirecting to role selection');
-        Navigator.pushNamedAndRemoveUntil(
-          context,
-          '/end-user-type-selection',
-          (route) => false,
-        );
+        // ONLY redirect to role selection if it's NOT an email signup
+        // (Email signups handled by SignupPage after verification)
+        if (provider != 'email') {
+          if (kDebugMode) print('No profile found (OAuth), redirecting to role selection');
+          Navigator.pushNamedAndRemoveUntil(
+            context,
+            '/end-user-type-selection',
+            (route) => false,
+          );
+        } else {
+          if (kDebugMode) print('Email signup in progress, skipping auto-redirection');
+        }
       } else {
         // Existing user with role
         final role = userData['role'];
