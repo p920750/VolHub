@@ -65,7 +65,7 @@ class _IdentityVerificationPageState extends State<IdentityVerificationPage> {
         
         await SupabaseService.client.from('users').update({
           'verification_status': 'pending', // Manual verification required
-          'verification_doc_url': url,
+          'aadhar_doc_url': url,
           'verification_submitted_at': DateTime.now().toIso8601String(),
           if (fullName != null) 'full_name': fullName,
         }).eq('id', user.id);

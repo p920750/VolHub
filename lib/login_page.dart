@@ -301,19 +301,6 @@ class LoginPageState extends State<LoginPage> {
                               }
                             },
                           ),
-                          const SizedBox(height: 12),
-                          _SocialButton(
-                            icon: Icons.facebook,
-                            label: "Continue with Facebook",
-                            color: const Color(0xFF1877F2),
-                            textColor: Colors.white,
-                            borderColor: const Color(0xFF1877F2),
-                            onPressed: () {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text('Facebook authentication coming soon!')),
-                              );
-                            },
-                          ),
                           const SizedBox(height: 24),
                           Row(
                             mainAxisAlignment: MainAxisAlignment.center,

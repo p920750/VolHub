@@ -271,6 +271,34 @@ class SupabaseService {
     if (kDebugMode) print('User record created in public.users');
   }
 
+  // Admin: Add a new manager (System Bypass Version)
+  static Future<void> addManager({
+    required String email,
+    required String password,
+    required String fullName,
+    String? phone,
+    String? companyName,
+    String? companyLocation,
+  }) async {
+    // We use a custom RPC to create the user directly in the database.
+    // This bypasses the Supabase Auth email rate limits and marks the user as verified.
+    try {
+      await client.rpc('create_manager_admin', params: {
+        'in_email': email,
+        'in_password': password,
+        'in_full_name': fullName,
+        'in_phone': phone,
+        'in_company_name': companyName,
+        'in_company_location': companyLocation,
+      });
+    } catch (e) {
+      if (e.toString().contains('duplicate key')) {
+        throw Exception('A user with this email already exists.');
+      }
+      rethrow;
+    }
+  }
+
   // Legacy/Direct Sign up (Kept for reference or alternative flow)
   static Future<AuthResponse> signUpLegacy({
     required String email,
@@ -431,32 +459,6 @@ class SupabaseService {
     }
   }
 
-  // Sign in with Facebook OAuth
-  static Future<bool> signInWithFacebook() async {
-    try {
-      // Use appropriate redirect URL based on platform
-      String redirectTo;
-      if (kIsWeb) {
-        // For web, use the Supabase callback URL
-        // This must match what's configured in Supabase dashboard
-        redirectTo = '${SupabaseConfig.supabaseUrl}/auth/v1/callback';
-      } else {
-        // For mobile, use deep link
-        redirectTo = 'io.supabase.volhub://login-callback';
-      }
-
-      await client.auth.signInWithOAuth(
-        OAuthProvider.facebook,
-        redirectTo: redirectTo,
-        authScreenLaunchMode: kIsWeb
-            ? LaunchMode.platformDefault
-            : LaunchMode.externalApplication,
-      );
-      return true;
-    } catch (e) {
-      rethrow;
-    }
-  }
 
   // Handle OAuth callback (for deep linking)
   static Future<AuthSessionUrlResponse?> handleOAuthCallback(Uri uri) async {

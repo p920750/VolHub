@@ -359,15 +359,16 @@ class _UserManagementViewState extends State<UserManagementView> with SingleTick
     setState(() => _isLoading = true);
 
     String userType = 'volunteer';
+    List<String> roles = ['volunteer'];
     switch (_tabController.index) {
       case 0:
-        userType = 'volunteer';
+        roles = ['volunteer'];
         break;
       case 1:
-        userType = 'event_manager';
+        roles = ['manager', 'event_manager'];
         break;
       case 2:
-        userType = 'event_host';
+        roles = ['organizer', 'host', 'event_host'];
         break;
     }
 
@@ -375,7 +376,7 @@ class _UserManagementViewState extends State<UserManagementView> with SingleTick
       final response = await SupabaseService.client
           .from('users')
           .select()
-          .eq('role', userType)
+          .filter('role', 'in', roles)
           .order('created_at', ascending: false);
 
       if (mounted) {
@@ -437,7 +438,7 @@ class _UserManagementViewState extends State<UserManagementView> with SingleTick
                       ),
                       const SizedBox(height: 4),
                       const Text(
-                        'Manage volunteers, event managers, and event hosts',
+                        'Manage volunteers, event managers, and organizers',
                         style: TextStyle(
                           fontSize: 14,
                           color: Colors.grey,
@@ -447,9 +448,9 @@ class _UserManagementViewState extends State<UserManagementView> with SingleTick
                       SizedBox(
                         width: double.infinity,
                         child: ElevatedButton.icon(
-                          onPressed: () {},
+                          onPressed: () => _showAddManagerDialog(context),
                           icon: const Icon(Icons.person_add, size: 18),
-                          label: const Text('Add User'),
+                          label: const Text('Add Manager'),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.black,
                             foregroundColor: Colors.white,
@@ -478,8 +479,8 @@ class _UserManagementViewState extends State<UserManagementView> with SingleTick
                                   ),
                                 ),
                                 SizedBox(height: 4),
-                                Text(
-                                  'Manage volunteers, event managers, and event hosts',
+                                 const Text(
+                                  'Manage volunteers, event managers, and organizers',
                                   style: TextStyle(
                                     fontSize: 14,
                                     color: Colors.grey,
@@ -491,9 +492,9 @@ class _UserManagementViewState extends State<UserManagementView> with SingleTick
                           ),
                            const SizedBox(width: 16),
                           ElevatedButton.icon(
-                            onPressed: () {},
+                            onPressed: () => _showAddManagerDialog(context),
                             icon: const Icon(Icons.person_add, size: 18),
-                            label: const Text('Add User'),
+                            label: const Text('Add Manager'),
                             style: ElevatedButton.styleFrom(
                               backgroundColor: Colors.black,
                               foregroundColor: Colors.white,
@@ -551,8 +552,8 @@ class _UserManagementViewState extends State<UserManagementView> with SingleTick
                         labelStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
                         tabs: const [
                           Tab(text: 'Volunteers'),
-                          Tab(text: 'Managers'), // Shortened for mobile
-                          Tab(text: 'Hosts'), // Shortened for mobile
+                          Tab(text: 'Managers'),
+                          Tab(text: 'Organizers'),
                         ],
                       ),
                     ),
@@ -601,8 +602,7 @@ class _UserManagementViewState extends State<UserManagementView> with SingleTick
                               final name = user['full_name'] ?? 'No Name';
                               final email = user['email'] ?? 'No Email';
                               final phone = user['phone_number'] ?? 'No Phone';
-                              final isVerified = user['is_aadhar_verified'] == true;
-                              final status = isVerified ? 'verified' : 'pending';
+                              final status = user['verification_status'] ?? 'pending';
                               final joined = user['created_at'] != null 
                                   ? DateTime.parse(user['created_at']).toString().split(' ')[0] 
                                   : 'N/A';
@@ -651,6 +651,17 @@ class _UserManagementViewState extends State<UserManagementView> with SingleTick
     );
   }
 
+  void _showAddManagerDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => const AddManagerDialog(),
+    ).then((value) {
+      if (value == true) {
+        _fetchUsers(); // Refresh the list if a manager was added
+      }
+    });
+  }
+
   Widget _buildStatusChip(String status) {
     Color bg;
     Color text;
@@ -682,6 +693,314 @@ class _UserManagementViewState extends State<UserManagementView> with SingleTick
       child: Text(
         status.toUpperCase(),
         style: TextStyle(color: text, fontWeight: FontWeight.bold, fontSize: 12),
+      ),
+    );
+  }
+}
+
+class AddManagerDialog extends StatefulWidget {
+  const AddManagerDialog({super.key});
+
+  @override
+  State<AddManagerDialog> createState() => _AddManagerDialogState();
+}
+
+class _AddManagerDialogState extends State<AddManagerDialog> {
+  final _formKey = GlobalKey<FormState>();
+  final _nameController = TextEditingController();
+  final _emailController = TextEditingController();
+  final _phoneController = TextEditingController();
+  final _companyNameController = TextEditingController();
+  final _companyLocationController = TextEditingController();
+  final _passwordController = TextEditingController();
+  bool _isLoading = false;
+  bool _obscurePassword = true;
+
+  @override
+  String? _nameError;
+  String? _emailError;
+  String? _phoneError;
+  String? _companyNameError;
+  String? _companyLocationError;
+  String? _passwordError;
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _emailController.dispose();
+    _phoneController.dispose();
+    _companyNameController.dispose();
+    _companyLocationController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
+
+  bool _validateForm() {
+    bool isValid = true;
+    setState(() {
+      _nameError = _nameController.text.isEmpty ? 'This field is required' : null;
+      
+      final emailValue = _emailController.text.trim();
+      if (emailValue.isEmpty) {
+        _emailError = 'This field is required';
+      } else if (!RegExp(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$').hasMatch(emailValue)) {
+        _emailError = 'Invalid email';
+      } else {
+        _emailError = null;
+      }
+
+      final phoneValue = _phoneController.text.trim();
+      if (phoneValue.isEmpty) {
+        _phoneError = 'This field is required';
+      } else if (!RegExp(r'^[6-9]\d{9}$').hasMatch(phoneValue)) {
+        _phoneError = 'Invalid phone number';
+      } else {
+        _phoneError = null;
+      }
+
+      _companyNameError = _companyNameController.text.isEmpty ? 'This field is required' : null;
+      _companyLocationError = _companyLocationController.text.isEmpty ? 'This field is required' : null;
+
+      final passwordValue = _passwordController.text.trim();
+      if (passwordValue.isEmpty) {
+        _passwordError = 'This field is required';
+      } else if (passwordValue.length < 6) {
+        _passwordError = 'Invalid password must be at least 6 characters';
+      } else {
+        _passwordError = null;
+      }
+
+      if (_nameError != null || _emailError != null || _phoneError != null || 
+          _companyNameError != null || _companyLocationError != null || _passwordError != null) {
+        isValid = false;
+      }
+    });
+    return isValid;
+  }
+
+  Future<void> _addManager() async {
+    if (!_validateForm()) return;
+
+    setState(() => _isLoading = true);
+    try {
+      await SupabaseService.addManager(
+        email: _emailController.text.trim(),
+        password: _passwordController.text.trim(),
+        fullName: _nameController.text.trim(),
+        phone: _phoneController.text.trim(),
+        companyName: _companyNameController.text.trim(),
+        companyLocation: _companyLocationController.text.trim(),
+      );
+      if (mounted) {
+        Navigator.pop(context, true);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Manager added successfully.')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error adding manager: ${e.toString()}')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Widget _buildErrorText(String? errorText) {
+    if (errorText == null) return const SizedBox.shrink();
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Padding(
+        padding: const EdgeInsets.only(bottom: 4.0),
+        child: Text(
+          errorText,
+          textAlign: TextAlign.left,
+          style: const TextStyle(
+            color: Colors.red,
+            fontSize: 12,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Container(
+        padding: const EdgeInsets.all(24),
+        constraints: const BoxConstraints(maxWidth: 450, maxHeight: 600),
+        child: Form(
+          key: _formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'Add New Manager',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: () => Navigator.pop(context),
+                    icon: const Icon(Icons.close),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Flexible(
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _buildErrorText(_nameError),
+                      TextFormField(
+                        controller: _nameController,
+                        decoration: const InputDecoration(
+                          labelText: 'Full Name',
+                          border: OutlineInputBorder(),
+                          prefixIcon: Icon(Icons.person_outline),
+                        ),
+                        onChanged: (value) {
+                          setState(() {
+                            _nameError = value.isEmpty ? 'This field is required' : null;
+                          });
+                        },
+                      ),
+                      const SizedBox(height: 16),
+                      _buildErrorText(_emailError),
+                      TextFormField(
+                        controller: _emailController,
+                        decoration: const InputDecoration(
+                          labelText: 'Email Address',
+                          border: OutlineInputBorder(),
+                          prefixIcon: Icon(Icons.email_outlined),
+                        ),
+                        keyboardType: TextInputType.emailAddress,
+                        onChanged: (value) {
+                          final val = value.trim();
+                          setState(() {
+                            if (val.isEmpty) {
+                              _emailError = 'This field is required';
+                            } else if (!RegExp(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$').hasMatch(val)) {
+                              _emailError = 'Invalid email';
+                            } else {
+                              _emailError = null;
+                            }
+                          });
+                        },
+                      ),
+                      const SizedBox(height: 16),
+                      _buildErrorText(_phoneError),
+                      TextFormField(
+                        controller: _phoneController,
+                        decoration: const InputDecoration(
+                          labelText: 'Phone Number',
+                          hintText: 'e.g. 9876543210',
+                          prefixText: '+91 ',
+                          border: OutlineInputBorder(),
+                          prefixIcon: Icon(Icons.phone_outlined),
+                        ),
+                        keyboardType: TextInputType.phone,
+                        onChanged: (value) {
+                          final val = value.trim();
+                          setState(() {
+                            if (val.isEmpty) {
+                              _phoneError = 'This field is required';
+                            } else if (!RegExp(r'^[6-9]\d{9}$').hasMatch(val)) {
+                              _phoneError = 'Invalid phone number';
+                            } else {
+                              _phoneError = null;
+                            }
+                          });
+                        },
+                      ),
+                      const SizedBox(height: 16),
+                      _buildErrorText(_companyNameError),
+                      TextFormField(
+                        controller: _companyNameController,
+                        decoration: const InputDecoration(
+                          labelText: 'Company Name',
+                          border: OutlineInputBorder(),
+                          prefixIcon: Icon(Icons.business_outlined),
+                        ),
+                        onChanged: (value) {
+                          setState(() {
+                            _companyNameError = value.isEmpty ? 'This field is required' : null;
+                          });
+                        },
+                      ),
+                      const SizedBox(height: 16),
+                      _buildErrorText(_companyLocationError),
+                      TextFormField(
+                        controller: _companyLocationController,
+                        decoration: const InputDecoration(
+                          labelText: 'Company Location',
+                          border: OutlineInputBorder(),
+                          prefixIcon: Icon(Icons.location_on_outlined),
+                        ),
+                        onChanged: (value) {
+                          setState(() {
+                            _companyLocationError = value.isEmpty ? 'This field is required' : null;
+                          });
+                        },
+                      ),
+                      const SizedBox(height: 16),
+                      _buildErrorText(_passwordError),
+                      TextFormField(
+                        controller: _passwordController,
+                        decoration: InputDecoration(
+                          labelText: 'Password',
+                          border: const OutlineInputBorder(),
+                          prefixIcon: const Icon(Icons.lock_outline),
+                          suffixIcon: IconButton(
+                            icon: Icon(_obscurePassword ? Icons.visibility_off : Icons.visibility),
+                            onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                          ),
+                        ),
+                        obscureText: _obscurePassword,
+                        onChanged: (value) {
+                          final val = value.trim();
+                          setState(() {
+                            if (val.isEmpty) {
+                              _passwordError = 'This field is required';
+                            } else if (val.length < 6) {
+                              _passwordError = 'Invalid password';
+                            } else {
+                              _passwordError = null;
+                            }
+                          });
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 24),
+              ElevatedButton(
+                onPressed: _isLoading ? null : _addManager,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.black,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                ),
+                child: _isLoading 
+                    ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                    : const Text('Add Manager'),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
