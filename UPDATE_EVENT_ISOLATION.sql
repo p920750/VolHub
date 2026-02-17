@@ -31,9 +31,20 @@ FOR INSERT WITH CHECK (auth.uid() = manager_id);
 CREATE POLICY "Hosts update own events" ON public.events 
 FOR UPDATE USING (auth.uid() = manager_id);
 
+CREATE POLICY "Hosts delete own events" ON public.events 
+FOR DELETE USING (auth.uid() = manager_id);
+
 -- Policy for Managers: Can see ALL events
 CREATE POLICY "Managers see all events" ON public.events 
 FOR SELECT USING (
+  EXISTS (
+    SELECT 1 FROM public.users 
+    WHERE id = auth.uid() AND (role = 'manager' OR role = 'event_manager')
+  )
+);
+
+CREATE POLICY "Managers delete any event" ON public.events 
+FOR DELETE USING (
   EXISTS (
     SELECT 1 FROM public.users 
     WHERE id = auth.uid() AND (role = 'manager' OR role = 'event_manager')

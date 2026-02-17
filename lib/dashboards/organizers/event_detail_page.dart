@@ -1,25 +1,68 @@
 import 'package:flutter/material.dart';
 import 'dart:io';
+import '../../services/host_service.dart';
+import 'edit_event_page.dart';
 
-class EventDetailPage extends StatelessWidget {
+class EventDetailPage extends StatefulWidget {
   final Map<String, dynamic> event;
 
   const EventDetailPage({super.key, required this.event});
 
   @override
+  State<EventDetailPage> createState() => _EventDetailPageState();
+}
+
+class _EventDetailPageState extends State<EventDetailPage> {
+  late Map<String, dynamic> _currentEvent;
+  bool _isLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _currentEvent = widget.event;
+  }
+
+  Future<void> _loadEventData() async {
+    if (_currentEvent['id'] == null) return;
+    
+    setState(() => _isLoading = true);
+    try {
+      // In a real app, we'd have a getEventById method. 
+      // For now, we can fetch all and filter, or add a method to HostService.
+      // HostService.getEvents() returns everything for this host.
+      final events = await HostService.getEvents();
+      final updatedEvent = events.firstWhere(
+        (e) => e['id'].toString() == _currentEvent['id'].toString(),
+        orElse: () => _currentEvent,
+      );
+      
+      if (mounted) {
+        setState(() {
+          _currentEvent = updatedEvent;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final String title = event['title'] ?? 'Event Details';
-    final String date = event['date'] ?? 'N/A';
-    final String location = event['location'] ?? 'N/A';
-    final String budget = event['budget'] ?? 'N/A';
-    final String requirements = event['requirements'] ?? 'No specific requirements listed.';
-    final String description = event['description'] ?? 'No description provided.';
-    final String imageUrl = event['imageUrl'] ?? 'https://images.unsplash.com/photo-1501281668745-f7f57925c3b4?w=800';
-    final String status = event['status'] ?? 'Pending';
+    final String title = _currentEvent['title'] ?? 'Event Details';
+    final String date = _currentEvent['date'] ?? 'N/A';
+    final String location = _currentEvent['location'] ?? 'N/A';
+    final String budget = _currentEvent['budget'] ?? 'N/A';
+    final String requirements = _currentEvent['requirements'] ?? 'No specific requirements listed.';
+    final String description = _currentEvent['description'] ?? 'No description provided.';
+    final String imageUrl = _currentEvent['imageUrl'] ?? 'https://images.unsplash.com/photo-1501281668745-f7f57925c3b4?w=800';
+    final String status = _currentEvent['status'] ?? 'Pending';
 
     return Scaffold(
       backgroundColor: Colors.white,
-      body: CustomScrollView(
+      body: _isLoading 
+        ? const Center(child: CircularProgressIndicator())
+        : CustomScrollView(
         slivers: [
           SliverAppBar(
             expandedHeight: 300,
@@ -31,7 +74,7 @@ class EventDetailPage extends StatelessWidget {
               backgroundColor: Colors.black26,
               child: IconButton(
                 icon: const Icon(Icons.arrow_back, color: Colors.white),
-                onPressed: () => Navigator.pop(context),
+                onPressed: () => Navigator.pop(context, true), // Return true to refresh parent
               ),
             ),
           ),
@@ -83,7 +126,7 @@ class EventDetailPage extends StatelessWidget {
                   const SizedBox(height: 12),
                   _buildInfoRow(Icons.location_on_outlined, 'Location', location),
                   const SizedBox(height: 12),
-                  _buildInfoRow(Icons.person_outline, 'Posted By', event['host_name'] ?? 'Host'),
+                  _buildInfoRow(Icons.person_outline, 'Posted By', _currentEvent['host_name'] ?? 'Host'),
                   const Divider(height: 48),
                   const Text(
                     'About Event',
@@ -125,7 +168,74 @@ class EventDetailPage extends StatelessWidget {
                     width: double.infinity,
                     height: 56,
                     child: ElevatedButton(
-                      onPressed: () {},
+                      onPressed: () {
+                        showModalBottomSheet(
+                          context: context,
+                          backgroundColor: Colors.transparent,
+                          builder: (context) => Container(
+                            decoration: const BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.only(
+                                topLeft: Radius.circular(24),
+                                topRight: Radius.circular(24),
+                              ),
+                            ),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const SizedBox(height: 12),
+                                Container(
+                                  width: 40,
+                                  height: 4,
+                                  decoration: BoxDecoration(
+                                    color: Colors.grey[300],
+                                    borderRadius: BorderRadius.circular(2),
+                                  ),
+                                ),
+                                const SizedBox(height: 24),
+                                ListTile(
+                                  leading: const Icon(Icons.edit_outlined, color: Color(0xFF1E4D40)),
+                                  title: const Text(
+                                    'Edit Event Details',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      color: Color(0xFF001529),
+                                    ),
+                                  ),
+                                  onTap: () async {
+                                    Navigator.pop(context);
+                                    final result = await Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (context) => EditEventPage(event: _currentEvent),
+                                      ),
+                                    );
+                                    if (result == true && mounted) {
+                                      _loadEventData(); // Refresh local state
+                                    }
+                                  },
+                                ),
+                                const Divider(),
+                                ListTile(
+                                  leading: const Icon(Icons.delete_outline, color: Colors.red),
+                                  title: const Text(
+                                    'Delete Event Permanent',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.red,
+                                    ),
+                                  ),
+                                  onTap: () {
+                                    Navigator.pop(context);
+                                    _showDeleteConfirmation(context);
+                                  },
+                                ),
+                                const SizedBox(height: 24),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFF1E4D40),
                         foregroundColor: Colors.white,
@@ -144,6 +254,45 @@ class EventDetailPage extends StatelessWidget {
                 ],
               ),
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showDeleteConfirmation(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Event'),
+        content: const Text('Are you sure you want to permanently delete this event? This action cannot be undone.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () async {
+              try {
+                if (_currentEvent['id'] != null) {
+                  await HostService.deleteEvent(_currentEvent['id'].toString());
+                  if (context.mounted) {
+                    Navigator.pop(context); // Close dialog
+                    Navigator.pop(context, true); // Go back to dashboard with refresh
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Event deleted successfully')),
+                    );
+                  }
+                }
+              } catch (e) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Failed to delete event: $e')),
+                  );
+                }
+              }
+            },
+            child: const Text('Delete', style: TextStyle(color: Colors.red)),
           ),
         ],
       ),

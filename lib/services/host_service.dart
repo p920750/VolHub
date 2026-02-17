@@ -68,6 +68,38 @@ class HostService {
     }
   }
 
+  static Future<void> updateEvent(String id, Map<String, dynamic> event) async {
+    try {
+      final user = SupabaseService.currentUser;
+      if (user == null) throw Exception('User not authenticated');
+
+      await SupabaseService.client.from('events').update({
+        'name': event['title'],
+        'location': event['location'],
+        'date': event['date_raw'],
+        'description': event['description'],
+        'budget': event['budget'],
+        'requirements': event['requirements'],
+        'image_url': event['imageUrl'],
+      }).eq('id', id);
+      
+      if (kDebugMode) print('Event updated in Supabase: ${event['title']}');
+    } catch (e) {
+      if (kDebugMode) print('Error updating event: $e');
+      rethrow;
+    }
+  }
+
+  static Future<void> deleteEvent(String id) async {
+    try {
+      await SupabaseService.client.from('events').delete().eq('id', id);
+      if (kDebugMode) print('Event deleted from Supabase: $id');
+    } catch (e) {
+      if (kDebugMode) print('Error deleting event: $e');
+      rethrow;
+    }
+  }
+
   static String _formatDate(String isoString) {
     try {
       final date = DateTime.parse(isoString);

@@ -25,7 +25,7 @@ class _VerificationDetailPageState extends State<VerificationDetailPage> {
   @override
   void initState() {
     super.initState();
-    _docUrl = widget.profileData['verification_doc_url'];
+    _docUrl = widget.profileData['aadhar_doc_url'];
   }
 
    Future<void> _updateStatus(String status) async {
@@ -38,7 +38,10 @@ class _VerificationDetailPageState extends State<VerificationDetailPage> {
     try {
       await SupabaseService.client
           .from('users')
-          .update({'verification_status': status})
+          .update({
+            'verification_status': status,
+            'is_aadhar_verified': status == 'verified'
+          })
           .eq('id', widget.profileData['id']);
 
       if (mounted) {

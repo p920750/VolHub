@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:io';
 import '../../services/host_service.dart';
+import 'event_detail_page.dart';
 
 class MyEventsPage extends StatefulWidget {
   const MyEventsPage({super.key});
@@ -60,77 +61,90 @@ class _MyEventsPageState extends State<MyEventsPage> {
                   itemCount: _events.length,
                   itemBuilder: (context, index) {
                     final event = _events[index];
-                    return Card(
-                      margin: const EdgeInsets.only(bottom: 16),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      elevation: 2,
-                      child: ListTile(
-                        contentPadding: const EdgeInsets.all(12),
-                        leading: ClipRRect(
-                          borderRadius: BorderRadius.circular(8),
-                          child: event['imageUrl'].startsWith('http') 
-                            ? Image.network(
-                                event['imageUrl'],
-                                width: 60,
-                                height: 60,
-                                fit: BoxFit.cover,
-                                errorBuilder: (context, error, stackTrace) => Container(
-                                  width: 60,
-                                  height: 60,
-                                  color: Colors.grey[200],
-                                  child: const Icon(Icons.broken_image, color: Colors.grey),
-                                ),
-                              )
-                            : Image.file(
-                                File(event['imageUrl']),
-                                width: 60,
-                                height: 60,
-                                fit: BoxFit.cover,
-                                errorBuilder: (context, error, stackTrace) => Container(
-                                  width: 60,
-                                  height: 60,
-                                  color: Colors.grey[200],
-                                  child: const Icon(Icons.broken_image, color: Colors.grey),
-                                ),
-                              ),
-                        ),
-                        title: Text(
-                          event['title'],
-                          style: const TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                        subtitle: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const SizedBox(height: 4),
-                            Row(
-                              children: [
-                                const Icon(Icons.calendar_today, size: 12, color: Colors.grey),
-                                const SizedBox(width: 4),
-                                Text(event['date'], style: const TextStyle(fontSize: 12)),
-                              ],
-                            ),
-                            const SizedBox(height: 2),
-                            Row(
-                              children: [
-                                const Icon(Icons.location_on_outlined, size: 12, color: Colors.grey),
-                                const SizedBox(width: 4),
-                                Text(event['location'], style: const TextStyle(fontSize: 12)),
-                              ],
-                            ),
-                          ],
-                        ),
-                        trailing: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: event['status'] == 'Active' ? Colors.green.withOpacity(0.1) : Colors.orange.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(8),
+                    return GestureDetector(
+                      onTap: () async {
+                        final result = await Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => EventDetailPage(event: event),
                           ),
-                          child: Text(
-                            event['status'],
-                            style: TextStyle(
-                              color: event['status'] == 'Active' ? Colors.green : Colors.orange,
-                              fontSize: 10,
-                              fontWeight: FontWeight.bold,
+                        );
+                        if (result == true) {
+                          _loadEvents();
+                        }
+                      },
+                      child: Card(
+                        margin: const EdgeInsets.only(bottom: 16),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        elevation: 2,
+                        child: ListTile(
+                          contentPadding: const EdgeInsets.all(12),
+                          leading: ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: event['imageUrl'].startsWith('http') 
+                              ? Image.network(
+                                  event['imageUrl'],
+                                  width: 60,
+                                  height: 60,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (context, error, stackTrace) => Container(
+                                    width: 60,
+                                    height: 60,
+                                    color: Colors.grey[200],
+                                    child: const Icon(Icons.broken_image, color: Colors.grey),
+                                  ),
+                                )
+                              : Image.file(
+                                  File(event['imageUrl']),
+                                  width: 60,
+                                  height: 60,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (context, error, stackTrace) => Container(
+                                    width: 60,
+                                    height: 60,
+                                    color: Colors.grey[200],
+                                    child: const Icon(Icons.broken_image, color: Colors.grey),
+                                  ),
+                                ),
+                          ),
+                          title: Text(
+                            event['title'],
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                          subtitle: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const SizedBox(height: 4),
+                              Row(
+                                children: [
+                                  const Icon(Icons.calendar_today, size: 12, color: Colors.grey),
+                                  const SizedBox(width: 4),
+                                  Text(event['date'], style: const TextStyle(fontSize: 12)),
+                                ],
+                              ),
+                              const SizedBox(height: 2),
+                              Row(
+                                children: [
+                                  const Icon(Icons.location_on_outlined, size: 12, color: Colors.grey),
+                                  const SizedBox(width: 4),
+                                  Text(event['location'], style: const TextStyle(fontSize: 12)),
+                                ],
+                              ),
+                            ],
+                          ),
+                          trailing: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: event['status'] == 'Active' ? Colors.green.withOpacity(0.1) : Colors.orange.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Text(
+                              event['status'],
+                              style: TextStyle(
+                                color: event['status'] == 'Active' ? Colors.green : Colors.orange,
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
                           ),
                         ),

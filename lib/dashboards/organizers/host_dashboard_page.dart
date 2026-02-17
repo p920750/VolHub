@@ -472,13 +472,16 @@ class _HostDashboardPageState extends State<HostDashboardPage> {
                   children: [
                     Text(stats, style: const TextStyle(fontSize: 12, color: Colors.grey)),
                     GestureDetector(
-                      onTap: () {
-                        Navigator.push(
+                      onTap: () async {
+                        final result = await Navigator.push(
                           context,
                           MaterialPageRoute(
                             builder: (context) => EventDetailPage(event: event),
                           ),
                         );
+                        if (result == true) {
+                          _loadData();
+                        }
                       },
                       child: const Text(
                         'View Details', 
