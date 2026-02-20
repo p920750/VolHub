@@ -108,4 +108,88 @@ class EventManagerService {
       return [];
     }
   }
+
+  /// Fetches pending event requests that match the manager's category.
+  static Future<List<Map<String, dynamic>>> getEventRequests(String? category) async {
+    try {
+      final user = SupabaseService.currentUser;
+      if (user == null) return [];
+
+      var query = client.from('events').select('*, host:users(*)').eq('status', 'pending');
+      
+      if (category != null && category.isNotEmpty) {
+        query = query.eq('category', category);
+      }
+
+      final response = await query.order('created_at', ascending: false);
+      
+      // Filter out events the manager has already accepted/applied for
+      final appliedResponse = await client
+          .from('event_applications')
+          .select('event_id')
+          .eq('manager_id', user.id);
+      
+      final appliedIds = (appliedResponse as List).map((e) => e['event_id']).toSet();
+
+      return response.where((e) => !appliedIds.contains(e['id'])).toList();
+    } catch (e) {
+      if (kDebugMode) print('Error fetching event requests: $e');
+      return [];
+    }
+  }
+
+  /// Manager accepts/applies for an event.
+  static Future<void> acceptEvent(String eventId) async {
+    try {
+      final user = SupabaseService.currentUser;
+      if (user == null) throw Exception('User not logged in');
+
+      await client.from('event_applications').insert({
+        'event_id': eventId,
+        'manager_id': user.id,
+        'status': 'pending',
+      });
+      
+      if (kDebugMode) print('Manager accepted event: $eventId');
+    } catch (e) {
+      if (kDebugMode) print('Error accepting event: $e');
+      rethrow;
+    }
+  }
+
+  /// Manager rejects/withdraws application for an event.
+  static Future<void> rejectEvent(String eventId) async {
+    try {
+      final user = SupabaseService.currentUser;
+      if (user == null) throw Exception('User not logged in');
+
+      await client.from('event_applications')
+          .delete()
+          .eq('event_id', eventId)
+          .eq('manager_id', user.id);
+      
+      if (kDebugMode) print('Manager rejected event: $eventId');
+    } catch (e) {
+      if (kDebugMode) print('Error rejecting event: $e');
+      rethrow;
+    }
+  }
+
+  /// Fetches events the manager has already accepted.
+  static Future<List<Map<String, dynamic>>> getAcceptedEvents() async {
+    try {
+      final user = SupabaseService.currentUser;
+      if (user == null) return [];
+
+      final response = await client
+          .from('event_applications')
+          .select('*, events(*)')
+          .eq('manager_id', user.id);
+      
+      return List<Map<String, dynamic>>.from(response);
+    } catch (e) {
+      if (kDebugMode) print('Error fetching accepted events: $e');
+      return [];
+    }
+  }
 }

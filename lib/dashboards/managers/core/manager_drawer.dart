@@ -15,7 +15,7 @@ class ManagerDrawer extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final profile = ref.watch(userProfileProvider);
+    final profileAsync = ref.watch(userProfileProvider);
 
     return Drawer(
       backgroundColor: AppColors.midnightBlue,
@@ -25,40 +25,44 @@ class ManagerDrawer extends ConsumerWidget {
             decoration: const BoxDecoration(
               color: Color(0xFF1E2A38),
             ),
-            child: Row(
-              children: [
-                CircleAvatar(
-                  radius: 30,
-                  backgroundImage: NetworkImage(profile.profileImage),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        profile.name,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      Text(
-                        'MANAGER',
-                        style: TextStyle(
-                          color: AppColors.mintIce.withOpacity(0.8),
-                          fontSize: 12,
-                          letterSpacing: 1.2,
-                        ),
-                      ),
-                    ],
+            child: profileAsync.when(
+              data: (profile) => Row(
+                children: [
+                  CircleAvatar(
+                    radius: 30,
+                    backgroundImage: NetworkImage(profile.profileImage),
                   ),
-                ),
-              ],
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          profile.name,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        Text(
+                          'MANAGER', // Or use profile.role.toUpperCase() if preferred
+                          style: TextStyle(
+                            color: AppColors.mintIce.withOpacity(0.8),
+                            fontSize: 12,
+                            letterSpacing: 1.2,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              loading: () => const Center(child: CircularProgressIndicator(color: AppColors.mintIce)),
+              error: (err, stack) => const Center(child: Text('Error', style: TextStyle(color: Colors.red))),
             ),
           ),
           Expanded(

@@ -27,6 +27,20 @@ class _PostEventPageState extends State<PostEventPage> {
   DateTime? _selectedDate;
   String _hostName = 'Host';
   bool _isFetchingProfile = true;
+  String? _selectedCategory;
+
+  final List<String> _categories = [
+    'Wedding',
+    'Party',
+    'Emergency Supplies',
+    'Catering',
+    'Festival',
+    'Photography',
+    'Corporate Event',
+    'Concert',
+    'Workshop',
+    'Other'
+  ];
 
   @override
   void initState() {
@@ -124,29 +138,73 @@ class _PostEventPageState extends State<PostEventPage> {
                   ),
                   const SizedBox(height: 32),
                   
-                  // Event Title and Location
-                  Row(
+                  // Event Title
+                  _buildTextField(
+                    controller: _titleController,
+                    label: 'Event Title',
+                    placeholder: 'e.g. Summer Music Festival 2026',
+                  ),
+                  const SizedBox(height: 20),
+
+                  // Event Category
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Expanded(
-                        child: _buildTextField(
-                          controller: _titleController,
-                          label: 'Event Title',
-                          placeholder: 'e.g. Summer Music Festival 2026',
+                      const Text(
+                        'Event Category',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF001529),
                         ),
                       ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: _buildTextField(
-                          controller: _locationController,
-                          label: 'Location',
-                          placeholder: 'e.g. Central Park, NY',
-                          icon: Icons.location_on_outlined,
+                      const SizedBox(height: 8),
+                      DropdownButtonFormField<String>(
+                        isExpanded: true,
+                        value: _selectedCategory,
+                        decoration: InputDecoration(
+                          hintText: 'Select Category',
+                          hintStyle: TextStyle(color: Colors.grey.withOpacity(0.5), fontSize: 14),
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(color: Colors.grey.withOpacity(0.3)),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(color: Colors.grey.withOpacity(0.3)),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(color: Color(0xFF001529), width: 1.5),
+                          ),
                         ),
+                        items: _categories.map((String category) {
+                          return DropdownMenuItem<String>(
+                            value: category,
+                            child: Text(category, overflow: TextOverflow.ellipsis),
+                          );
+                        }).toList(),
+                        onChanged: (String? newValue) {
+                          setState(() {
+                            _selectedCategory = newValue;
+                          });
+                        },
+                        validator: (value) => value == null ? 'Please select a category' : null,
                       ),
                     ],
                   ),
                   const SizedBox(height: 20),
-                  
+
+                  // Location
+                  _buildTextField(
+                    controller: _locationController,
+                    label: 'Location',
+                    placeholder: 'e.g. Central Park, NY',
+                    icon: Icons.location_on_outlined,
+                  ),
+                  const SizedBox(height: 20),
+
                   // Date and Time
                   Row(
                     children: [
@@ -162,7 +220,7 @@ class _PostEventPageState extends State<PostEventPage> {
                               context: context,
                               initialDate: DateTime.now(),
                               firstDate: DateTime.now(),
-                              lastDate: DateTime.now().add(const Duration(days: 365)),
+                              lastDate: DateTime.now().add(const Duration(days: 365 * 30)),
                             );
                             if (date != null) {
                               _selectedDate = date;
@@ -296,12 +354,14 @@ class _PostEventPageState extends State<PostEventPage> {
                             await HostService.addEvent({
                               'title': _titleController.text,
                               'date_raw': _selectedDate?.toIso8601String(),
+                              'time': _timeController.text,
                               'location': _locationController.text.isEmpty ? 'Online' : _locationController.text,
                               'budget': _budgetController.text,
                               'requirements': _reqsController.text,
                               'description': _detailsController.text,
                               'imageUrl': imagePath,
                               'host_name': _hostName,
+                              'category': _selectedCategory,
                             });
                             
                             if (mounted) {
@@ -333,7 +393,7 @@ class _PostEventPageState extends State<PostEventPage> {
                       ),
                     ),
                   ),
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 50), // Extra space at bottom for scrolling
                 ],
               ),
             ),

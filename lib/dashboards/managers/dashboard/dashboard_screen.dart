@@ -11,8 +11,9 @@ class DashboardScreen extends ConsumerWidget {
   const DashboardScreen({super.key});
 
   @override
+  @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final profile = ref.watch(userProfileProvider);
+    final profileAsync = ref.watch(userProfileProvider);
 
     return Scaffold(
       appBar: AppBar(
@@ -26,9 +27,13 @@ class DashboardScreen extends ConsumerWidget {
             padding: const EdgeInsets.only(right: 16.0),
             child: GestureDetector(
               onTap: () => Navigator.pushNamed(context, '/manager-profile'),
-              child: CircleAvatar(
-                radius: 16,
-                backgroundImage: NetworkImage(profile.profileImage),
+              child: profileAsync.when(
+                data: (profile) => CircleAvatar(
+                  radius: 16,
+                  backgroundImage: NetworkImage(profile.profileImage),
+                ),
+                loading: () => const CircleAvatar(radius: 16, child: CircularProgressIndicator(strokeWidth: 2)),
+                error: (err, stack) => const CircleAvatar(radius: 16, child: Icon(Icons.error)),
               ),
             ),
           ),
@@ -40,9 +45,16 @@ class DashboardScreen extends ConsumerWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'Welcome back, ${profile.name.split(' ')[0]}!',
-              style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
+             profileAsync.when(
+              data: (profile) => Text(
+                'Welcome back, ${profile.name.split(' ')[0]}!',
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
+              ),
+              loading: () => Text( // Skeleton or placeholder
+                'Welcome back...',
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold, color: Colors.grey),
+              ),
+              error: (err, stack) => const Text('Welcome'),
             ),
             const SizedBox(height: 4),
             Text(

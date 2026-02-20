@@ -1,16 +1,32 @@
 import 'package:flutter/material.dart';
+import '../../../../services/event_manager_service.dart';
 
-class ProposalCard extends StatelessWidget {
-  final Map<String, dynamic> proposal;
+class ProposalCard extends StatefulWidget {
+  final Map<String, dynamic> application;
+  final VoidCallback onReject;
 
-  const ProposalCard({super.key, required this.proposal});
+  const ProposalCard({
+    super.key, 
+    required this.application,
+    required this.onReject,
+  });
+
+  @override
+  State<ProposalCard> createState() => _ProposalCardState();
+}
+
+class _ProposalCardState extends State<ProposalCard> {
+  bool _isRejecting = false;
 
   @override
   Widget build(BuildContext context) {
+    final event = widget.application['events'] as Map<String, dynamic>;
+    final status = widget.application['status'] as String;
+    
     Color statusColor;
-    switch (proposal['status']) {
-      case 'Accepted': statusColor = Colors.green; break;
-      case 'Rejected': statusColor = Colors.red; break;
+    switch (status) {
+      case 'accepted': statusColor = Colors.green; break;
+      case 'rejected': statusColor = Colors.red; break;
       default: statusColor = Colors.orange;
     }
 
@@ -29,9 +45,11 @@ class ProposalCard extends StatelessWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
-                  proposal['event'],
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                Expanded(
+                  child: Text(
+                    event['name'] ?? 'Unknown Event',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                  ),
                 ),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -40,34 +58,53 @@ class ProposalCard extends StatelessWidget {
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(
-                    proposal['status'],
+                    status.toUpperCase(),
                     style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: statusColor),
                   ),
                 ),
               ],
             ),
             const SizedBox(height: 8),
-            Text(
-              proposal['message'],
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: Theme.of(context).colorScheme.onSurface,
-              ),
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
+            Row(
+              children: [
+                Icon(Icons.location_on_outlined, size: 14, color: Colors.grey[600]),
+                const SizedBox(width: 4),
+                Text(event['location'] ?? 'N/A', style: TextStyle(color: Colors.grey[600], fontSize: 12)),
+                const SizedBox(width: 12),
+                Icon(Icons.calendar_today, size: 14, color: Colors.grey[600]),
+                const SizedBox(width: 4),
+                Text(event['date'] ?? 'N/A', style: TextStyle(color: Colors.grey[600], fontSize: 12)),
+              ],
             ),
             const SizedBox(height: 12),
+            const Divider(),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  'Proposed: ${proposal['budget']}',
+                  'Budget: ${event['budget'] ?? 'N/A'}',
                   style: const TextStyle(fontWeight: FontWeight.bold),
                 ),
-                Text(
-                  proposal['date'],
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
+                TextButton.icon(
+                  onPressed: _isRejecting ? null : () async {
+                    setState(() => _isRejecting = true);
+                    try {
+                      await EventManagerService.rejectEvent(event['id']);
+                      widget.onReject();
+                    } catch (e) {
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Failed to withdraw: $e')),
+                        );
+                      }
+                    } finally {
+                      if (mounted) setState(() => _isRejecting = false);
+                    }
+                  },
+                  icon: _isRejecting 
+                    ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
+                    : const Icon(Icons.close, size: 16, color: Colors.red),
+                  label: const Text('Withdraw', style: TextStyle(color: Colors.red)),
                 ),
               ],
             ),

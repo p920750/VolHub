@@ -652,4 +652,161 @@ class SupabaseService {
       rethrow;
     }
   }
+  // Fetch users by role (for Manager Messaging)
+  static Future<List<Map<String, dynamic>>> getUsersByRole(String role) async {
+    try {
+      final response = await client
+          .from('users')
+          .select('id, full_name, role, profile_photo, email')
+          .eq('role', role);
+      return List<Map<String, dynamic>>.from(response);
+    } catch (e) {
+      if (kDebugMode) print('Error fetching $role users: $e');
+      return [];
+    }
+  }
+
+  // Search users by name or email
+  static Future<List<Map<String, dynamic>>> searchUsers(String query) async {
+    try {
+      final response = await client
+          .from('users')
+          .select('id, full_name, role, profile_photo, email')
+          .or('full_name.ilike.%$query%,email.ilike.%$query%');
+      return List<Map<String, dynamic>>.from(response);
+    } catch (e) {
+      if (kDebugMode) print('Error searching users: $e');
+      return [];
+    }
+  }
+
+  // --- Chat System Methods ---
+
+  // Send a message (text, image, file, location)
+  static Future<void> sendMessage({
+    required String receiverId,
+    required String content,
+    String type = 'text', // 'text', 'image', 'file', 'location'
+  }) async {
+    if (currentUser == null) return;
+    
+    await client.from('messages').insert({
+      'sender_id': currentUser!.id,
+      'receiver_id': receiverId,
+      'content': content,
+      'message_type': type,
+    });
+  }
+
+  // Upload a chat attachment (image or file)
+  static Future<String?> uploadChatAttachment({
+    required File file,
+    required String chatId, // Can be receiverId or groupId
+  }) async {
+    try {
+      final fileExt = file.path.split('.').last;
+      final fileName = '${DateTime.now().millisecondsSinceEpoch}.$fileExt';
+      final filePath = '$chatId/$fileName';
+      
+      await client.storage.from('chat_attachments').upload(
+        filePath,
+        file,
+        fileOptions: const FileOptions(cacheControl: '3600', upsert: false),
+      );
+
+      final String publicUrl = client.storage
+          .from('chat_attachments')
+          .getPublicUrl(filePath);
+      
+      return publicUrl;
+    } catch (e) {
+      if (kDebugMode) print('Error uploading attachment: $e');
+      return null;
+    }
+  }
+
+  // Get stream of messages for a specific chat (live updates)
+  static Stream<List<Map<String, dynamic>>> getMessagesStream(String otherUserId) {
+    if (currentUser == null) return const Stream.empty();
+
+    return client
+        .from('messages')
+        .stream(primaryKey: ['id'])
+        .order('created_at', ascending: false) // Newest first for reverse List
+        .map((data) {
+          // Filter client-side for the specific conversation
+          final myId = currentUser!.id;
+          return data.where((msg) {
+            final sender = msg['sender_id'];
+            final receiver = msg['receiver_id'];
+            final deletedBy = List<String>.from(msg['deleted_by_users'] ?? []);
+            
+            // Check if message belongs to this chat AND is not deleted by me
+            final isRelevant = (sender == myId && receiver == otherUserId) || 
+                               (sender == otherUserId && receiver == myId);
+            final isNotDeleted = !deletedBy.contains(myId);
+            
+            return isRelevant && isNotDeleted;
+          }).toList();
+        });
+  }
+
+  // Delete message
+  static Future<void> deleteMessage({
+    required String messageId,
+    required bool forEveryone,
+  }) async {
+    if (currentUser == null) return;
+
+    if (forEveryone) {
+      // Hard delete (or could use a 'deleted_at' flag for soft delete)
+      await client.from('messages').delete().eq('id', messageId);
+    } else {
+      // Soft delete for current user only
+      // We append current user ID to 'deleted_by_users' array
+      // Using a raw SQL update via rpc would be ideal, but for now we fetch-update
+      // Or use the postgres specific syntax if Supabase client supports it easily.
+      // Easiest reliable way without RPC:
+      
+      final res = await client.from('messages').select('deleted_by_users').eq('id', messageId).single();
+      List<String> currentDeleted = List<String>.from(res['deleted_by_users'] ?? []);
+      
+      if (!currentDeleted.contains(currentUser!.id)) {
+        currentDeleted.add(currentUser!.id);
+        await client.from('messages').update({
+          'deleted_by_users': currentDeleted
+        }).eq('id', messageId);
+      }
+    }
+  }
+
+  // Mark messages from a specific user as read
+  static Future<void> markMessagesAsRead(String senderId) async {
+    if (currentUser == null) return;
+
+    await client
+        .from('messages')
+        .update({'is_read': true})
+        .eq('sender_id', senderId)
+        .eq('receiver_id', currentUser!.id)
+        .eq('is_read', false);
+  }
+
+  // Get ALL messages where I am sender or receiver (for Recent Chats)
+  // We will group them client-side to find unique conversations
+  static Future<List<Map<String, dynamic>>> getAllMyMessages() async {
+    if (currentUser == null) return [];
+
+    try {
+      final response = await client
+          .from('messages')
+          .select()
+          .or('sender_id.eq.${currentUser!.id},receiver_id.eq.${currentUser!.id}')
+          .order('created_at', ascending: false); // Latest first
+      return List<Map<String, dynamic>>.from(response);
+    } catch (e) {
+      if (kDebugMode) print('Error fetching my messages: $e');
+      return [];
+    }
+  }
 }

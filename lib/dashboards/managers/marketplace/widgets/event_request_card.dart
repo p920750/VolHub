@@ -1,13 +1,14 @@
 import 'package:flutter/material.dart';
+import '../../../../services/event_manager_service.dart';
 
 class EventRequestCard extends StatefulWidget {
   final Map<String, dynamic> request;
-  final VoidCallback onSendProposal;
+  final VoidCallback onAccept;
 
   const EventRequestCard({
     super.key,
     required this.request,
-    required this.onSendProposal,
+    required this.onAccept,
   });
 
   @override
@@ -15,60 +16,29 @@ class EventRequestCard extends StatefulWidget {
 }
 
 class _EventRequestCardState extends State<EventRequestCard> {
+  bool _isAccepting = false;
   bool _proposalSent = false;
 
-  void _showProposalDialog() {
-    final messageController = TextEditingController();
-    final budgetController = TextEditingController(text: widget.request['budget']);
-
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Send Proposal for ${widget.request['title']}'),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: budgetController,
-                decoration: const InputDecoration(
-                  labelText: 'Your Proposal Budget',
-                  prefixText: '\$ ',
-                  border: OutlineInputBorder(),
-                ),
-                keyboardType: TextInputType.number,
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: messageController,
-                decoration: const InputDecoration(
-                  labelText: 'Message to Organizer',
-                  hintText: 'Describe why you are a good fit...',
-                  border: OutlineInputBorder(),
-                ),
-                maxLines: 4,
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () {
-              Navigator.pop(context);
-              setState(() {
-                _proposalSent = true;
-              });
-              widget.onSendProposal();
-            },
-            child: const Text('Send Proposal'),
-          ),
-        ],
-      ),
-    );
+  void _handleAccept() async {
+    setState(() => _isAccepting = true);
+    try {
+      await EventManagerService.acceptEvent(widget.request['id']);
+      if (mounted) {
+        setState(() => _proposalSent = true);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Event Accepted! Check your proposals.')),
+        );
+        widget.onAccept();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to accept: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isAccepting = false);
+    }
   }
 
   @override
@@ -119,8 +89,35 @@ class _EventRequestCardState extends State<EventRequestCard> {
             Text(
               widget.request['description'],
               style: Theme.of(context).textTheme.bodyMedium,
-              maxLines: 3,
-              overflow: TextOverflow.ellipsis,
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Organizer Details:',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+            ),
+            const SizedBox(height: 4),
+            Row(
+              children: [
+                const Icon(Icons.person_outline, size: 14),
+                const SizedBox(width: 4),
+                Text(widget.request['host']?['full_name'] ?? 'N/A', style: const TextStyle(fontSize: 12)),
+                const SizedBox(width: 12),
+                const Icon(Icons.email_outlined, size: 14),
+                const SizedBox(width: 4),
+                Text(widget.request['host']?['email'] ?? 'N/A', style: const TextStyle(fontSize: 12)),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Row(
+              children: [
+                const Icon(Icons.phone_outlined, size: 14),
+                const SizedBox(width: 4),
+                Text(widget.request['host']?['phone_number'] ?? 'N/A', style: const TextStyle(fontSize: 12)),
+                const SizedBox(width: 12),
+                const Icon(Icons.location_city_outlined, size: 14),
+                const SizedBox(width: 4),
+                Text(widget.request['host']?['country_code'] ?? '', style: const TextStyle(fontSize: 12)),
+              ],
             ),
             const SizedBox(height: 16),
             const Divider(),
@@ -133,17 +130,20 @@ class _EventRequestCardState extends State<EventRequestCard> {
                     const CircleAvatar(radius: 12, child: Icon(Icons.person, size: 12)),
                     const SizedBox(width: 8),
                     Text(
-                      'Posted by ${widget.request['posted_by']}',
+                      'Posted by ${widget.request['host_name'] ?? 'Unknown'}',
                       style: Theme.of(context).textTheme.bodySmall,
                     ),
                   ],
                 ),
                 FilledButton.icon(
-                  onPressed: _proposalSent ? null : _showProposalDialog,
-                  icon: Icon(_proposalSent ? Icons.check : Icons.send, size: 16),
-                  label: Text(_proposalSent ? 'Proposal Sent' : 'Proposal'),
+                  onPressed: (_proposalSent || _isAccepting) ? null : _handleAccept,
+                  icon: Icon(_proposalSent ? Icons.check : Icons.handshake_outlined, size: 16),
+                  label: _isAccepting 
+                    ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                    : Text(_proposalSent ? 'Accepted' : 'Accept'),
                   style: FilledButton.styleFrom(
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    backgroundColor: _proposalSent ? Colors.green : null,
                   ),
                 ),
               ],

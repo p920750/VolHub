@@ -15,11 +15,31 @@ class EventDetailPage extends StatefulWidget {
 class _EventDetailPageState extends State<EventDetailPage> {
   late Map<String, dynamic> _currentEvent;
   bool _isLoading = false;
+  List<Map<String, dynamic>> _applicants = [];
+  bool _isLoadingApplicants = true;
 
   @override
   void initState() {
     super.initState();
     _currentEvent = widget.event;
+    _loadEventData();
+    _loadApplicants();
+  }
+
+  Future<void> _loadApplicants() async {
+    if (_currentEvent['id'] == null) return;
+    setState(() => _isLoadingApplicants = true);
+    try {
+      final applicants = await HostService.getEventApplications(_currentEvent['id'].toString());
+      if (mounted) {
+        setState(() {
+          _applicants = applicants;
+          _isLoadingApplicants = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) setState(() => _isLoadingApplicants = false);
+    }
   }
 
   Future<void> _loadEventData() async {
@@ -163,6 +183,65 @@ class _EventDetailPageState extends State<EventDetailPage> {
                       height: 1.6,
                     ),
                   ),
+                  const SizedBox(height: 40),
+                  const Text(
+                    'Interested Managers',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF1A1A1A),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  _isLoadingApplicants 
+                    ? const Center(child: CircularProgressIndicator())
+                    : _applicants.isEmpty
+                      ? const Text('No managers have accepted yet.', style: TextStyle(color: Colors.grey))
+                      : ListView.builder(
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          itemCount: _applicants.length,
+                          itemBuilder: (context, index) {
+                            final application = _applicants[index];
+                            final manager = application['users'];
+                            final isConfirmed = _currentEvent['assigned_manager_id'] == manager['id'];
+
+                            return Card(
+                              margin: const EdgeInsets.only(bottom: 12),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              child: ListTile(
+                                leading: CircleAvatar(
+                                  backgroundImage: NetworkImage(manager['profile_photo'] ?? 'https://i.pravatar.cc/150?u=${manager['id']}'),
+                                ),
+                                title: Text(manager['full_name'] ?? 'Unknown Manager'),
+                                subtitle: Text(manager['company_name'] ?? 'Independent Manager'),
+                                trailing: isConfirmed 
+                                  ? const Chip(label: Text('Confirmed'), backgroundColor: Colors.green, labelStyle: TextStyle(color: Colors.white))
+                                  : ElevatedButton(
+                                      onPressed: () async {
+                                        try {
+                                          await HostService.confirmManager(_currentEvent['id'].toString(), manager['id']);
+                                          if (mounted) {
+                                            ScaffoldMessenger.of(context).showSnackBar(
+                                              const SnackBar(content: Text('Manager confirmed!')),
+                                            );
+                                            _loadEventData();
+                                          }
+                                        } catch (e) {
+                                          if (mounted) {
+                                            ScaffoldMessenger.of(context).showSnackBar(
+                                              SnackBar(content: Text('Failed to confirm: $e')),
+                                            );
+                                          }
+                                        }
+                                      },
+                                      style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1E4D40), foregroundColor: Colors.white),
+                                      child: const Text('Confirm'),
+                                    ),
+                              ),
+                            );
+                          },
+                        ),
                   const SizedBox(height: 40),
                   SizedBox(
                     width: double.infinity,

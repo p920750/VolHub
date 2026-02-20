@@ -8,8 +8,9 @@ class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});
 
   @override
+  @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final profile = ref.watch(userProfileProvider);
+    final profileAsync = ref.watch(userProfileProvider);
 
     return Scaffold(
       appBar: AppBar(
@@ -23,107 +24,113 @@ class ProfileScreen extends ConsumerWidget {
         ],
       ),
       drawer: const ManagerDrawer(currentRoute: '/manager-profile'),
-      body: SingleChildScrollView(
-        child: Column(
-          children: [
-            const SizedBox(height: 24),
-            CircleAvatar(
-              radius: 50,
-              backgroundImage: NetworkImage(profile.profileImage),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              profile.name,
-              style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
-            ),
-            Text(
-              profile.role,
-              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
+      body: profileAsync.when(
+        data: (profile) => SingleChildScrollView(
+          child: Column(
+            children: [
+              const SizedBox(height: 24),
+              CircleAvatar(
+                radius: 50,
+                backgroundImage: NetworkImage(profile.profileImage),
               ),
-            ),
-            const SizedBox(height: 24),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Column(
-                children: [
-                  _buildSection(
-                    context,
-                    'Overview',
-                    [
-                      _buildInfoRow(Icons.email, profile.email),
-                      _buildInfoRow(Icons.phone, profile.phone),
-                      _buildInfoRow(Icons.location_on, profile.location),
-                    ],
-                    onEdit: () => Navigator.pushNamed(context, '/manager-profile-edit'),
-                  ),
-                  const SizedBox(height: 16),
-                  _buildSection(
-                    context,
-                    'Professional Info',
-                    [
-                       Text(profile.bio),
-                       const SizedBox(height: 12),
-                       Wrap(
-                         spacing: 8,
-                         children: const [
-                           Chip(label: Text('Event Planning')),
-                           Chip(label: Text('Logistics')),
-                           Chip(label: Text('Budgeting')),
-                         ],
-                       ),
-                    ],
-                    onEdit: () => Navigator.pushNamed(context, '/manager-profile-edit'),
-                  ),
-                   const SizedBox(height: 16),
-                  _buildSection(
-                    context,
-                    'Certifications & Links',
-                    [
-                      ListTile(
-                        leading: const Icon(FontAwesomeIcons.linkedin, color: Colors.blue),
-                        title: const Text('LinkedIn Profile'),
-                        subtitle: Text(
-                          profile.linkedinUrl, 
-                          maxLines: 1, 
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(fontSize: 12),
-                        ),
-                        contentPadding: EdgeInsets.zero,
-                        onTap: () {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('Navigating to ${profile.linkedinUrl}')),
-                          );
-                        },
-                        trailing: IconButton(
-                          icon: const Icon(Icons.edit, size: 16),
-                          onPressed: () => Navigator.pushNamed(context, '/manager-profile-edit'),
-                        ),
-                      ),
-                      ListTile(
-                        leading: const Icon(FontAwesomeIcons.certificate, color: Colors.orange),
-                        title: Text(profile.certName),
-                        subtitle: Text(profile.certIssuedDate),
-                        contentPadding: EdgeInsets.zero,
-                        onTap: () {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Certification details coming soon!')),
-                          );
-                        },
-                        trailing: IconButton(
-                          icon: const Icon(Icons.edit, size: 16),
-                          onPressed: () => Navigator.pushNamed(context, '/manager-profile-edit'),
-                        ),
-                      ),
-                    ],
-                    onEdit: () => Navigator.pushNamed(context, '/manager-profile-edit'),
-                  ),
-                ],
+              const SizedBox(height: 16),
+              Text(
+                profile.name,
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
               ),
-            ),
-             const SizedBox(height: 32),
-          ],
+              Text(
+                profile.role,
+                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: 24),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Column(
+                  children: [
+                    _buildSection(
+                      context,
+                      'Overview',
+                      [
+                        _buildInfoRow(Icons.email, profile.email),
+                        _buildInfoRow(Icons.phone, profile.phone),
+                        _buildInfoRow(Icons.location_on, profile.location),
+                      ],
+                      onEdit: () => Navigator.pushNamed(context, '/manager-profile-edit'),
+                    ),
+                    const SizedBox(height: 16),
+                    _buildSection(
+                      context,
+                      'Professional Info',
+                      [
+                         Text(profile.bio),
+                         const SizedBox(height: 12),
+                         Wrap(
+                           spacing: 8,
+                           children: const [
+                             Chip(label: Text('Event Planning')),
+                             Chip(label: Text('Logistics')),
+                             Chip(label: Text('Budgeting')),
+                           ],
+                         ),
+                      ],
+                      onEdit: () => Navigator.pushNamed(context, '/manager-profile-edit'),
+                    ),
+                     const SizedBox(height: 16),
+                    _buildSection(
+                      context,
+                      'Certifications & Links',
+                      [
+                        ListTile(
+                          leading: const Icon(FontAwesomeIcons.linkedin, color: Colors.blue),
+                          title: const Text('LinkedIn Profile'),
+                          subtitle: Text(
+                            profile.linkedinUrl.isNotEmpty ? profile.linkedinUrl : 'Not linked', 
+                            maxLines: 1, 
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontSize: 12),
+                          ),
+                          contentPadding: EdgeInsets.zero,
+                          onTap: () {
+                            if (profile.linkedinUrl.isNotEmpty) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(content: Text('Navigating to ${profile.linkedinUrl}')),
+                              );
+                            }
+                          },
+                          trailing: IconButton(
+                            icon: const Icon(Icons.edit, size: 16),
+                            onPressed: () => Navigator.pushNamed(context, '/manager-profile-edit'),
+                          ),
+                        ),
+                        ListTile(
+                          leading: const Icon(FontAwesomeIcons.certificate, color: Colors.orange),
+                          title: Text(profile.certName.isNotEmpty ? profile.certName : 'No certifications'),
+                          subtitle: Text(profile.certIssuedDate),
+                          contentPadding: EdgeInsets.zero,
+                          onTap: () {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('Certification details coming soon!')),
+                            );
+                          },
+                          trailing: IconButton(
+                            icon: const Icon(Icons.edit, size: 16),
+                            onPressed: () => Navigator.pushNamed(context, '/manager-profile-edit'),
+                          ),
+                        ),
+                      ],
+                      onEdit: () => Navigator.pushNamed(context, '/manager-profile-edit'),
+                    ),
+                  ],
+                ),
+              ),
+               const SizedBox(height: 32),
+            ],
+          ),
         ),
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (err, stack) => Center(child: Text('Error: $err')),
       ),
     );
   }

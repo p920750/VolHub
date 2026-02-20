@@ -16,7 +16,7 @@ class HostService {
 
       // If host/organizer, only see their own events
       if (role == 'host' || role == 'organizer') {
-        query = query.eq('manager_id', user.id);
+        query = query.eq('host_id', user.id);
       }
       
       // Managers can see all events (no filter)
@@ -53,12 +53,14 @@ class HostService {
         'location': event['location'],
         'date': event['date_raw'], // Expecting ISO string or DateTime
         'description': event['description'],
-        'manager_id': user.id,
-        'status': 'upcoming',
+        'host_id': user.id,
+        'status': 'pending',
         'budget': event['budget'],
         'requirements': event['requirements'],
         'image_url': event['imageUrl'],
         'host_name': event['host_name'],
+        'category': event['category'],
+        'time': event['time'],
       });
       
       if (kDebugMode) print('Event added to Supabase: ${event['title']}');
@@ -97,6 +99,34 @@ class HostService {
     } catch (e) {
       if (kDebugMode) print('Error deleting event: $e');
       rethrow;
+    }
+  }
+
+  static Future<void> confirmManager(String eventId, String managerId) async {
+    try {
+      await SupabaseService.client.from('events').update({
+        'assigned_manager_id': managerId,
+        'status': 'confirmed',
+      }).eq('id', eventId);
+      
+      if (kDebugMode) print('Manager $managerId confirmed for event $eventId');
+    } catch (e) {
+      if (kDebugMode) print('Error confirming manager: $e');
+      rethrow;
+    }
+  }
+
+  static Future<List<Map<String, dynamic>>> getEventApplications(String eventId) async {
+    try {
+      final response = await SupabaseService.client
+          .from('event_applications')
+          .select('*, users(*)')
+          .eq('event_id', eventId);
+      
+      return List<Map<String, dynamic>>.from(response);
+    } catch (e) {
+      if (kDebugMode) print('Error fetching event applications: $e');
+      return [];
     }
   }
 

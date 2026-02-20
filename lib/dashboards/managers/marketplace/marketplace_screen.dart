@@ -1,43 +1,53 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'widgets/event_request_card.dart';
 import '../core/manager_drawer.dart';
+import '../../../services/event_manager_service.dart';
+import '../profile/profile_provider.dart';
 
-class MarketplaceScreen extends StatelessWidget {
+class MarketplaceScreen extends ConsumerStatefulWidget {
   const MarketplaceScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    final requests = [
-      {
-        'title': 'Corporate Charity Gala',
-        'description': 'Need a full team of volunteers for registration, ushering, and general assistance during our annual charity gala.',
-        'date': 'Oct 15, 2026',
-        'location': 'Grand Hotel, NYC',
-        'budget': '\$2,500',
-        'posted_by': 'Global Corp Events'
-      },
-      {
-        'title': 'Community Cleanup Drive',
-        'description': 'Seeking enthusiastic volunteers to help coordinate our weekend cleanup drive. Safety gear providing.',
-        'date': 'Sep 22, 2026',
-        'location': 'Central Park',
-        'budget': '\$500',
-        'posted_by': 'Green Earth NGO'
-      },
-      {
-        'title': 'Tech Conference 2026',
-        'description': 'Looking for experienced event staff for registration and speaker assistance. 3-day event.',
-        'date': 'Nov 05-07, 2026',
-        'location': 'Convention Center',
-        'budget': '\$5,000',
-        'posted_by': 'TechWorld Inc.'
-      },
-    ];
+  ConsumerState<MarketplaceScreen> createState() => _MarketplaceScreenState();
+}
 
+class _MarketplaceScreenState extends ConsumerState<MarketplaceScreen> {
+  List<Map<String, dynamic>> _requests = [];
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadEventRequests();
+  }
+
+  Future<void> _loadEventRequests() async {
+    setState(() => _isLoading = true);
+    try {
+      final profile = ref.read(userProfileProvider).value;
+      final requests = await EventManagerService.getEventRequests(profile?.category);
+      if (mounted) {
+        setState(() {
+          _requests = requests;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Event Marketplace'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: _loadEventRequests,
+          ),
           IconButton(
             icon: const Icon(Icons.filter_list),
             onPressed: () {},
@@ -58,20 +68,22 @@ class MarketplaceScreen extends StatelessWidget {
             ),
           ),
           Expanded(
-            child: ListView.builder(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              itemCount: requests.length,
-              itemBuilder: (context, index) {
-                return EventRequestCard(
-                  request: requests[index],
-                  onSendProposal: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Proposal sent! (Mock)')),
-                    );
-                  },
-                );
-              },
-            ),
+            child: _isLoading
+              ? const Center(child: CircularProgressIndicator())
+              : _requests.isEmpty
+                ? const Center(child: Text('No new event requests found.'))
+                : ListView.builder(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    itemCount: _requests.length,
+                    itemBuilder: (context, index) {
+                      return EventRequestCard(
+                        request: _requests[index],
+                        onAccept: () {
+                          _loadEventRequests(); // Refresh to remove accepted item
+                        },
+                      );
+                    },
+                  ),
           ),
         ],
       ),
