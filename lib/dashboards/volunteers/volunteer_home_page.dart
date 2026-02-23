@@ -5,6 +5,7 @@ import 'volunteer_colors.dart';
 // import 'volunteer_chat_page.dart';
 // import 'volunteer_board_page.dart';
 import 'volunteer_profile_page.dart';
+import 'volunteer_chat_page.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 
@@ -244,221 +245,19 @@ class _VolunteerHomePageState extends State<VolunteerHomePage> {
     return Scaffold(
       backgroundColor: VolunteerColors.background,
 
-      // 🔹 APP BAR
-      appBar: AppBar(
-        backgroundColor: VolunteerColors.card,
-        elevation: 0,
-        leadingWidth: 56,
-        leading: Padding(
-          padding: const EdgeInsets.only(left: 20),
-          child: Center(
-            child: Image.asset(
-              'assets/icons/icon_1.png',
-              width: 32,
-              height: 32,
-              fit: BoxFit.contain,
-            ),
-          ),
-        ),
-        actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 16),
-            child: GestureDetector(
-              onTap: () {
-                _removeOverlay();
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => const VolunteerProfilePage(),
-                  ),
-                );
-              },
-              child: CircleAvatar(
-                radius: 20,
-                backgroundColor: VolunteerColors.accentSoftBlue,
-                backgroundImage: userProfileImage != null
-                    ? NetworkImage(userProfileImage!)
-                    : null,
-              ),
-            ),
-          ),
-        ],
-      ),
-
       // 🔹 BODY
-      body: Column(
-        children: [
-          const SizedBox(height: 12),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Row(
-              children: [
-                const Text(
-                  'Events',
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
-                ),
-                const Spacer(),
-                TextButton.icon(
-                  onPressed: () {},
-                  icon: const Icon(FontAwesomeIcons.filter, size: 14),
-                  label: const Text('Filter'),
-                ),
-                const SizedBox(width: 16),
-                GestureDetector(
-                  key: _sortKey,
-                  onTap: _toggleSortDropdown,
-                  child: Row(
-                    children: [
-                      Text(
-                        _selectedSortLabel,
-                        style: const TextStyle(fontWeight: FontWeight.w500),
-                      ),
-                      const SizedBox(width: 2),
-                      AnimatedRotation(
-                        turns: _isSortOpen ? 0.5 : 0.0,
-                        duration: const Duration(milliseconds: 200),
-                        child: const Icon(Icons.keyboard_arrow_down, size: 20),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 32),
-          Expanded(
-            child: _events.isEmpty
-                ? const Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          FontAwesomeIcons.boxOpen,
-                          size: 48,
-                          color: Colors.grey,
-                        ),
-                        SizedBox(height: 12),
-                        Text(
-                          'No events yet',
-                          style: TextStyle(fontSize: 16, color: Colors.grey),
-                        ),
-                      ],
-                    ),
-                  )
-                : ListView.builder(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    itemCount: _events.length,
-                    itemBuilder: (context, index) {
-                      final event = _events[index];
-                      return Card(
-                        color: VolunteerColors.card,
-                        margin: const EdgeInsets.only(bottom: 16),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Padding(
-                          padding: const EdgeInsets.all(16.0),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                event['name'],
-                                style: const TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                event['org'],
-                                style: TextStyle(
-                                  color: VolunteerColors.accentSoftBlue,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                              Row(
-                                children: [
-                                  const Icon(
-                                    Icons.location_on,
-                                    size: 16,
-                                    color: Colors.grey,
-                                  ),
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    event['location'],
-                                    style: const TextStyle(color: Colors.grey),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 12),
-                              Text(
-                                event['desc'],
-                                style: const TextStyle(
-                                  fontSize: 14,
-                                  height: 1.4,
-                                ),
-                              ),
-                              const SizedBox(height: 16),
-                              SizedBox(
-                                width: double.infinity,
-                                child: ElevatedButton(
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: event['isApplied']
-                                        ? Colors.green
-                                        : Colors.blue,
-                                    foregroundColor: Colors.white,
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                  ),
-                                  onPressed: () {
-                                    setState(() {
-                                      event['isApplied'] = !event['isApplied'];
-                                    });
-                                  },
-                                  child: Text(
-                                    event['isApplied'] ? 'Applied' : 'Register',
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-          ),
-        ],
-      ),
+      body: _buildBody(),
 
       // 🔹 BOTTOM NAV
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _currentIndex,
         type: BottomNavigationBarType.fixed,
+        selectedItemColor: VolunteerColors.accentSoftBlue,
+        unselectedItemColor: Colors.grey,
         onTap: (index) {
           setState(() {
             _currentIndex = index;
           });
-
-          if (index == 0) return;
-
-          if (index == 1) {
-            // Navigator.push(
-            //   context,
-            //   MaterialPageRoute(builder: (_) => const VolunteerMenuPage()),
-            // );
-          } else if (index == 2) {
-            // Navigator.push(
-            //   context,
-            //   MaterialPageRoute(builder: (_) => const VolunteerChatPage()),
-            // );
-          } else if (index == 3) {
-            // Navigator.push(
-            //   context,
-            //   MaterialPageRoute(builder: (_) => const VolunteerBoardPage()),
-            // );
-          }
         },
         items: const [
           BottomNavigationBarItem(
@@ -479,6 +278,205 @@ class _VolunteerHomePageState extends State<VolunteerHomePage> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildBody() {
+    switch (_currentIndex) {
+      case 0:
+        return _buildHomeContent();
+      case 2:
+        return const VolunteerChatPage();
+      default:
+        return _buildHomeContent(); // Fallback for unimplemented tabs
+    }
+  }
+
+  Widget _buildHomeContent() {
+    return Column(
+      children: [
+        // 🔹 APP BAR (Moved here from Scaffold as it's specific to Home)
+        AppBar(
+          backgroundColor: VolunteerColors.card,
+          elevation: 0,
+          leadingWidth: 56,
+          leading: Padding(
+            padding: const EdgeInsets.only(left: 20),
+            child: Center(
+              child: Image.asset(
+                'assets/icons/icon_1.png',
+                width: 32,
+                height: 32,
+                fit: BoxFit.contain,
+              ),
+            ),
+          ),
+          actions: [
+            Padding(
+              padding: const EdgeInsets.only(right: 16),
+              child: GestureDetector(
+                onTap: () {
+                  _removeOverlay();
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const VolunteerProfilePage(),
+                    ),
+                  );
+                },
+                child: CircleAvatar(
+                  radius: 20,
+                  backgroundColor: VolunteerColors.accentSoftBlue,
+                  backgroundImage: userProfileImage != null
+                      ? NetworkImage(userProfileImage!)
+                      : null,
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Row(
+            children: [
+              const Text(
+                'Events',
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
+              ),
+              const Spacer(),
+              TextButton.icon(
+                onPressed: () {},
+                icon: const Icon(FontAwesomeIcons.filter, size: 14),
+                label: const Text('Filter'),
+              ),
+              const SizedBox(width: 16),
+              GestureDetector(
+                key: _sortKey,
+                onTap: _toggleSortDropdown,
+                child: Row(
+                  children: [
+                    Text(
+                      _selectedSortLabel,
+                      style: const TextStyle(fontWeight: FontWeight.w500),
+                    ),
+                    const SizedBox(width: 2),
+                    AnimatedRotation(
+                      turns: _isSortOpen ? 0.5 : 0.0,
+                      duration: const Duration(milliseconds: 200),
+                      child: const Icon(Icons.keyboard_arrow_down, size: 20),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 32),
+        Expanded(
+          child: _events.isEmpty
+              ? const Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        FontAwesomeIcons.boxOpen,
+                        size: 48,
+                        color: Colors.grey,
+                      ),
+                      SizedBox(height: 12),
+                      Text(
+                        'No events yet',
+                        style: TextStyle(fontSize: 16, color: Colors.grey),
+                      ),
+                    ],
+                  ),
+                )
+              : ListView.builder(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  itemCount: _events.length,
+                  itemBuilder: (context, index) {
+                    final event = _events[index];
+                    return Card(
+                      color: VolunteerColors.card,
+                      margin: const EdgeInsets.only(bottom: 16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.all(16.0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              event['name'],
+                              style: const TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              event['org'],
+                              style: TextStyle(
+                                color: VolunteerColors.accentSoftBlue,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Row(
+                              children: [
+                                const Icon(
+                                  Icons.location_on,
+                                  size: 16,
+                                  color: Colors.grey,
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  event['location'],
+                                  style: const TextStyle(color: Colors.grey),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+                            Text(
+                              event['desc'],
+                              style: const TextStyle(
+                                fontSize: 14,
+                                height: 1.4,
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                            SizedBox(
+                              width: double.infinity,
+                              child: ElevatedButton(
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: event['isApplied']
+                                      ? Colors.green
+                                      : Colors.blue,
+                                  foregroundColor: Colors.white,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                ),
+                                onPressed: () {
+                                  setState(() {
+                                    event['isApplied'] = !event['isApplied'];
+                                  });
+                                },
+                                child: Text(
+                                  event['isApplied'] ? 'Applied' : 'Register',
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+        ),
+      ],
     );
   }
 }

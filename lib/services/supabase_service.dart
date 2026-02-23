@@ -752,31 +752,44 @@ class SupabaseService {
   }
 
   // Delete message
-  static Future<void> deleteMessage({
+  static Future<bool> deleteMessage({
     required String messageId,
     required bool forEveryone,
   }) async {
-    if (currentUser == null) return;
+    if (currentUser == null) return false;
 
-    if (forEveryone) {
-      // Hard delete (or could use a 'deleted_at' flag for soft delete)
-      await client.from('messages').delete().eq('id', messageId);
-    } else {
-      // Soft delete for current user only
-      // We append current user ID to 'deleted_by_users' array
-      // Using a raw SQL update via rpc would be ideal, but for now we fetch-update
-      // Or use the postgres specific syntax if Supabase client supports it easily.
-      // Easiest reliable way without RPC:
-      
-      final res = await client.from('messages').select('deleted_by_users').eq('id', messageId).single();
-      List<String> currentDeleted = List<String>.from(res['deleted_by_users'] ?? []);
-      
-      if (!currentDeleted.contains(currentUser!.id)) {
-        currentDeleted.add(currentUser!.id);
-        await client.from('messages').update({
-          'deleted_by_users': currentDeleted
-        }).eq('id', messageId);
+    try {
+      if (forEveryone) {
+        // Hard delete - only allow if I am the sender
+        await client
+            .from('messages')
+            .delete()
+            .eq('id', messageId)
+            .eq('sender_id', currentUser!.id);
+        return true;
+      } else {
+        // Soft delete for current user only
+        final res = await client
+            .from('messages')
+            .select('deleted_by_users')
+            .eq('id', messageId)
+            .maybeSingle();
+            
+        if (res == null) return false;
+        
+        List<String> currentDeleted = List<String>.from(res['deleted_by_users'] ?? []);
+        
+        if (!currentDeleted.contains(currentUser!.id)) {
+          currentDeleted.add(currentUser!.id);
+          await client.from('messages').update({
+            'deleted_by_users': currentDeleted
+          }).eq('id', messageId);
+        }
+        return true;
       }
+    } catch (e) {
+      if (kDebugMode) print('Error deleting message: $e');
+      return false;
     }
   }
 
@@ -803,10 +816,62 @@ class SupabaseService {
           .select()
           .or('sender_id.eq.${currentUser!.id},receiver_id.eq.${currentUser!.id}')
           .order('created_at', ascending: false); // Latest first
-      return List<Map<String, dynamic>>.from(response);
+          
+      return List<Map<String, dynamic>>.from(response).where((msg) {
+        final deletedBy = List<String>.from(msg['deleted_by_users'] ?? []);
+        return !deletedBy.contains(currentUser!.id);
+      }).toList();
     } catch (e) {
       if (kDebugMode) print('Error fetching my messages: $e');
       return [];
     }
+  }
+
+  // Get unread counts per sender for the current user
+  static Future<Map<String, int>> getUnreadCounts() async {
+    if (currentUser == null) return {};
+
+    try {
+      final response = await client
+          .from('messages')
+          .select('sender_id, deleted_by_users')
+          .eq('receiver_id', currentUser!.id)
+          .eq('is_read', false);
+      
+      final unreadMap = <String, int>{};
+      for (var item in response) {
+        final deletedBy = List<String>.from(item['deleted_by_users'] ?? []);
+        if (!deletedBy.contains(currentUser!.id)) {
+          final senderId = item['sender_id'] as String;
+          unreadMap[senderId] = (unreadMap[senderId] ?? 0) + 1;
+        }
+      }
+      return unreadMap;
+    } catch (e) {
+      if (kDebugMode) print('Error fetching unread counts: $e');
+      return {};
+    }
+  }
+
+  // Get stream of unread counts
+  static Stream<Map<String, int>> getUnreadCountsStream() {
+    if (currentUser == null) return const Stream.empty();
+
+    return client
+        .from('messages')
+        .stream(primaryKey: ['id'])
+        .eq('receiver_id', currentUser!.id)
+        .map((data) {
+          final unreadMap = <String, int>{};
+          for (var item in data) {
+            final deletedBy = List<String>.from(item['deleted_by_users'] ?? []);
+            // Filter is_read and deleted_by_users client-side
+            if (item['is_read'] == false && !deletedBy.contains(currentUser!.id)) {
+              final senderId = item['sender_id'] as String;
+              unreadMap[senderId] = (unreadMap[senderId] ?? 0) + 1;
+            }
+          }
+          return unreadMap;
+        });
   }
 }

@@ -106,38 +106,48 @@ class _MessagesScreenState extends State<MessagesScreen> {
 
   Widget _buildUserList(BuildContext context, List<Map<String, dynamic>> users) {
     if (users.isEmpty) {
-      return Center(child: Text('No users found', style: TextStyle(color: Colors.white54)));
+      return const Center(child: Text('No users found', style: TextStyle(color: Colors.white54)));
     }
-    return ListView.separated(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      itemCount: users.length,
-      separatorBuilder: (context, index) => const Divider(
-        color: Colors.white10,
-        indent: 80,
-        endIndent: 16,
-      ),
-      itemBuilder: (context, index) {
-        final user = users[index];
-        return ChatListItem(
-          name: user['full_name'] ?? 'Unknown',
-          lastMessage: 'Tap to start chatting', // Placeholder
-          time: '',
-          unreadCount: 0,
-          avatarUrl: user['profile_photo'],
-          isGroup: false,
-          onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => ChatDetailScreen(
-                  chatId: user['id'] as String,
-                  chatName: user['full_name'] as String?,
-                ),
-              ),
+    return StreamBuilder<Map<String, int>>(
+      stream: SupabaseService.getUnreadCountsStream(),
+      builder: (context, unreadSnapshot) {
+        final unreadCounts = unreadSnapshot.data ?? {};
+        
+        return ListView.separated(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          itemCount: users.length,
+          separatorBuilder: (context, index) => const Divider(
+            color: Colors.white10,
+            indent: 80,
+            endIndent: 16,
+          ),
+          itemBuilder: (context, index) {
+            final user = users[index];
+            final userId = user['id'] as String;
+            final unreadCount = unreadCounts[userId] ?? 0;
+            
+            return ChatListItem(
+              name: user['full_name'] ?? 'Unknown',
+              lastMessage: unreadCount > 0 ? '$unreadCount new messages' : 'Tap to start chatting',
+              time: '',
+              unreadCount: unreadCount,
+              avatarUrl: user['profile_photo'],
+              isGroup: false,
+              onTap: () async {
+                await Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => ChatDetailScreen(
+                      chatId: userId,
+                      chatName: user['full_name'] as String?,
+                    ),
+                  ),
+                );
+              },
             );
           },
         );
-      },
+      }
     );
   }
 
