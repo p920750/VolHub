@@ -140,6 +140,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
                     builder: (context) => ChatDetailScreen(
                       chatId: userId,
                       chatName: user['full_name'] as String?,
+                      avatarUrl: user['profile_photo'] as String?,
                     ),
                   ),
                 );
@@ -177,6 +178,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
                 builder: (context) => ChatDetailScreen(
                   chatId: chat['id'] as String,
                   chatName: chat['name'] as String?,
+                  avatarUrl: chat.containsKey('avatar') ? chat['avatar'] as String? : null,
                 ),
               ),
             );
@@ -256,6 +258,7 @@ class UserSearchDelegate extends SearchDelegate {
                     builder: (context) => ChatDetailScreen(
                       chatId: result['id'],
                       chatName: result['full_name'],
+                      avatarUrl: result['profile_photo'] as String?,
                     ),
                   ),
                 );

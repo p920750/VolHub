@@ -687,15 +687,22 @@ class SupabaseService {
     required String receiverId,
     required String content,
     String type = 'text', // 'text', 'image', 'file', 'location'
+    String? replyToId,
   }) async {
     if (currentUser == null) return;
     
-    await client.from('messages').insert({
+    final Map<String, dynamic> messageData = {
       'sender_id': currentUser!.id,
       'receiver_id': receiverId,
       'content': content,
       'message_type': type,
-    });
+    };
+
+    if (replyToId != null) {
+      messageData['reply_to_id'] = replyToId;
+    }
+    
+    await client.from('messages').insert(messageData);
   }
 
   // Upload a chat attachment (image or file)
@@ -760,12 +767,27 @@ class SupabaseService {
 
     try {
       if (forEveryone) {
-        // Hard delete - only allow if I am the sender
-        await client
+        // Soft delete for everyone - set is_deleted flag
+        // Also add myself to deleted_by_users so it disappears for me immediately
+        final res = await client
             .from('messages')
-            .delete()
+            .select('deleted_by_users')
             .eq('id', messageId)
-            .eq('sender_id', currentUser!.id);
+            .eq('sender_id', currentUser!.id)
+            .maybeSingle();
+            
+        if (res == null) return false;
+        
+        List<String> currentDeleted = List<String>.from(res['deleted_by_users'] ?? []);
+        if (!currentDeleted.contains(currentUser!.id)) {
+          currentDeleted.add(currentUser!.id);
+        }
+
+        await client.from('messages').update({
+          'is_deleted': true,
+          'deleted_by_users': currentDeleted
+        }).eq('id', messageId);
+        
         return true;
       } else {
         // Soft delete for current user only

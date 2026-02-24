@@ -1,12 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'dart:async';
 import 'package:image_picker/image_picker.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:path_provider/path_provider.dart';
 import 'dart:io';
 import '../../../services/supabase_service.dart';
 import '../managers/core/theme.dart';
+import 'widgets/enhanced_media_viewer.dart';
 
 class ChatDetailPage extends StatefulWidget {
   final String chatId;
@@ -33,6 +37,9 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
 
   late Stream<List<Map<String, dynamic>>> _messagesStream;
   StreamSubscription? _messagesSubscription;
+
+  Map<String, dynamic>? _replyingToMessage;
+  String? _touchedMessageId;
 
   @override
   void initState() {
@@ -68,11 +75,17 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
     if (_messageController.text.trim().isEmpty) return;
     
     final content = _messageController.text.trim();
+    final replyToId = _replyingToMessage?['id'];
+    
     _messageController.clear();
+    setState(() {
+      _replyingToMessage = null;
+    });
 
     await SupabaseService.sendMessage(
       receiverId: widget.chatId,
       content: content,
+      replyToId: replyToId?.toString(),
     );
     
     _scrollToBottom();
@@ -237,19 +250,97 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
                   itemBuilder: (context, index) {
                     final message = messages[index];
                     final isMe = message['sender_id'] == SupabaseService.currentUser?.id;
-                    return _buildMessageBubble(message, isMe);
+                    return Dismissible(
+                      key: Key(message['id'].toString()),
+                      direction: DismissDirection.startToEnd,
+                      confirmDismiss: (direction) async {
+                        setState(() {
+                          _replyingToMessage = message;
+                        });
+                        return false; // Don't actually dismiss
+                      },
+                      background: Container(
+                        alignment: Alignment.centerLeft,
+                        padding: const EdgeInsets.only(left: 20),
+                        child: const Icon(Icons.reply, color: Color(0xFF001529)),
+                      ),
+                        child: GestureDetector(
+                          onTap: () {
+                            setState(() {
+                              if (_touchedMessageId == message['id']?.toString()) {
+                                _touchedMessageId = null;
+                              } else {
+                                _touchedMessageId = message['id']?.toString();
+                              }
+                            });
+                          },
+                          child: Row(
+                            mainAxisAlignment: isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
+                            children: [
+                              Flexible(child: _buildMessageBubble(
+                                message, 
+                                isMe, 
+                                messages,
+                                _touchedMessageId == message['id']?.toString(),
+                              )),
+                            ],
+                          ),
+                        ),
+                    );
                   },
                 );
               },
             ),
           ),
+          if (_replyingToMessage != null) _buildReplyPreview(),
           _buildInputBar(),
         ],
       ),
     );
   }
 
-  Widget _buildMessageBubble(Map<String, dynamic> message, bool isMe) {
+  Widget _buildReplyPreview() {
+    final type = _replyingToMessage!['message_type'] ?? 'text';
+    final content = _replyingToMessage!['content'] ?? '';
+    final isMe = _replyingToMessage!['sender_id'] == SupabaseService.currentUser?.id;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade100,
+        border: Border(left: BorderSide(color: const Color(0xFF001529), width: 4)),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  isMe ? 'You' : widget.name,
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Color(0xFF001529)),
+                ),
+                Text(
+                  type == 'text' ? content : '[Media]',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.close, size: 18),
+            onPressed: () => setState(() => _replyingToMessage = null),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMessageBubble(Map<String, dynamic> message, bool isMe, List<Map<String, dynamic>> allMessages, bool isTouched) {
+    final bool isDeleted = message['is_deleted'] ?? false;
     final type = message['message_type'] ?? 'text';
     final content = message['content'] ?? '';
     final messageId = message['id']?.toString() ?? UniqueKey().toString();
@@ -258,26 +349,104 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
         ? DateTime.parse(message['created_at']).toLocal().toString().substring(11, 16) 
         : '';
 
-    if (type == 'sticker') {
+    if (isDeleted) {
       return Padding(
         padding: const EdgeInsets.only(bottom: 16.0),
         child: Column(
           crossAxisAlignment: isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
           children: [
-            GestureDetector(
-              onLongPress: () => _showDeleteOptions(messageId, isMe),
-              child: Image.network(
-                content,
-                width: 120,
-                height: 120,
-                fit: BoxFit.contain,
-                errorBuilder: (_, __, ___) => const Icon(Icons.emoji_emotions_outlined, size: 64, color: Colors.grey),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              decoration: BoxDecoration(
+                color: isMe ? Colors.grey.shade200 : Colors.grey.shade100,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Colors.grey.shade300),
               ),
+                child: isTouched ? Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.block, size: 16, color: Colors.grey.shade500),
+                    const SizedBox(width: 8),
+                    Text(
+                      'This message was deleted',
+                      style: TextStyle(
+                        color: Colors.grey.shade500,
+                        fontSize: 14,
+                        fontStyle: FontStyle.italic,
+                      ),
+                    ),
+                  ],
+                ) : const SizedBox.shrink(),
             ),
             const SizedBox(height: 4),
             Text(
               timeStr,
-              style: TextStyle(color: Colors.grey.shade500, fontSize: 10),
+              style: TextStyle(color: Colors.grey.shade400, fontSize: 10),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (type == 'sticker') {
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 16.0),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
+          children: [
+            if (!isMe) ...[
+              CircleAvatar(
+                radius: 14,
+                backgroundImage: widget.avatar.startsWith('http') ? NetworkImage(widget.avatar) : null,
+                child: !widget.avatar.startsWith('http') ? Text(widget.name[0], style: const TextStyle(fontSize: 10)) : null,
+              ),
+              const SizedBox(width: 8),
+            ],
+            Column(
+              crossAxisAlignment: isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+              children: [
+                if (!isMe)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 4),
+                    child: Text(
+                      widget.name,
+                      style: const TextStyle(
+                        color: Color(0xFF00AA8D),
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
+                Stack(
+                  children: [
+                    GestureDetector(
+                      onLongPress: () => _showDeleteOptions(message, isMe),
+                      child: Image.network(
+                        content,
+                        width: 120,
+                        height: 120,
+                        fit: BoxFit.contain,
+                        errorBuilder: (_, __, ___) => const Icon(Icons.emoji_emotions_outlined, size: 64, color: Colors.grey),
+                      ),
+                    ),
+                    if (isTouched)
+                      Positioned(
+                        right: 0,
+                        top: 0,
+                        child: IconButton(
+                          icon: Icon(Icons.keyboard_arrow_down, size: 18, color: Colors.grey.shade400),
+                          onPressed: () => _showDeleteOptions(message, isMe),
+                        ),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  timeStr,
+                  style: TextStyle(color: Colors.grey.shade500, fontSize: 10),
+                ),
+              ],
             ),
           ],
         ),
@@ -286,150 +455,200 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 16.0),
-      child: Column(
-        crossAxisAlignment: isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
         children: [
-          GestureDetector(
-            onLongPress: () => _showDeleteOptions(messageId, isMe),
-            onTap: () async {
-              if (type == 'image') {
-                _showFullScreenImage(content, messageId);
-              } else if (type == 'file') {
-                final url = content.contains('|') ? content.split('|').last : content;
-                if (await canLaunchUrl(Uri.parse(url))) {
-                  await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
-                }
-              } else if (type == 'location') {
-                final googleMapsUrl = 'https://www.google.com/maps/search/?api=1&query=$content';
-                if (await canLaunchUrl(Uri.parse(googleMapsUrl))) {
-                  await launchUrl(Uri.parse(googleMapsUrl), mode: LaunchMode.externalApplication);
-                }
-              }
-            },
-            child: Container(
-              padding: type == 'image' ? EdgeInsets.zero : const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.75),
-              decoration: BoxDecoration(
-                color: isMe ? const Color(0xFF001529) : const Color(0xFFF1F4F3),
-                borderRadius: BorderRadius.only(
-                  topLeft: const Radius.circular(16),
-                  topRight: const Radius.circular(16),
-                  bottomLeft: Radius.circular(isMe ? 16 : 0),
-                  bottomRight: Radius.circular(isMe ? 0 : 16),
+          if (!isMe) ...[
+            CircleAvatar(
+              radius: 14,
+              backgroundImage: widget.avatar.startsWith('http') ? NetworkImage(widget.avatar) : null,
+              child: !widget.avatar.startsWith('http') ? Text(widget.name[0], style: const TextStyle(fontSize: 10)) : null,
+            ),
+            const SizedBox(width: 8),
+          ],
+          Column(
+            crossAxisAlignment: isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+            children: [
+              if (!isMe)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 4),
+                  child: Text(
+                    widget.name,
+                    style: const TextStyle(
+                      color: Color(0xFF00AA8D),
+                      fontWeight: FontWeight.bold,
+                      fontSize: 12,
+                    ),
+                  ),
                 ),
-                boxShadow: [
-                  if (!isMe)
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.05),
-                      blurRadius: 5,
-                      offset: const Offset(0, 2),
+              GestureDetector(
+                onLongPress: () => _showDeleteOptions(message, isMe),
+                onTap: () async {
+                  if (type == 'image') {
+                    _showFullScreenImage(message, messageId);
+                  } else if (type == 'file') {
+                    final url = content.contains('|') ? content.split('|').last : content;
+                    if (await canLaunchUrl(Uri.parse(url))) {
+                      await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+                    }
+                  } else if (type == 'location') {
+                    final googleMapsUrl = 'https://www.google.com/maps/search/?api=1&query=$content';
+                    if (await canLaunchUrl(Uri.parse(googleMapsUrl))) {
+                      await launchUrl(Uri.parse(googleMapsUrl), mode: LaunchMode.externalApplication);
+                    }
+                  }
+                },
+                child: Container(
+                  padding: type == 'image' ? EdgeInsets.zero : const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.7),
+                  decoration: BoxDecoration(
+                    color: isMe ? const Color(0xFF001529) : const Color(0xFFF1F4F3),
+                    borderRadius: BorderRadius.only(
+                      topLeft: const Radius.circular(16),
+                      topRight: const Radius.circular(16),
+                      bottomLeft: Radius.circular(isMe ? 16 : 0),
+                      bottomRight: Radius.circular(isMe ? 0 : 16),
                     ),
-                ],
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  if (type == 'image') ...[
-                    Hero(
-                      tag: messageId,
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(16),
-                        child: Image.network(
-                          content,
-                          width: double.infinity,
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) => const Icon(Icons.image_not_supported),
+                    boxShadow: [
+                      if (!isMe)
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.05),
+                          blurRadius: 5,
+                          offset: const Offset(0, 2),
                         ),
-                      ),
-                    ),
-                  ],
-                  if (type == 'text')
-                    Text(
-                      content,
-                      style: TextStyle(
-                        color: isMe ? Colors.white : Colors.black87,
-                        fontSize: 14,
-                      ),
-                    ),
-                  if (type == 'file')
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.description, color: isMe ? Colors.white : const Color(0xFF001529), size: 32),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                content.contains('|') ? content.split('|').first : 'Document',
-                                style: TextStyle(
-                                  color: isMe ? Colors.white : Colors.black87,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 13,
-                                ),
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                              Text(
-                                'Tap to view',
-                                style: TextStyle(
-                                  color: isMe ? Colors.white70 : Colors.grey,
-                                  fontSize: 11,
+                    ],
+                  ),
+                  child: Stack(
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.only(right: 24.0), // Space for chevron
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            if (message['reply_to_id'] != null) ...[
+                              _buildQuotedMessage(message['reply_to_id'].toString(), allMessages),
+                              const SizedBox(height: 8),
+                            ],
+                            if (type == 'image') ...[
+                              Hero(
+                                tag: messageId,
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(16),
+                                  child: Image.network(
+                                    content,
+                                    width: double.infinity,
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (_, __, ___) => const Icon(Icons.image_not_supported),
+                                  ),
                                 ),
                               ),
                             ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  if (type == 'location')
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(Icons.location_on, color: Colors.redAccent, size: 28),
-                            const SizedBox(width: 8),
-                            Text(
-                              'Shared Location',
-                              style: TextStyle(
-                                color: isMe ? Colors.white : Colors.black87,
-                                fontWeight: FontWeight.bold,
+                            if (type == 'text')
+                              Text(
+                                content,
+                                style: TextStyle(
+                                  color: isMe ? Colors.white : Colors.black87,
+                                  fontSize: 14,
+                                ),
                               ),
-                            ),
+                            if (type == 'file')
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.description, color: isMe ? Colors.white : const Color(0xFF001529), size: 32),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          content.contains('|') ? content.split('|').first : 'Document',
+                                          style: TextStyle(
+                                            color: isMe ? Colors.white : Colors.black87,
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 13,
+                                          ),
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                        Text(
+                                          'Tap to view',
+                                          style: TextStyle(
+                                            color: isMe ? Colors.white70 : Colors.grey,
+                                            fontSize: 11,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            if (type == 'location')
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      const Icon(Icons.location_on, color: Colors.redAccent, size: 28),
+                                      const SizedBox(width: 8),
+                                      Text(
+                                        'Shared Location',
+                                        style: TextStyle(
+                                          color: isMe ? Colors.white : Colors.black87,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    'Tap to view in maps',
+                                    style: TextStyle(
+                                      color: isMe ? Colors.white70 : Colors.grey,
+                                      fontSize: 11,
+                                    ),
+                                  ),
+                                ],
+                              ),
                           ],
                         ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'Tap to view in maps',
-                          style: TextStyle(
-                            color: isMe ? Colors.white70 : Colors.grey,
-                            fontSize: 11,
+                      ),
+                      if (isTouched)
+                        Positioned(
+                          right: -4,
+                          top: -4,
+                          child: IconButton(
+                            icon: Icon(
+                              Icons.keyboard_arrow_down,
+                              size: 18,
+                              color: isMe ? Colors.white54 : Colors.grey.shade400,
+                            ),
+                            onPressed: () => _showDeleteOptions(message, isMe),
                           ),
                         ),
-                      ],
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 4),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    timeStr,
+                    style: TextStyle(color: Colors.grey.shade500, fontSize: 10),
+                  ),
+                  if (isMe) ...[
+                    const SizedBox(width: 4),
+                    Icon(
+                      Icons.done_all,
+                      size: 14,
+                      color: isRead ? Colors.blue : Colors.grey.shade400,
                     ),
+                  ],
                 ],
               ),
-            ),
-          ),
-          const SizedBox(height: 4),
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                timeStr,
-                style: TextStyle(color: Colors.grey.shade500, fontSize: 10),
-              ),
-              if (isMe) ...[
-                const SizedBox(width: 4),
-                Icon(
-                  Icons.done_all,
-                  size: 14,
-                  color: isRead ? Colors.blue : Colors.grey.shade400,
-                ),
-              ],
             ],
           ),
         ],
@@ -437,7 +656,98 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
     );
   }
 
-  void _showDeleteOptions(String messageId, bool isMe) {
+  Widget _buildQuotedMessage(String replyToId, List<Map<String, dynamic>> allMessages) {
+    // Find the original message in the current list
+    final quotedMsg = allMessages.cast<Map<String, dynamic>?>().firstWhere(
+      (m) => m?['id'].toString() == replyToId,
+      orElse: () => null,
+    );
+
+    if (quotedMsg == null) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: Colors.black.withOpacity(0.05),
+          borderRadius: BorderRadius.circular(8),
+          border: Border(left: BorderSide(color: Colors.grey.shade400, width: 3)),
+        ),
+        child: const Text(
+          'Original message not found',
+          style: TextStyle(fontSize: 11, color: Colors.grey, fontStyle: FontStyle.italic),
+        ),
+      );
+    }
+
+    final type = quotedMsg['message_type'] ?? 'text';
+    final content = quotedMsg['content'] ?? '';
+    final isMe = quotedMsg['sender_id'] == SupabaseService.currentUser?.id;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.black.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(8),
+        border: const Border(left: BorderSide(color: Color(0xFF001529), width: 4)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  isMe ? 'You' : widget.name,
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Color(0xFF001529)),
+                ),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (type == 'image')
+                      const Padding(
+                        padding: EdgeInsets.only(right: 4),
+                        child: Icon(Icons.image, size: 12, color: Colors.grey),
+                      ),
+                    if (type == 'file')
+                      const Padding(
+                        padding: EdgeInsets.only(right: 4),
+                        child: Icon(Icons.insert_drive_file, size: 12, color: Colors.grey),
+                      ),
+                    Flexible(
+                      child: Text(
+                        type == 'text' ? content : (type == 'image' ? 'Photo' : (content.contains('|') ? content.split('|').first : 'Document')),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          if (type == 'image')
+            Padding(
+              padding: const EdgeInsets.only(left: 8),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(4),
+                child: Image.network(
+                  content,
+                  width: 40,
+                  height: 40,
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) => const SizedBox.shrink(),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  void _showDeleteOptions(Map<String, dynamic> message, bool isMe) {
+    final messageId = message['id']?.toString() ?? '';
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.white,
@@ -448,19 +758,53 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
           mainAxisSize: MainAxisSize.min,
           children: [
             const Text(
-              'Delete Message?',
+              'Message Options',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF001529)),
             ),
             const SizedBox(height: 20),
+            ListTile(
+              leading: const Icon(Icons.reply_outlined, color: Colors.blue),
+              title: const Text('Reply', style: TextStyle(color: Colors.black87)),
+              onTap: () {
+                Navigator.pop(context);
+                setState(() {
+                  _replyingToMessage = message;
+                });
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.copy_outlined, color: Colors.blue),
+              title: const Text('Copy', style: TextStyle(color: Colors.black87)),
+              onTap: () {
+                Navigator.pop(context);
+                final content = message['content'] ?? '';
+                final type = message['message_type'] ?? 'text';
+                if (type == 'text') {
+                  Clipboard.setData(ClipboardData(text: content));
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Message copied to clipboard')));
+                }
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.reply_all, color: Colors.blue),
+              title: const Text('Forward', style: TextStyle(color: Colors.black87)),
+              onTap: () {
+                Navigator.pop(context);
+                _showForwardDialog(message);
+              },
+            ),
             ListTile(
               leading: const Icon(Icons.delete_outline, color: Colors.redAccent),
               title: const Text('Delete for me', style: TextStyle(color: Colors.black87)),
               onTap: () async {
                 Navigator.pop(context);
-                final success = await SupabaseService.deleteMessage(messageId: messageId, forEveryone: false);
+                final success = await SupabaseService.deleteMessage(
+                  messageId: messageId,
+                  forEveryone: false,
+                );
                 if (!success && mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Failed to delete message for you.')),
+                    const SnackBar(content: Text('Failed to delete message')),
                   );
                 }
               },
@@ -471,10 +815,13 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
                 title: const Text('Delete for everyone', style: TextStyle(color: Colors.black87)),
                 onTap: () async {
                   Navigator.pop(context);
-                  final success = await SupabaseService.deleteMessage(messageId: messageId, forEveryone: true);
+                  final success = await SupabaseService.deleteMessage(
+                    messageId: messageId,
+                    forEveryone: true,
+                  );
                   if (!success && mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Failed to delete message for everyone.')),
+                      const SnackBar(content: Text('Failed to delete message for everyone')),
                     );
                   }
                 },
@@ -490,35 +837,33 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
     );
   }
 
-  void _showFullScreenImage(String imageUrl, String heroTag) {
+  void _shareMessage(Map<String, dynamic> message) async {
+    final type = message['message_type'] ?? 'text';
+    final content = message['content'] ?? '';
+    
+    if (type == 'text') {
+      Share.share(content);
+    } else {
+      // For media, share the URL
+      final url = content.contains('|') ? content.split('|').last : content;
+      Share.share(url);
+    }
+  }
+
+  void _showFullScreenImage(Map<String, dynamic> message, String heroTag) {
+    final imageUrl = message['content'] ?? '';
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => Scaffold(
-          backgroundColor: Colors.black,
-          appBar: AppBar(
-            backgroundColor: Colors.transparent,
-            elevation: 0,
-            leading: IconButton(
-              icon: const Icon(Icons.close, color: Colors.white),
-              onPressed: () => Navigator.pop(context),
-            ),
-          ),
-          body: Center(
-            child: InteractiveViewer(
-              panEnabled: true,
-              boundaryMargin: const EdgeInsets.all(20),
-              minScale: 0.5,
-              maxScale: 4,
-              child: Hero(
-                tag: heroTag,
-                child: Image.network(
-                  imageUrl,
-                  fit: BoxFit.contain,
-                ),
-              ),
-            ),
-          ),
+        builder: (context) => EnhancedMediaViewer(
+          imageUrl: imageUrl, 
+          heroTag: heroTag, 
+          messageId: message['id']?.toString() ?? '',
+          onReply: () {
+            setState(() {
+              _replyingToMessage = message;
+            });
+          },
         ),
       ),
     );
@@ -735,6 +1080,59 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
           const SizedBox(height: 8),
           Text(label, style: const TextStyle(fontSize: 12)),
         ],
+      ),
+    );
+  }
+
+
+  void _showForwardDialog(Map<String, dynamic> message) async {
+    final managers = await SupabaseService.getUsersByRole('manager');
+    final hosts = await SupabaseService.getUsersByRole('host');
+    final organizers = await SupabaseService.getUsersByRole('organizer');
+    
+    final allContacts = [...managers, ...hosts, ...organizers].where((u) => u['id'] != SupabaseService.currentUser?.id).fold<List<Map<String, dynamic>>>([], (list, user) {
+      if (!list.any((u) => u['id'] == user['id'])) list.add(user);
+      return list;
+    });
+
+    if (!mounted) return;
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Forward to...'),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: ListView.builder(
+            shrinkWrap: true,
+            itemCount: allContacts.length,
+            itemBuilder: (context, index) {
+              final contact = allContacts[index];
+              return ListTile(
+                leading: CircleAvatar(
+                  backgroundImage: contact['profile_photo'] != null && contact['profile_photo'].toString().startsWith('http') 
+                      ? NetworkImage(contact['profile_photo']) 
+                      : null,
+                  child: contact['profile_photo'] == null ? Text(contact['full_name']?[0] ?? '') : null,
+                ),
+                title: Text(contact['full_name'] ?? 'Unknown'),
+                onTap: () async {
+                  Navigator.pop(context);
+                  await SupabaseService.sendMessage(
+                    receiverId: contact['id'],
+                    content: message['content'],
+                    type: message['message_type'] ?? 'text',
+                  );
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Forwarded to ${contact['full_name']}')),
+                    );
+                  }
+                },
+              );
+            },
+          ),
+        ),
       ),
     );
   }

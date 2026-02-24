@@ -27,15 +27,11 @@ class _VolunteerChatPageState extends State<VolunteerChatPage> {
     // Volunteers primarily chat with Managers/Hosts
     final managers = await SupabaseService.getUsersByRole('manager');
     final eventManagers = await SupabaseService.getUsersByRole('event_manager');
-    final hosts = await SupabaseService.getUsersByRole('host');
-    final organizers = await SupabaseService.getUsersByRole('organizer');
     
     setState(() {
       _managers = [
         ...managers, 
         ...eventManagers, 
-        ...hosts, 
-        ...organizers
       ].fold<List<Map<String, dynamic>>>(
         [], 
         (list, user) {
