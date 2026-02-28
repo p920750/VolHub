@@ -640,6 +640,34 @@ class SupabaseService {
     }
   }
 
+  // Upload user certificate (PDFs, etc)
+  static Future<String?> uploadCertificate(
+    File file,
+    String userId,
+  ) async {
+    try {
+      final fileExt = file.path.split('.').last;
+      final timestamp = DateTime.now().toIso8601String().replaceAll(':', '-');
+      final fileName = '$userId/cert_$timestamp.$fileExt';
+      
+      const bucketName = 'verification_docs'; 
+
+      await client.storage.from(bucketName).upload(
+            fileName,
+            file,
+            fileOptions: const FileOptions(cacheControl: '3600', upsert: false),
+          );
+
+      final String publicUrl = client.storage.from(bucketName).getPublicUrl(fileName);
+      return publicUrl;
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error uploading certificate: $e');
+      }
+      rethrow;
+    }
+  }
+
   // Update user metadata (phone, address, avatar, etc.)
   static Future<void> updateUserMetadata(Map<String, dynamic> data) async {
     try {

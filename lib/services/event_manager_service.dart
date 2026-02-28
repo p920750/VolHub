@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/foundation.dart';
 import 'supabase_service.dart';
@@ -190,6 +191,109 @@ class EventManagerService {
     } catch (e) {
       if (kDebugMode) print('Error fetching accepted events: $e');
       return [];
+    }
+  }
+
+  /// Uploads media (photo/video) to the portfolio storage bucket.
+  static Future<String?> uploadPortfolioMedia(File file) async {
+    try {
+      final user = SupabaseService.currentUser;
+      if (user == null) throw Exception('User not logged in');
+
+      final fileExt = file.path.split('.').last;
+      final fileName = '${DateTime.now().millisecondsSinceEpoch}.$fileExt';
+      final filePath = '${user.id}/$fileName';
+      
+      await client.storage.from('portfolio_media').upload(
+        filePath,
+        file,
+        fileOptions: const FileOptions(cacheControl: '3600', upsert: false),
+      );
+
+      final String publicUrl = client.storage
+          .from('portfolio_media')
+          .getPublicUrl(filePath);
+      
+      return publicUrl;
+    } catch (e) {
+      if (kDebugMode) print('Error uploading portfolio media: $e');
+      return null;
+    }
+  }
+
+  /// Adds a new portfolio item to the database.
+  static Future<void> addPortfolioItem({
+    required String eventName,
+    required String eventType,
+    required String roleHandled,
+    String? outcomeSummary,
+    List<String> photos = const [],
+    List<String> videos = const [],
+  }) async {
+    try {
+      final user = SupabaseService.currentUser;
+      if (user == null) throw Exception('User not logged in');
+
+      await client.from('manager_portfolios').insert({
+        'manager_id': user.id,
+        'event_name': eventName,
+        'event_type': eventType,
+        'role_handled': roleHandled,
+        'outcome_summary': outcomeSummary,
+        'photos': photos,
+        'videos': videos,
+      });
+    } catch (e) {
+      if (kDebugMode) print('Error adding portfolio item: $e');
+      rethrow;
+    }
+  }
+
+  /// Returns a stream of portfolio items for the current manager.
+  static Stream<List<Map<String, dynamic>>> getPortfolioStream() {
+    final user = SupabaseService.currentUser;
+    if (user == null) return const Stream.empty();
+
+    return client
+        .from('manager_portfolios')
+        .stream(primaryKey: ['id'])
+        .eq('manager_id', user.id)
+        .order('created_at', ascending: false)
+        .map((data) => List<Map<String, dynamic>>.from(data));
+  }
+
+  /// Updates an existing portfolio item.
+  static Future<void> updatePortfolioItem({
+    required String id,
+    required String eventName,
+    required String eventType,
+    required String roleHandled,
+    String? outcomeSummary,
+    List<String> photos = const [],
+    List<String> videos = const [],
+  }) async {
+    try {
+      await client.from('manager_portfolios').update({
+        'event_name': eventName,
+        'event_type': eventType,
+        'role_handled': roleHandled,
+        'outcome_summary': outcomeSummary,
+        'photos': photos,
+        'videos': videos,
+      }).eq('id', id);
+    } catch (e) {
+      if (kDebugMode) print('Error updating portfolio item: $e');
+      rethrow;
+    }
+  }
+
+  /// Deletes a portfolio item.
+  static Future<void> deletePortfolioItem(String id) async {
+    try {
+      await client.from('manager_portfolios').delete().eq('id', id);
+    } catch (e) {
+      if (kDebugMode) print('Error deleting portfolio item: $e');
+      rethrow;
     }
   }
 }

@@ -51,7 +51,7 @@ class _ProfileDetailsPageState extends State<ProfileDetailsPage> {
 
   final List<String> skills = [];
   final List<String> interests = [];
-  final List<PlatformFile> certificates = [];
+  final List<String> certificates = [];
 
   bool _isLoading = true;
 
@@ -66,6 +66,7 @@ class _ProfileDetailsPageState extends State<ProfileDetailsPage> {
           phone = _phoneController.text;
           editPhone = false;
         });
+        _updateProfile({'phone_number': phone});
         _validateProfile();
         _calculateProfileCompletion();
       }
@@ -77,6 +78,7 @@ class _ProfileDetailsPageState extends State<ProfileDetailsPage> {
           address = _addressController.text;
           editAddress = false;
         });
+        _updateProfile({'address': address});
         _validateProfile();
         _calculateProfileCompletion();
       }
@@ -88,6 +90,7 @@ class _ProfileDetailsPageState extends State<ProfileDetailsPage> {
           bio = _bioController.text;
           editBio = false;
         });
+        _updateProfile({'bio': bio});
         _validateProfile();
         _calculateProfileCompletion();
       }
@@ -127,7 +130,7 @@ class _ProfileDetailsPageState extends State<ProfileDetailsPage> {
            setState(() {
              avatarUrl = url;
            });
-           await _updateProfile({'avatar_url': url});
+           await _updateProfile({'profile_photo': url});
         }
       } catch (e) {
         if (mounted) {
@@ -177,10 +180,10 @@ class _ProfileDetailsPageState extends State<ProfileDetailsPage> {
         setState(() {
           verificationStatus = data['verification_status'] ?? 'unverified';
           if (data['full_name'] != null) fullName = data['full_name'];
-          if (data['phone'] != null) phone = data['phone'];
+          if (data['phone_number'] != null) phone = data['phone_number'];
           if (data['address'] != null) address = data['address'];
           if (data['bio'] != null) bio = data['bio'];
-          if (data['avatar_url'] != null) avatarUrl = data['avatar_url'];
+          if (data['profile_photo'] != null) avatarUrl = data['profile_photo'];
           
           if (data['skills'] != null) {
             skills.clear();
@@ -189,6 +192,10 @@ class _ProfileDetailsPageState extends State<ProfileDetailsPage> {
           if (data['interests'] != null) {
             interests.clear();
             interests.addAll(List<String>.from(data['interests']));
+          }
+          if (data['certificates'] != null) {
+            certificates.clear();
+            certificates.addAll(List<String>.from(data['certificates']));
           }
           
           _phoneController.text = phone;
@@ -258,12 +265,45 @@ class _ProfileDetailsPageState extends State<ProfileDetailsPage> {
       allowedExtensions: ['pdf'],
     );
 
-    if (result == null) return;
+    if (result == null || result.files.single.path == null) return;
 
-    setState(() {
-      certificates.insert(0, result.files.first);
-    });
-    _calculateProfileCompletion();
+    final file = File(result.files.single.path!);
+
+    setState(() => _isLoading = true);
+
+    try {
+      final userId = Supabase.instance.client.auth.currentUser?.id;
+      if (userId == null) {
+        setState(() => _isLoading = false);
+        return;
+      }
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Uploading certificate...')),
+        );
+      }
+
+      final url = await SupabaseService.uploadCertificate(file, userId);
+
+      if (url != null) {
+        setState(() {
+          certificates.insert(0, url);
+          _isLoading = false;
+        });
+        await _updateProfile({'certificates': certificates});
+        _calculateProfileCompletion();
+      } else {
+        setState(() => _isLoading = false);
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error uploading certificate: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
   }
   
   Widget _card({required Widget child}) {
@@ -509,7 +549,7 @@ class _ProfileDetailsPageState extends State<ProfileDetailsPage> {
                         phone = _phoneController.text;
                         editPhone = false;
                       });
-                      _updateProfile({'phone': phone});
+                      _updateProfile({'phone_number': phone});
                       _validateProfile();
                     }
                   ),
@@ -674,6 +714,8 @@ class _ProfileDetailsPageState extends State<ProfileDetailsPage> {
                   ),
                   const SizedBox(height: 16),
                   ...List.generate(certificates.length, (i) {
+                      final certUrl = certificates[i];
+                      final certName = Uri.parse(certUrl).pathSegments.last;
                       return Padding(
                         padding: const EdgeInsets.only(bottom: 8),
                         child: Align(
@@ -694,14 +736,18 @@ class _ProfileDetailsPageState extends State<ProfileDetailsPage> {
                               children: [
                                 Flexible(
                                   child: Text(
-                                    certificates[i].name,
+                                    certName,
                                     overflow: TextOverflow.ellipsis,
                                   ),
                                 ),
                                 const SizedBox(width: 8),
                                 GestureDetector(
                                   onTap: () {
-                                    setState(() => certificates.removeAt(i));
+                                    setState(() {
+                                      certificates.removeAt(i);
+                                      _calculateProfileCompletion();
+                                    });
+                                    _updateProfile({'certificates': certificates});
                                   },
                                   child: const Icon(Icons.close, size: 18),
                                 ),

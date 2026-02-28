@@ -23,6 +23,8 @@ class _VolunteerProfilePageState extends State<VolunteerProfilePage> {
   String email = ''; 
   String fullName = ''; 
   String phone = '';
+  bool showPhone = true;
+  bool showEmail = true;
 
   final ImagePicker _picker = ImagePicker();
 
@@ -49,11 +51,17 @@ class _VolunteerProfilePageState extends State<VolunteerProfilePage> {
           .maybeSingle();
 
       if (data != null && mounted) {
+        final settings = data['settings'] as Map<String, dynamic>?;
         setState(() {
           if (data['full_name'] != null) fullName = data['full_name'];
-          if (data['phone'] != null) phone = data['phone'];
-          if (data['avatar_url'] != null) avatarUrl = data['avatar_url'];
+          if (data['phone_number'] != null) phone = data['phone_number'];
+          if (data['profile_photo'] != null) avatarUrl = data['profile_photo'];
           email = user.email ?? '';
+
+          if (settings != null) {
+            showPhone = settings['show_phone'] ?? true;
+            showEmail = settings['show_email'] ?? true;
+          }
         });
       }
     } catch (e) {
@@ -106,7 +114,7 @@ class _VolunteerProfilePageState extends State<VolunteerProfilePage> {
            setState(() {
              avatarUrl = url;
            });
-           await _updateProfile({'avatar_url': url});
+           await _updateProfile({'profile_photo': url});
         }
       } catch (e) {
         if (mounted) {
@@ -231,51 +239,38 @@ class _VolunteerProfilePageState extends State<VolunteerProfilePage> {
             const SizedBox(height: 8),
 
             // Phone
-            if (phone.isNotEmpty)
+            if (showPhone && phone.isNotEmpty)
               Padding(
-                padding: const EdgeInsets.symmetric(vertical: 4),
+                padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 32),
                 child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  mainAxisSize: MainAxisSize.min,
+                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const Padding(
-                      padding: EdgeInsets.only(left: 30),
-                      child: Text("Phone", style: TextStyle(color: Colors.grey, fontSize: 16)),
-                    ),
-                    Expanded(
-                      child: Padding(
-                         padding: const EdgeInsets.only(right: 30),
-                         child: Text(
-                           phone, 
-                           textAlign: TextAlign.right,
-                           style: const TextStyle(color: Colors.black, fontSize: 16, fontWeight: FontWeight.w500),
-                           overflow: TextOverflow.ellipsis,
-                         ),
-                      ),
+                    const Icon(Icons.phone_outlined, size: 16, color: Colors.grey),
+                    const SizedBox(width: 8),
+                    Text(
+                      phone, 
+                      style: const TextStyle(color: Colors.black87, fontSize: 15, letterSpacing: 0.5),
                     ),
                   ],
                 ),
               ),
 
              // Email
-             if (email.isNotEmpty)
+             if (showEmail && email.isNotEmpty)
               Padding(
-                padding: const EdgeInsets.symmetric(vertical: 4),
+                padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 32),
                 child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  mainAxisSize: MainAxisSize.min,
+                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const Padding(
-                      padding: EdgeInsets.only(left: 30),
-                      child: Text("Mail", style: TextStyle(color: Colors.grey, fontSize: 16)),
-                    ),
-                    Expanded(
-                      child: Padding(
-                         padding: const EdgeInsets.only(right: 30),
-                         child: Text(
-                           email, 
-                           textAlign: TextAlign.right,
-                           style: const TextStyle(color: Colors.black, fontSize: 16, fontWeight: FontWeight.w500),
-                           overflow: TextOverflow.ellipsis,
-                         ),
+                    const Icon(Icons.email_outlined, size: 16, color: Colors.grey),
+                    const SizedBox(width: 8),
+                    Flexible(
+                      child: Text(
+                        email, 
+                        style: const TextStyle(color: Colors.black87, fontSize: 15),
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
                   ],
