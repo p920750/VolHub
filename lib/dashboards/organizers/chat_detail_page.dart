@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:image_picker/image_picker.dart';
 import 'package:file_picker/file_picker.dart';
 import 'dart:io';
@@ -125,7 +126,8 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
               children: [
                 CircleAvatar(
                   radius: 18,
-                  backgroundImage: NetworkImage(widget.avatar),
+                  backgroundImage: widget.avatar.isNotEmpty ? NetworkImage(widget.avatar) : null,
+                  child: widget.avatar.isEmpty ? const Icon(Icons.person) : null,
                 ),
                 if (widget.isOnline)
                   Positioned(
@@ -210,11 +212,13 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
                 if (message['imagePath'] != null) ...[
                   ClipRRect(
                     borderRadius: BorderRadius.circular(8),
-                    child: Image.file(
-                      File(message['imagePath']),
-                      width: 200,
-                      fit: BoxFit.cover,
-                    ),
+                    child: kIsWeb 
+                      ? Image.network(message['imagePath'], width: 200, fit: BoxFit.cover)
+                      : Image.file(
+                          File(message['imagePath']),
+                          width: 200,
+                          fit: BoxFit.cover,
+                        ),
                   ),
                   const SizedBox(height: 8),
                 ],

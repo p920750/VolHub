@@ -54,7 +54,7 @@ class _UserTypeSelectionPageState extends State<UserTypeSelectionPage> {
                         borderRadius: BorderRadius.circular(20),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withOpacity(0.2),
+                            color: Colors.black.withValues(alpha: 0.2),
                             blurRadius: 10,
                             offset: const Offset(0, 5),
                           ),
@@ -91,11 +91,11 @@ class _UserTypeSelectionPageState extends State<UserTypeSelectionPage> {
                     description: "Create and manage volunteer events",
                     icon: Icons.event_note,
                     color: const Color.fromARGB(255, 33, 78, 52),
-                    userType: 'event_manager',
-                    isSelected: _selectedType == 'event_manager',
+                    userType: 'organizer',
+                    isSelected: _selectedType == 'organizer',
                     onTap: () {
                       setState(() {
-                        _selectedType = 'event_manager';
+                        _selectedType = 'organizer';
                       });
                       Future.delayed(const Duration(milliseconds: 300), () {
                         if (mounted) {
@@ -211,7 +211,7 @@ class _AnimatedUserTypeCardState extends State<_AnimatedUserTypeCard>
     ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
     _colorAnimation = ColorTween(
       begin: Colors.white,
-      end: widget.color.withOpacity(0.05),
+      end: widget.color.withValues(alpha: 0.05),
     ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
   }
 
@@ -266,8 +266,8 @@ class _AnimatedUserTypeCardState extends State<_AnimatedUserTypeCard>
                     : null,
                 boxShadow: [
                   BoxShadow(
-                    color: widget.color.withOpacity(
-                      widget.isSelected ? 0.3 : 0.1,
+                    color: widget.color.withValues(
+                      alpha: widget.isSelected ? 0.3 : 0.1,
                     ),
                     blurRadius: _elevationAnimation.value,
                     offset: Offset(0, _elevationAnimation.value / 2),
@@ -285,12 +285,12 @@ class _AnimatedUserTypeCardState extends State<_AnimatedUserTypeCard>
                     decoration: BoxDecoration(
                       color: widget.isSelected
                           ? widget.color
-                          : widget.color.withOpacity(0.1),
+                          : widget.color.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(16),
                       boxShadow: widget.isSelected
                           ? [
                               BoxShadow(
-                                color: widget.color.withOpacity(0.4),
+                                color: widget.color.withValues(alpha: 0.4),
                                 blurRadius: 12,
                                 offset: const Offset(0, 4),
                               ),

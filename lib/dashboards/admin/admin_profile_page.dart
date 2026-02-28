@@ -1,49 +1,29 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../services/supabase_service.dart';
 import 'admin_colors.dart';
+import 'admin_profile_provider.dart';
 
-class AdminProfilePage extends StatefulWidget {
+class AdminProfilePage extends ConsumerStatefulWidget {
   const AdminProfilePage({super.key});
 
   @override
-  State<AdminProfilePage> createState() => _AdminProfilePageState();
+  ConsumerState<AdminProfilePage> createState() => _AdminProfilePageState();
 }
 
-class _AdminProfilePageState extends State<AdminProfilePage> {
+class _AdminProfilePageState extends ConsumerState<AdminProfilePage> {
   final _nameController = TextEditingController();
   final _phoneController = TextEditingController();
   final _addressController = TextEditingController();
-  bool _isLoading = true;
-  String _email = '';
+  bool _isLoading = false;
+  bool _isInitialized = false;
 
-  @override
-  void initState() {
-    super.initState();
-    _fetchProfile();
-  }
-
-  Future<void> _fetchProfile() async {
-    try {
-      final user = SupabaseService.currentUser;
-      if (user == null) return;
-      
-      setState(() {
-        _email = user.email ?? '';
-      });
-
-      final data = await SupabaseService.getUserProfile();
-      
-      if (data != null && mounted) {
-        setState(() {
-          _nameController.text = data['full_name'] ?? '';
-          _phoneController.text = data['phone_number'] ?? '';
-          _addressController.text = data['address'] ?? '';
-        });
-      }
-    } catch (e) {
-      debugPrint('Error fetching profile: $e');
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
+  void _initializeControllers(AdminProfile profile) {
+    if (!_isInitialized) {
+      _nameController.text = profile.name;
+      _phoneController.text = profile.phone;
+      _addressController.text = profile.address;
+      _isInitialized = true;
     }
   }
 
@@ -51,11 +31,10 @@ class _AdminProfilePageState extends State<AdminProfilePage> {
     try {
       setState(() => _isLoading = true);
       
-      await SupabaseService.upsertUserProfile({
+      await ref.read(adminProfileProvider.notifier).updateProfile({
         'full_name': _nameController.text,
         'phone_number': _phoneController.text,
         'address': _addressController.text,
-        'role': 'admin', // Ensure role type is preserved
       });
 
       if (mounted) {
@@ -90,81 +69,100 @@ class _AdminProfilePageState extends State<AdminProfilePage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AdminColors.background,
-      appBar: AppBar(
-        title: const Text('Admin Profile', style: TextStyle(color: Colors.white)),
-        backgroundColor: AdminColors.primary,
-        iconTheme: const IconThemeData(color: Colors.white),
-      ),
-      body: _isLoading 
-          ? const Center(child: CircularProgressIndicator()) 
-          : SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          children: [
-            const CircleAvatar(
-              radius: 50,
-              backgroundColor: AdminColors.accent,
-              child: Icon(Icons.person, size: 50, color: Colors.white),
-            ),
-            const SizedBox(height: 16),
-            const Text(
-              'Administrator',
-              style: TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-                color: AdminColors.textPrimary,
-              ),
-            ),
-            Text(
-              _email,
-              style: const TextStyle(
-                fontSize: 16,
-                color: AdminColors.textSecondary,
-              ),
-            ),
-            const SizedBox(height: 32),
-            
-            _buildTextField("Full Name", _nameController, Icons.person_outline),
-            const SizedBox(height: 16),
-            _buildTextField("Phone", _phoneController, Icons.phone_outlined),
-            const SizedBox(height: 16),
-            _buildTextField("Address", _addressController, Icons.location_on_outlined, maxLines: 3),
-            
-            const SizedBox(height: 24),
-            SizedBox(
-              width: double.infinity,
-              height: 50,
-              child: ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AdminColors.primary,
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
+    final profileAsync = ref.watch(adminProfileProvider);
+
+    return profileAsync.when(
+      data: (profile) {
+        _initializeControllers(profile);
+        return Scaffold(
+          backgroundColor: AdminColors.background,
+          appBar: AppBar(
+            title: const Text('Admin Profile', style: TextStyle(color: Colors.white)),
+            backgroundColor: AdminColors.primary,
+            iconTheme: const IconThemeData(color: Colors.white),
+          ),
+          body: _isLoading 
+              ? const Center(child: CircularProgressIndicator()) 
+              : SingleChildScrollView(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              children: [
+                _buildAvatar(profile),
+                const SizedBox(height: 16),
+                const Text(
+                  'Administrator',
+                  style: TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    color: AdminColors.textPrimary,
                   ),
                 ),
-                onPressed: _saveProfile,
-                child: const Text('Save Changes', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-              ),
-            ),
+                Text(
+                  profile.email,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    color: AdminColors.textSecondary,
+                  ),
+                ),
+                const SizedBox(height: 32),
+                
+                _buildTextField("Full Name", _nameController, Icons.person_outline),
+                const SizedBox(height: 16),
+                _buildTextField("Phone", _phoneController, Icons.phone_outlined),
+                const SizedBox(height: 16),
+                _buildTextField("Address", _addressController, Icons.location_on_outlined, maxLines: 3),
+                
+                const SizedBox(height: 24),
+                SizedBox(
+                  width: double.infinity,
+                  height: 50,
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AdminColors.primary,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    onPressed: _saveProfile,
+                    child: const Text('Save Changes', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                  ),
+                ),
 
-            const SizedBox(height: 32),
-            _buildProfileOption(
-              context,
-              'Sign Out',
-              Icons.logout,
-              Colors.red,
-              () async {
-                await SupabaseService.signOut();
-                if (context.mounted) {
-                  Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false);
-                }
-              },
+                const SizedBox(height: 32),
+                _buildProfileOption(
+                  context,
+                  'Sign Out',
+                  Icons.logout,
+                  Colors.red,
+                  () async {
+                    await SupabaseService.signOut();
+                    if (context.mounted) {
+                      Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false);
+                    }
+                  },
+                ),
+              ],
             ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
+      loading: () => const Scaffold(body: Center(child: CircularProgressIndicator())),
+      error: (err, stack) => Scaffold(body: Center(child: Text('Error: $err'))),
+    );
+  }
+
+  Widget _buildAvatar(AdminProfile profile) {
+    if (profile.profilePhoto.isNotEmpty) {
+      return CircleAvatar(
+        radius: 50,
+        backgroundImage: NetworkImage(profile.profilePhoto),
+      );
+    }
+    return const CircleAvatar(
+      radius: 50,
+      backgroundColor: AdminColors.accent,
+      child: Icon(Icons.person, size: 50, color: Colors.white),
     );
   }
 

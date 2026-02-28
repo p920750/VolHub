@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
+import 'package:main_volhub/widgets/safe_avatar.dart';
 import '../../messages/group_info_screen.dart';
 
 class TeamCard extends StatelessWidget {
@@ -79,9 +80,10 @@ class TeamCard extends StatelessWidget {
                           itemCount: (team['avatars'] as List).length > 3 ? 3 : (team['avatars'] as List).length,
                           itemBuilder: (context, i) => Padding(
                             padding: const EdgeInsets.only(right: 4.0),
-                            child: CircleAvatar(
+                            child: SafeAvatar(
                               radius: 12,
-                              backgroundImage: NetworkImage((team['avatars'] as List)[i]),
+                              imageUrl: (team['avatars'] as List)[i],
+                              name: 'Member',
                             ),
                           ),
                         ),

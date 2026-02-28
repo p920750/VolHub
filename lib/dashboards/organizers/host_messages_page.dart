@@ -94,7 +94,8 @@ class _HostMessagesPageState extends State<HostMessagesPage> {
                     children: [
                       CircleAvatar(
                         radius: 28,
-                        backgroundImage: NetworkImage(conversation['avatar']),
+                        backgroundImage: conversation['avatar'] != null && conversation['avatar'].toString().isNotEmpty ? NetworkImage(conversation['avatar']) : null,
+                        child: conversation['avatar'] == null || conversation['avatar'].toString().isEmpty ? const Icon(Icons.person) : null,
                       ),
                       if (conversation['isOnline'])
                         Positioned(

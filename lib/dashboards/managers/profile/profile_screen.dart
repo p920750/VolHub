@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'profile_provider.dart';
 import '../core/manager_drawer.dart';
+import 'package:main_volhub/widgets/safe_avatar.dart';
 
 class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});
@@ -29,9 +30,10 @@ class ProfileScreen extends ConsumerWidget {
           child: Column(
             children: [
               const SizedBox(height: 24),
-              CircleAvatar(
+              SafeAvatar(
                 radius: 50,
-                backgroundImage: NetworkImage(profile.profileImage),
+                imageUrl: profile.profileImage,
+                name: profile.name,
               ),
               const SizedBox(height: 16),
               Text(
@@ -55,7 +57,8 @@ class ProfileScreen extends ConsumerWidget {
                       [
                         _buildInfoRow(Icons.email, profile.email),
                         _buildInfoRow(Icons.phone, profile.phone),
-                        _buildInfoRow(Icons.location_on, profile.location),
+                        _buildInfoRow(Icons.business, profile.companyName.isNotEmpty ? profile.companyName : 'No company specified'),
+                        _buildInfoRow(Icons.location_on, profile.companyLocation.isNotEmpty ? profile.companyLocation : 'No location specified'),
                       ],
                       onEdit: () => Navigator.pushNamed(context, '/manager-profile-edit'),
                     ),
@@ -64,15 +67,18 @@ class ProfileScreen extends ConsumerWidget {
                       context,
                       'Professional Info',
                       [
-                         Text(profile.bio),
-                         const SizedBox(height: 12),
+                         if (profile.bio.isNotEmpty) ...[
+                           Text(profile.bio),
+                           const SizedBox(height: 12),
+                         ],
+                         const Text('Company Activities', style: TextStyle(fontWeight: FontWeight.bold)),
+                         const SizedBox(height: 8),
                          Wrap(
                            spacing: 8,
-                           children: const [
-                             Chip(label: Text('Event Planning')),
-                             Chip(label: Text('Logistics')),
-                             Chip(label: Text('Budgeting')),
-                           ],
+                           runSpacing: 4,
+                           children: profile.categories.isEmpty 
+                             ? [const Text('No activities specified', style: TextStyle(fontStyle: FontStyle.italic, color: Colors.grey))]
+                             : profile.categories.map((c) => Chip(label: Text(c))).toList(),
                          ),
                       ],
                       onEdit: () => Navigator.pushNamed(context, '/manager-profile-edit'),

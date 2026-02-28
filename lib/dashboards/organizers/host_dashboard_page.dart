@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
-import 'package:fl_chart/fl_chart.dart';
 import 'dart:io';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:fl_chart/fl_chart.dart';
 import '../../services/supabase_service.dart';
 import 'post_event_page.dart';
 import 'host_messages_page.dart';
@@ -9,17 +10,16 @@ import 'my_events_page.dart';
 import 'host_profile_page.dart';
 import 'event_detail_page.dart';
 import '../../services/host_service.dart';
+import 'host_profile_provider.dart';
 
-class HostDashboardPage extends StatefulWidget {
+class HostDashboardPage extends ConsumerStatefulWidget {
   const HostDashboardPage({super.key});
 
   @override
-  State<HostDashboardPage> createState() => _HostDashboardPageState();
+  ConsumerState<HostDashboardPage> createState() => _HostDashboardPageState();
 }
 
-class _HostDashboardPageState extends State<HostDashboardPage> {
-  String _fullName = 'Alex Rivera';
-  String _profilePhoto = 'https://i.pravatar.cc/150?u=alex';
+class _HostDashboardPageState extends ConsumerState<HostDashboardPage> {
   bool _isLoading = true;
   List<Map<String, dynamic>> _events = [];
 
@@ -31,26 +31,10 @@ class _HostDashboardPageState extends State<HostDashboardPage> {
 
   Future<void> _loadData() async {
     setState(() => _isLoading = true);
-    await Future.wait([
-      _loadProfile(),
-      _loadEvents(),
-    ]);
+    await _loadEvents();
     if (mounted) setState(() => _isLoading = false);
   }
 
-  Future<void> _loadProfile() async {
-    try {
-      final userData = await SupabaseService.getUserProfile();
-      if (userData != null && mounted) {
-        setState(() {
-          _fullName = userData['full_name'] ?? _fullName;
-          _profilePhoto = userData['profile_photo'] ?? _profilePhoto;
-        });
-      }
-    } catch (e) {
-      if (kDebugMode) print('Error loading profile: $e');
-    }
-  }
 
   Future<void> _loadEvents() async {
     try {
@@ -67,6 +51,8 @@ class _HostDashboardPageState extends State<HostDashboardPage> {
 
   @override
   Widget build(BuildContext context) {
+    final profileAsync = ref.watch(hostProfileProvider);
+
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FA),
       appBar: AppBar(
@@ -78,10 +64,6 @@ class _HostDashboardPageState extends State<HostDashboardPage> {
             onPressed: () => Scaffold.of(context).openDrawer(),
           ),
         ),
-        title: Image.asset(
-          'assets/images/logo_1.jpeg',
-          height: 32,
-        ),
         centerTitle: true,
         actions: [
           IconButton(
@@ -90,22 +72,27 @@ class _HostDashboardPageState extends State<HostDashboardPage> {
           ),
           GestureDetector(
             onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const HostProfilePage()),
-              );
+              Navigator.pushNamed(context, '/organizer-profile');
             },
             child: Padding(
               padding: const EdgeInsets.only(right: 16.0),
-              child: CircleAvatar(
-                radius: 16,
-                backgroundImage: NetworkImage(_profilePhoto),
+              child: profileAsync.when(
+                data: (profile) => CircleAvatar(
+                  radius: 16,
+                  child: _buildProfileImage(profile: profile, radius: 16),
+                ),
+                loading: () => const CircleAvatar(radius: 16, child: CircularProgressIndicator(strokeWidth: 2)),
+                error: (err, stack) => const CircleAvatar(radius: 16, child: Icon(Icons.error)),
               ),
             ),
           ),
         ],
       ),
-      drawer: _buildDrawer(),
+      drawer: profileAsync.when(
+        data: (profile) => _buildDrawer(profile),
+        loading: () => const Drawer(child: Center(child: CircularProgressIndicator())),
+        error: (err, stack) => const Drawer(child: Center(child: Text('Error loading profile'))),
+      ),
       body: _isLoading 
         ? const Center(child: CircularProgressIndicator())
         : RefreshIndicator(
@@ -115,17 +102,21 @@ class _HostDashboardPageState extends State<HostDashboardPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    'Welcome back, ${_fullName.split(' ')[0]}! 👋',
-                    style: const TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF1A1A1A),
+                  profileAsync.when(
+                    data: (profile) => Text(
+                      'Welcome back, ${profile.name.split(' ')[0]}! 👋',
+                      style: const TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF1A1A1A),
+                      ),
                     ),
+                    loading: () => const Text('Welcome back! 👋', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+                    error: (err, stack) => const Text('Welcome back! 👋', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
                   ),
                   const SizedBox(height: 4),
                   const Text(
-                    "Here's what's happening with your events today.",
+                    "Here's what's happening with your requests today.",
                     style: TextStyle(
                       fontSize: 14,
                       color: Colors.grey,
@@ -142,14 +133,11 @@ class _HostDashboardPageState extends State<HostDashboardPage> {
                     mainAxisSpacing: 12,
                     childAspectRatio: 1.5,
                     children: [
-                      _buildStatCard('Active Events', _events.where((e) => e['status'] == 'Active').length.toString(), Icons.calendar_today, Colors.green),
+                      _buildStatCard('Active Requests', _events.where((e) => e['status']?.toString().toLowerCase() == 'active').length.toString(), Icons.calendar_today, Colors.green),
                       _buildStatCard('Pending Applications', '48', Icons.people_outline, Colors.blue),
                       GestureDetector(
                         onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(builder: (context) => const HostMessagesPage()),
-                          );
+                          Navigator.pushNamed(context, '/organizer-messages');
                         },
                         child: _buildStatCard('New Messages', '5', Icons.mail_outline, Colors.orange),
                       ),
@@ -218,7 +206,7 @@ class _HostDashboardPageState extends State<HostDashboardPage> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       const Text(
-                        'Featured Events',
+                        'Featured Requests',
                         style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
@@ -227,10 +215,7 @@ class _HostDashboardPageState extends State<HostDashboardPage> {
                       ),
                       TextButton(
                         onPressed: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(builder: (context) => const MyEventsPage()),
-                          ).then((_) => _loadData());
+                          Navigator.pushNamed(context, '/my-events').then((_) => _loadData());
                         },
                         child: const Text('View All', style: TextStyle(color: Color(0xFF1E4D40))),
                       ),
@@ -240,7 +225,7 @@ class _HostDashboardPageState extends State<HostDashboardPage> {
                   _events.isEmpty 
                     ? const Center(child: Padding(
                         padding: EdgeInsets.all(20.0),
-                        child: Text('No events found.'),
+                        child: Text('No requests found.'),
                       ))
                     : ListView.separated(
                         shrinkWrap: true,
@@ -256,10 +241,7 @@ class _HostDashboardPageState extends State<HostDashboardPage> {
                   // Add a "Post a new event" button/card
                   GestureDetector(
                     onTap: () async {
-                      final result = await Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (context) => const PostEventPage()),
-                      );
+                      final result = await Navigator.pushNamed(context, '/post-event');
                       if (result == true) {
                         _loadData();
                       }
@@ -273,7 +255,7 @@ class _HostDashboardPageState extends State<HostDashboardPage> {
     );
   }
 
-  Widget _buildDrawer() {
+  Widget _buildDrawer(HostProfile? profile) {
     return Drawer(
       child: ListView(
         padding: EdgeInsets.zero,
@@ -282,17 +264,18 @@ class _HostDashboardPageState extends State<HostDashboardPage> {
             decoration: const BoxDecoration(
               color: Color(0xFF1E4D40),
             ),
-            child: Column(
+            child: profile != null ? Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
                 CircleAvatar(
                   radius: 30,
-                  backgroundImage: NetworkImage(_profilePhoto),
+                  backgroundColor: Colors.white.withOpacity(0.1),
+                  child: _buildProfileImage(profile: profile, radius: 30, color: Colors.white),
                 ),
                 const SizedBox(height: 10),
                 Text(
-                  _fullName,
+                  profile.name,
                   style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
                 ),
                 Text(
@@ -300,39 +283,29 @@ class _HostDashboardPageState extends State<HostDashboardPage> {
                   style: TextStyle(color: Colors.white.withOpacity(0.8), fontSize: 12),
                 ),
               ],
-            ),
+            ) : const Center(child: CircularProgressIndicator(color: Colors.white)),
           ),
           _buildDrawerItem(Icons.dashboard_outlined, 'Dashboard', true),
-          _buildDrawerItem(Icons.add_box_outlined, 'Post Event', false, onTap: () async {
+          _buildDrawerItem(Icons.add_box_outlined, 'Post Request', false, onTap: () async {
             Navigator.pop(context);
-            final result = await Navigator.push(
-              context,
-              MaterialPageRoute(builder: (context) => const PostEventPage()),
-            );
+            final result = await Navigator.pushNamed(context, '/post-event');
             if (result == true) {
               setState(() {});
             }
           }),
           _buildDrawerItem(Icons.mail_outline, 'Messages', false, onTap: () {
             Navigator.pop(context);
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (context) => const HostMessagesPage()),
-            );
+            Navigator.pushNamed(context, '/organizer-messages');
           }),
-          _buildDrawerItem(Icons.event_note_outlined, 'My Events', false, onTap: () {
+          _buildDrawerItem(Icons.event_note_outlined, 'My Requests', false, onTap: () {
             Navigator.pop(context);
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (context) => const MyEventsPage()),
-            );
+            Navigator.pushNamed(context, '/my-events');
           }),
           const Divider(),
-          _buildDrawerItem(Icons.logout, 'Logout', false, onTap: () async {
-            await SupabaseService.signOut();
-            if (mounted) {
-              Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
-            }
+          _buildDrawerItem(Icons.logout, 'Logout', false, onTap: () {
+            SupabaseService.signOut();
+            ref.invalidate(hostProfileProvider);
+            Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
           }),
         ],
       ),
@@ -396,12 +369,11 @@ class _HostDashboardPageState extends State<HostDashboardPage> {
   }
 
   Widget _buildEventCard(Map<String, dynamic> event) {
-    final String title = event['title'];
-    final String date = event['date'];
-    final String location = event['location'];
-    final String stats = event['stats'];
-    final String status = event['status'];
-    final String imageUrl = event['imageUrl'];
+    final String title = event['title'] ?? 'Untitled Event';
+    final String date = event['date'] ?? 'TBD';
+    final String location = event['location'] ?? 'No location';
+    final String stats = event['stats'] ?? 'No stats';
+    final String status = event['status'] ?? 'pending';
 
     return Container(
       decoration: BoxDecoration(
@@ -415,94 +387,106 @@ class _HostDashboardPageState extends State<HostDashboardPage> {
           ),
         ],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Stack(
-            children: [
-              ClipRRect(
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
-                child: _buildImageWidget(imageUrl),
-              ),
-              Positioned(
-                top: 8,
-                right: 8,
-                child: Container(
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: Text(
+                    title,
+                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF001529)),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
-                    color: status == 'Active' ? Colors.green.withOpacity(0.9) : Colors.orange.withOpacity(0.9),
-                    borderRadius: BorderRadius.circular(8),
+                    color: status.toLowerCase() == 'active' ? Colors.green.withOpacity(0.1) : Colors.orange.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(6),
                   ),
                   child: Text(
-                    status,
-                    style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                    status.toUpperCase(),
+                    style: TextStyle(
+                      color: status.toLowerCase() == 'active' ? Colors.green[700] : Colors.orange[700],
+                      fontSize: 10, 
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
-              ),
-            ],
-          ),
-          Padding(
-            padding: const EdgeInsets.all(12.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              ],
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                const Icon(Icons.calendar_today_outlined, size: 14, color: Colors.grey),
+                const SizedBox(width: 6),
+                Text(date, style: const TextStyle(fontSize: 13, color: Colors.grey)),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                const Icon(Icons.location_on_outlined, size: 14, color: Colors.grey),
+                const SizedBox(width: 6),
+                Text(location, style: const TextStyle(fontSize: 13, color: Colors.grey)),
+              ],
+            ),
+            const Divider(height: 24),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                   title,
-                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  stats,
+                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: Colors.grey),
                 ),
-                const SizedBox(height: 4),
-                Row(
-                  children: [
-                    const Icon(Icons.calendar_today, size: 12, color: Colors.grey),
-                    const SizedBox(width: 4),
-                    Text(date, style: const TextStyle(fontSize: 12, color: Colors.grey)),
-                  ],
-                ),
-                const SizedBox(height: 2),
-                Row(
-                  children: [
-                    const Icon(Icons.location_on_outlined, size: 12, color: Colors.grey),
-                    const SizedBox(width: 4),
-                    Text(location, style: const TextStyle(fontSize: 12, color: Colors.grey)),
-                  ],
-                ),
-                const Divider(),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(stats, style: const TextStyle(fontSize: 12, color: Colors.grey)),
-                    GestureDetector(
-                      onTap: () async {
-                        final result = await Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => EventDetailPage(event: event),
-                          ),
-                        );
-                        if (result == true) {
-                          _loadData();
-                        }
-                      },
-                      child: const Text(
+                GestureDetector(
+                  onTap: () async {
+                    final result = await Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => EventDetailPage(event: event),
+                      ),
+                    );
+                    if (result == true) {
+                      _loadData();
+                    }
+                  },
+                  child: const Row(
+                    children: [
+                      Text(
                         'View Details', 
                         style: TextStyle(
-                          fontSize: 12, 
+                          fontSize: 13, 
                           color: Color(0xFF1E4D40), 
                           fontWeight: FontWeight.bold,
                         ),
                       ),
-                    ),
-                  ],
+                      Icon(Icons.arrow_forward_ios, size: 10, color: Color(0xFF1E4D40)),
+                    ],
+                  ),
                 ),
               ],
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
 
   Widget _buildImageWidget(String url) {
+    if (url.isEmpty) {
+      return Container(
+        height: 120,
+        width: double.infinity,
+        color: Colors.grey[200],
+        child: const Icon(Icons.image, color: Colors.grey),
+      );
+    }
     if (url.startsWith('http')) {
       return Image.network(
         url,
@@ -516,6 +500,19 @@ class _HostDashboardPageState extends State<HostDashboardPage> {
         ),
       );
     } else {
+      if (kIsWeb) {
+        return Image.network(
+          url,
+          height: 120,
+          width: double.infinity,
+          fit: BoxFit.cover,
+          errorBuilder: (context, error, stackTrace) => Container(
+            height: 120,
+            color: Colors.grey[200],
+            child: const Icon(Icons.broken_image, color: Colors.grey),
+          ),
+        );
+      }
       return Image.file(
         File(url),
         height: 120,
@@ -528,6 +525,43 @@ class _HostDashboardPageState extends State<HostDashboardPage> {
         ),
       );
     }
+  }
+
+  Widget _buildProfileImage({required HostProfile profile, required double radius, Color? color}) {
+    return ClipOval(
+      child: profile.profilePhoto.isNotEmpty ? Image.network(
+        profile.profilePhoto,
+        width: radius * 2,
+        height: radius * 2,
+        fit: BoxFit.cover,
+        errorBuilder: (context, error, stackTrace) {
+          return Icon(
+            Icons.account_circle,
+            size: radius * 2,
+            color: color ?? Colors.grey,
+          );
+        },
+        loadingBuilder: (context, child, loadingProgress) {
+          if (loadingProgress == null) return child;
+          return Center(
+            child: SizedBox(
+              width: radius,
+              height: radius,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                value: loadingProgress.expectedTotalBytes != null
+                    ? loadingProgress.cumulativeBytesLoaded / loadingProgress.expectedTotalBytes!
+                    : null,
+              ),
+            ),
+          );
+        },
+      ) : Icon(
+          Icons.account_circle,
+          size: radius * 2,
+          color: color ?? Colors.grey,
+        ),
+    );
   }
 
   Widget _buildPostEventCard() {
@@ -549,7 +583,7 @@ class _HostDashboardPageState extends State<HostDashboardPage> {
             child: const Icon(Icons.calendar_today, color: Color(0xFF1E4D40)),
           ),
           const SizedBox(height: 12),
-          const Text('Post a new event', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
+          const Text('Post a new request', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
         ],
       ),
     );

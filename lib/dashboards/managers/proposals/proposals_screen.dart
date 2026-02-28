@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'widgets/proposal_card.dart';
+import 'widgets/manager_proposal_card.dart';
 import '../core/manager_drawer.dart';
 import '../../../services/event_manager_service.dart';
+import '../../../services/supabase_service.dart';
 
 class ProposalsScreen extends ConsumerStatefulWidget {
   const ProposalsScreen({super.key});
@@ -12,106 +13,92 @@ class ProposalsScreen extends ConsumerStatefulWidget {
 }
 
 class _ProposalsScreenState extends ConsumerState<ProposalsScreen> {
-  List<Map<String, dynamic>> _applications = [];
+  List<Map<String, dynamic>> _eventRequests = [];
   bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
-    _loadApplications();
+    _loadEventRequests();
   }
 
-  Future<void> _loadApplications() async {
+  Future<void> _loadEventRequests() async {
+    if (!mounted) return;
     setState(() => _isLoading = true);
     try {
-      final applications = await EventManagerService.getAcceptedEvents();
+      final userData = await SupabaseService.getUserFromUsersTable();
+      final List<String> categories = (userData?['company_category'] as List<dynamic>?)
+          ?.map((e) => e.toString())
+          .toList() ?? [];
+
+      final requests = await EventManagerService.getEventRequests(categories);
       if (mounted) {
         setState(() {
-          _applications = applications;
+          _eventRequests = requests;
           _isLoading = false;
         });
       }
     } catch (e) {
-      if (mounted) setState(() => _isLoading = false);
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error loading requests: $e')),
+        );
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final pendingCount = _applications.where((a) => a['status'] == 'pending').length.toString();
-    final confirmedCount = _applications.where((a) => a['status'] == 'accepted').length.toString(); // Map 'accepted' to confirmed UI if needed
-    final rejectedCount = _applications.where((a) => a['status'] == 'rejected').length.toString();
-
     return Scaffold(
+      backgroundColor: Colors.grey[50],
       appBar: AppBar(
-        title: const Text('My Proposals'),
+        title: const Text('Event Proposals', style: TextStyle(fontWeight: FontWeight.bold)),
+        elevation: 0,
+        backgroundColor: Colors.white,
+        foregroundColor: Colors.black,
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
-            onPressed: _loadApplications,
+            onPressed: _loadEventRequests,
           ),
         ],
       ),
       drawer: const ManagerDrawer(currentRoute: '/manager-proposals'),
       body: _isLoading 
         ? const Center(child: CircularProgressIndicator())
-        : SingleChildScrollView(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              children: [
-                Row(
-                  children: [
-                    _buildSummaryCard(context, 'Pending', pendingCount, Colors.orange),
-                    const SizedBox(width: 16),
-                    _buildSummaryCard(context, 'Accepted', confirmedCount, Colors.green),
-                    const SizedBox(width: 16),
-                    _buildSummaryCard(context, 'Rejected', rejectedCount, Colors.red),
-                  ],
-                ),
-                const SizedBox(height: 24),
-                _applications.isEmpty
-                  ? const Center(child: Text('You haven\'t accepted any event requests yet.'))
-                  : ListView.builder(
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      itemCount: _applications.length,
-                      itemBuilder: (context, index) {
-                        return ProposalCard(
-                          application: _applications[index],
-                          onReject: () {
-                            _loadApplications(); // Refresh after rejection/withdrawal
-                          },
-                        );
-                      },
-                    ),
-              ],
-            ),
-          ),
-    );
-  }
-
-  Widget _buildSummaryCard(BuildContext context, String title, String count, Color color) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: color.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: color.withOpacity(0.3)),
-        ),
-        child: Column(
-          children: [
-            Text(
-              count,
-              style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-                color: color,
+        : _eventRequests.isEmpty
+          ? Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                   const Icon(Icons.event_busy, size: 64, color: Colors.grey),
+                   const SizedBox(height: 16),
+                   const Text(
+                    'No new event requests found.',
+                    style: TextStyle(fontSize: 18, color: Colors.grey, fontWeight: FontWeight.bold),
+                  ),
+                   const SizedBox(height: 8),
+                   const Text(
+                    'Check back later for new opportunities!',
+                    style: TextStyle(color: Colors.grey),
+                  ),
+                ],
+              ),
+            )
+          : RefreshIndicator(
+              onRefresh: _loadEventRequests,
+              child: ListView.builder(
+                padding: const EdgeInsets.all(16),
+                itemCount: _eventRequests.length,
+                itemBuilder: (context, index) {
+                  return ManagerProposalCard(
+                    event: _eventRequests[index],
+                    onStatusChanged: _loadEventRequests,
+                  );
+                },
               ),
             ),
-            Text(title, style: TextStyle(color: color)),
-          ],
-        ),
-      ),
     );
   }
 }

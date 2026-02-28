@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../services/supabase_service.dart';
+import '../../../auth/auth_provider.dart';
 
 class UserProfile {
   final String name;
@@ -7,12 +8,13 @@ class UserProfile {
   final String bio;
   final String email;
   final String phone;
-  final String location;
+  final String companyName;
+  final String companyLocation;
   final String profileImage;
   final String linkedinUrl;
   final String certName;
   final String certIssuedDate;
-  final String? category;
+  final List<String> categories;
 
   UserProfile({
     required this.name,
@@ -20,27 +22,32 @@ class UserProfile {
     required this.bio,
     required this.email,
     required this.phone,
-    required this.location,
+    required this.companyName,
+    required this.companyLocation,
     required this.profileImage,
     required this.linkedinUrl,
     required this.certName,
     required this.certIssuedDate,
-    this.category,
+    required this.categories,
   });
 
   factory UserProfile.fromMap(Map<String, dynamic> map) {
     return UserProfile(
-      name: map['full_name'] ?? 'User',
-      role: map['role'] ?? 'Event Manager', // Or map from 'role' column if consistent
+      name: map['full_name'] ?? '',
+      role: map['role'] ?? '',
       bio: map['bio'] ?? '',
       email: map['email'] ?? '',
       phone: map['phone_number'] ?? '',
-      location: map['location'] ?? '', // Assuming location is not in users table yet, allow empty
-      profileImage: map['profile_photo'] ?? 'https://i.pravatar.cc/150?img=12', // Fallback
-      linkedinUrl: map['linkedin_url'] ?? '', // Placeholder if column doesn't exist
-      certName: map['cert_name'] ?? '', // Placeholder
-      certIssuedDate: map['cert_issued_date'] ?? '', // Placeholder
-      category: map['category'],
+      companyName: map['company_name'] ?? '',
+      companyLocation: map['company_location'] ?? '',
+      profileImage: map['profile_photo'] ?? '',
+      linkedinUrl: map['linkedin_url'] ?? '',
+      certName: map['cert_name'] ?? '',
+      certIssuedDate: map['cert_issued_date'] ?? '',
+      categories: (map['company_category'] as List<dynamic>?)
+              ?.map((e) => e.toString())
+              .toList() ??
+          [],
     );
   }
 
@@ -50,11 +57,13 @@ class UserProfile {
     String? bio,
     String? email,
     String? phone,
-    String? location,
+    String? companyName,
+    String? companyLocation,
     String? profileImage,
     String? linkedinUrl,
     String? certName,
     String? certIssuedDate,
+    List<String>? categories,
   }) {
     return UserProfile(
       name: name ?? this.name,
@@ -62,11 +71,13 @@ class UserProfile {
       bio: bio ?? this.bio,
       email: email ?? this.email,
       phone: phone ?? this.phone,
-      location: location ?? this.location,
+      companyName: companyName ?? this.companyName,
+      companyLocation: companyLocation ?? this.companyLocation,
       profileImage: profileImage ?? this.profileImage,
       linkedinUrl: linkedinUrl ?? this.linkedinUrl,
       certName: certName ?? this.certName,
       certIssuedDate: certIssuedDate ?? this.certIssuedDate,
+      categories: categories ?? this.categories,
     );
   }
 }
@@ -74,6 +85,8 @@ class UserProfile {
 class UserProfileNotifier extends AsyncNotifier<UserProfile> {
   @override
   Future<UserProfile> build() async {
+    // Watch userProvider to ensure build() re-runs on auth change
+    ref.watch(userProvider);
     return _fetchUserProfile();
   }
 
@@ -82,39 +95,37 @@ class UserProfileNotifier extends AsyncNotifier<UserProfile> {
     if (userData != null) {
       return UserProfile.fromMap(userData);
     } else {
-      // Fallback or throw error if user not found (shouldn't happen if logged in)
-      // For now, returning a default empty profile to avoid crashes during dev
        return UserProfile(
-        name: 'Guest',
-        role: 'Guest',
+        name: '',
+        role: '',
         bio: '',
         email: '',
         phone: '',
-        location: '',
+        companyName: '',
+        companyLocation: '',
         profileImage: '',
         linkedinUrl: '',
         certName: '',
         certIssuedDate: '',
+        categories: [],
       );
     }
   }
 
   Future<void> updateProfile(UserProfile newProfile) async {
-    // Optimistic update
     state = AsyncData(newProfile);
     
-    // Push changes to Supabase
     try {
       await SupabaseService.updateUsersTableAlias({
         'full_name': newProfile.name,
         'bio': newProfile.bio,
         'phone_number': newProfile.phone,
-        // Add other fields when they exist in DB
+        'company_name': newProfile.companyName,
+        'company_location': newProfile.companyLocation,
+        'company_category': newProfile.categories,
       });
     } catch (e) {
-      // Revert on error? Or just show error
-      // state = AsyncError(e, StackTrace.current);
-      // For now, strict state management isn't the primary goal, just data flow
+      // Revert or log error
     }
   }
 }

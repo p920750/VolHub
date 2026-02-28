@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:main_volhub/widgets/safe_avatar.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import '../../core/theme.dart';
 import '../../messages/group_info_screen.dart';
@@ -56,21 +57,24 @@ class YourTeamsWidget extends StatelessWidget {
             ],
           ),
         ),
-        SizedBox(
-          height: 220, // Increased height for better layout
-          child: ListView.separated(
-            scrollDirection: Axis.horizontal,
-            itemCount: teams.length,
-            separatorBuilder: (context, index) => const SizedBox(width: 16),
-            itemBuilder: (context, index) {
-              final team = teams[index];
-              return Container(
-                width: 320,
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: AppColors.midnightBlue,
-                  borderRadius: BorderRadius.circular(16),
-                ),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final cardWidth = constraints.maxWidth < 360 ? constraints.maxWidth - 32 : 320.0;
+            return SizedBox(
+              height: 220,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                itemCount: teams.length,
+                separatorBuilder: (context, index) => const SizedBox(width: 16),
+                itemBuilder: (context, index) {
+                  final team = teams[index];
+                  return Container(
+                    width: cardWidth,
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      color: AppColors.midnightBlue,
+                      borderRadius: BorderRadius.circular(16),
+                    ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -134,13 +138,10 @@ class YourTeamsWidget extends StatelessWidget {
                                   for (var i = 0; i < (team['avatars'] as List).length && i < 3; i++)
                                     Positioned(
                                       left: i * 15.0,
-                                      child: CircleAvatar(
+                                      child: SafeAvatar(
                                         radius: 14,
-                                        backgroundColor: Colors.white,
-                                        child: CircleAvatar(
-                                          radius: 12,
-                                          backgroundImage: NetworkImage((team['avatars'] as List)[i] as String),
-                                        ),
+                                        imageUrl: (team['avatars'] as List)[i] as String,
+                                        name: 'Team Member',
                                       ),
                                     ),
                                 ],
@@ -210,8 +211,10 @@ class YourTeamsWidget extends StatelessWidget {
               );
             },
           ),
-        ),
-      ],
-    );
+        );
+      },
+    ),
+  ],
+);
   }
 }

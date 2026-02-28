@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'matching_events_widget.dart';
 
 class RecentActivityWidget extends StatelessWidget {
   const RecentActivityWidget({super.key});
@@ -6,21 +7,25 @@ class RecentActivityWidget extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
-      length: 2,
+      length: 3,
       child: Column(
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          Wrap(
+            alignment: WrapAlignment.spaceBetween,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: 16,
+            runSpacing: 8,
             children: [
               Text(
-                'Support Tickets',
+                'Recent Activity',
                 style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
               ),
               const SizedBox(
-                width: 200,
+                width: 300,
                 child: TabBar(
                   tabs: [
-                    Tab(text: 'Applications'),
+                    Tab(text: 'Matches'),
+                    Tab(text: 'Apps'),
                     Tab(text: 'Proposals'),
                   ],
                   labelPadding: EdgeInsets.zero,
@@ -31,9 +36,10 @@ class RecentActivityWidget extends StatelessWidget {
           ),
           const SizedBox(height: 16),
           SizedBox(
-            height: 300,
+            height: 350,
             child: TabBarView(
               children: [
+                const SingleChildScrollView(child: MatchingEventsWidget()),
                 _buildApplicationsList(context),
                 _buildProposalsList(context),
               ],

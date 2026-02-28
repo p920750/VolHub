@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../services/supabase_service.dart';
 import 'admin_colors.dart';
 import 'admin_profile_page.dart';
@@ -6,20 +7,23 @@ import 'verification_requests_page.dart';
 import 'reports_analytics_page.dart';
 import 'security_access_page.dart';
 import 'notifications_page.dart';
+import 'admin_profile_provider.dart';
 
-class AdminHomePage extends StatefulWidget {
+class AdminHomePage extends ConsumerStatefulWidget {
   const AdminHomePage({super.key});
 
   @override
-  State<AdminHomePage> createState() => _AdminHomePageState();
+  ConsumerState<AdminHomePage> createState() => _AdminHomePageState();
 }
 
-class _AdminHomePageState extends State<AdminHomePage> {
+class _AdminHomePageState extends ConsumerState<AdminHomePage> {
   String _selectedRoute = 'User Management';
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
   @override
   Widget build(BuildContext context) {
+    final adminProfileAsync = ref.watch(adminProfileProvider);
+
     return LayoutBuilder(
       builder: (context, constraints) {
         final isDesktop = constraints.maxWidth > 900;
@@ -35,7 +39,7 @@ class _AdminHomePageState extends State<AdminHomePage> {
                 Expanded(
                   child: Column(
                     children: [
-                      _buildTopBar(isDesktop: true),
+                      _buildTopBar(isDesktop: true, profile: adminProfileAsync.asData?.value),
                       Expanded(
                         child: _buildBody(),
                       ),
@@ -76,11 +80,11 @@ class _AdminHomePageState extends State<AdminHomePage> {
                         MaterialPageRoute(builder: (_) => const AdminProfilePage()),
                       );
                      },
-                     child: CircleAvatar(
-                        backgroundColor: const Color(0xFF6C63FF),
-                        radius: 16,
-                        child: const Text('A', style: TextStyle(color: Colors.white, fontSize: 14)),
-                      ),
+                     child: adminProfileAsync.when(
+                       data: (profile) => _buildAvatar(profile),
+                       loading: () => const CircleAvatar(radius: 16, child: CircularProgressIndicator(strokeWidth: 2)),
+                       error: (err, stack) => const CircleAvatar(radius: 16, child: Icon(Icons.error)),
+                     ),
                    ),
                  ),
               ],
@@ -177,12 +181,11 @@ class _AdminHomePageState extends State<AdminHomePage> {
   Widget _buildMenuItem(String title, IconData icon, {bool isLogout = false, bool isMobile = false}) {
     final isSelected = _selectedRoute == title && !isLogout;
     return InkWell(
-      onTap: () async {
+      onTap: () {
         if (isLogout) {
-          await SupabaseService.signOut();
-           if (mounted) {
-            Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false);
-           }
+          SupabaseService.signOut();
+          ref.invalidate(adminProfileProvider);
+          Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
         } else {
           setState(() {
             _selectedRoute = title;
@@ -220,7 +223,7 @@ class _AdminHomePageState extends State<AdminHomePage> {
     );
   }
 
-  Widget _buildTopBar({required bool isDesktop}) {
+  Widget _buildTopBar({required bool isDesktop, AdminProfile? profile}) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 20),
       color: Colors.white,
@@ -240,9 +243,9 @@ class _AdminHomePageState extends State<AdminHomePage> {
                        color: Colors.black87,
                      ),
                    ),
-                   const Text(
-                     'Welcome back, Admin',
-                     style: TextStyle(
+                   Text(
+                     'Welcome back, ${profile?.name.split(' ')[0] ?? 'Admin'}',
+                     style: const TextStyle(
                        fontSize: 14,
                        color: Colors.grey,
                      ),
@@ -270,21 +273,17 @@ class _AdminHomePageState extends State<AdminHomePage> {
              },
              child: Row(
               children: [
-                CircleAvatar(
-                  backgroundColor: const Color(0xFF6C63FF),
-                  radius: 18,
-                  child: const Text('A', style: TextStyle(color: Colors.white)),
-                ),
+                if (profile != null) _buildAvatar(profile) else const CircleAvatar(radius: 18, child: CircularProgressIndicator(strokeWidth: 2)),
                 if (isDesktop) ...[
                   const SizedBox(width: 12),
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
-                    children: const [
+                    children: [
                       Text(
-                        'Admin User',
-                        style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+                        profile != null && profile.name.isNotEmpty ? profile.name : 'Admin',
+                        style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
                       ),
-                      Text(
+                      const Text(
                         'Super Admin',
                         style: TextStyle(color: Colors.grey, fontSize: 12),
                       ),
@@ -296,6 +295,20 @@ class _AdminHomePageState extends State<AdminHomePage> {
            ),
         ],
       ),
+    );
+  }
+
+  Widget _buildAvatar(AdminProfile profile) {
+    if (profile.profilePhoto.isNotEmpty) {
+      return CircleAvatar(
+        radius: 18,
+        backgroundImage: NetworkImage(profile.profilePhoto),
+      );
+    }
+    return const CircleAvatar(
+      backgroundColor: Color(0xFF6C63FF),
+      radius: 18,
+      child: Text('A', style: TextStyle(color: Colors.white)),
     );
   }
 
@@ -667,6 +680,7 @@ class _UserManagementViewState extends State<UserManagementView> with SingleTick
     Color text;
 
     switch (status.toLowerCase()) {
+      case 'accepted':
       case 'active':
         bg = const Color(0xFFE6F4EA); // Light green
         text = const Color(0xFF1E8E3E); // Green
