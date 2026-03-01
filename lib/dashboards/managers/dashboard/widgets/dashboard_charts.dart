@@ -37,34 +37,37 @@ class TrendChart extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 24),
-          SizedBox(
-            height: 200,
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
             child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              mainAxisAlignment: MainAxisAlignment.start,
               crossAxisAlignment: CrossAxisAlignment.end,
               children: List.generate(12, (index) {
                 final h1 = 50 + (index * 20) % 100;
                 final h2 = 80 + (index * 15) % 80;
                 final h3 = 30 + (index * 30) % 70;
-                return Column(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        _bar(h1.toDouble(), AppColors.mintIce),
-                        const SizedBox(width: 2),
-                        _bar(h2.toDouble(), AppColors.hunterGreen),
-                         const SizedBox(width: 2),
-                        _bar(h3.toDouble(), AppColors.midnightBlue),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][index], 
-                      style: TextStyle(fontSize: 10, color: Theme.of(context).colorScheme.onSurfaceVariant)
-                    ),
-                  ],
+                return Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          _bar(h1.toDouble(), AppColors.mintIce),
+                          const SizedBox(width: 2),
+                          _bar(h2.toDouble(), AppColors.hunterGreen),
+                           const SizedBox(width: 2),
+                          _bar(h3.toDouble(), AppColors.midnightBlue),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][index], 
+                        style: TextStyle(fontSize: 10, color: Theme.of(context).colorScheme.onSurfaceVariant)
+                      ),
+                    ],
+                  ),
                 );
               }),
             ),

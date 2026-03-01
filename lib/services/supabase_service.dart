@@ -122,7 +122,7 @@ class SupabaseService {
         'dob': dob, // Format: YYYY-MM-DD
       },
       emailRedirectTo: kIsWeb
-          ? '${Uri.base.origin}/#/email-confirm'
+          ? '${Uri.base.origin}/email-confirm'
           : 'io.supabase.volhub://email-confirm',
     );
 
@@ -502,7 +502,7 @@ class SupabaseService {
       if (!context.mounted) return;
 
       final session = client.auth.currentSession;
-      final provider = session?.user.appMetadata?['provider'];
+      final provider = session?.user.appMetadata['provider'];
 
       if (userData == null || userData['role'] == null) {
         // New user or missing role (e.g., first-time Google user)
@@ -668,6 +668,114 @@ class SupabaseService {
     }
   }
 
+  // Upload event image
+  static Future<String?> uploadEventImage(
+    File file,
+    String managerId,
+  ) async {
+    try {
+      final fileExt = file.path.split('.').last;
+      final timestamp = DateTime.now().toIso8601String().replaceAll(':', '-');
+      final fileName = '$managerId/event_$timestamp.$fileExt';
+      
+      const bucketName = 'verification_docs'; 
+
+      await client.storage.from(bucketName).upload(
+            fileName,
+            file,
+            fileOptions: const FileOptions(cacheControl: '3600', upsert: false),
+          );
+
+      final String publicUrl = client.storage.from(bucketName).getPublicUrl(fileName);
+      return publicUrl;
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error uploading event image: $e');
+      }
+      rethrow;
+    }
+  }
+
+  // Web-compatible upload using bytes
+  static Future<String?> uploadEventImageBytes(
+    Uint8List bytes,
+    String fileName,
+    String userId,
+  ) async {
+    try {
+      final String path = '$userId/event_${DateTime.now().millisecondsSinceEpoch}_$fileName';
+      const bucketName = 'verification_docs';
+
+      await client.storage.from(bucketName).uploadBinary(
+        path,
+        bytes,
+        fileOptions: const FileOptions(cacheControl: '3600', upsert: false),
+      );
+
+      return client.storage.from(bucketName).getPublicUrl(path);
+    } catch (e) {
+      if (kDebugMode) print('Error uploading image bytes: $e');
+      rethrow;
+    }
+  }
+  ) async {
+    try {
+      final fileExt = file.path.split('.').last;
+      final timestamp = DateTime.now().toIso8601String().replaceAll(':', '-');
+<<<<<<< HEAD
+      final fileName = '$userId/cert_$timestamp.$fileExt';
+=======
+      final fileName = '$managerId/event_$timestamp.$fileExt';
+>>>>>>> 0f257648c984340d7d4ba30f5eb1390dc4ccab07
+      
+      const bucketName = 'verification_docs'; 
+
+      await client.storage.from(bucketName).upload(
+            fileName,
+            file,
+            fileOptions: const FileOptions(cacheControl: '3600', upsert: false),
+          );
+
+      final String publicUrl = client.storage.from(bucketName).getPublicUrl(fileName);
+      return publicUrl;
+    } catch (e) {
+      if (kDebugMode) {
+<<<<<<< HEAD
+        print('Error uploading certificate: $e');
+=======
+        print('Error uploading event image: $e');
+>>>>>>> 0f257648c984340d7d4ba30f5eb1390dc4ccab07
+      }
+      rethrow;
+    }
+  }
+
+<<<<<<< HEAD
+=======
+  // Web-compatible upload using bytes
+  static Future<String?> uploadEventImageBytes(
+    Uint8List bytes,
+    String fileName,
+    String userId,
+  ) async {
+    try {
+      final String path = '$userId/event_${DateTime.now().millisecondsSinceEpoch}_$fileName';
+      const bucketName = 'verification_docs';
+
+      await client.storage.from(bucketName).uploadBinary(
+        path,
+        bytes,
+        fileOptions: const FileOptions(cacheControl: '3600', upsert: false),
+      );
+
+      return client.storage.from(bucketName).getPublicUrl(path);
+    } catch (e) {
+      if (kDebugMode) print('Error uploading image bytes: $e');
+      rethrow;
+    }
+  }
+
+>>>>>>> 0f257648c984340d7d4ba30f5eb1390dc4ccab07
   // Update user metadata (phone, address, avatar, etc.)
   static Future<void> updateUserMetadata(Map<String, dynamic> data) async {
     try {

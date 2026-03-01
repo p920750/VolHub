@@ -1,34 +1,23 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import '../../services/supabase_service.dart';
 import 'host_settings_page.dart';
 import 'host_edit_profile_page.dart';
+import 'host_profile_provider.dart';
 
-class HostProfilePage extends StatefulWidget {
+class HostProfilePage extends ConsumerStatefulWidget {
   const HostProfilePage({super.key});
 
   @override
-  State<HostProfilePage> createState() => _HostProfilePageState();
+  ConsumerState<HostProfilePage> createState() => _HostProfilePageState();
 }
 
-class _HostProfilePageState extends State<HostProfilePage> {
-  late Future<Map<String, dynamic>?> _profileFuture;
+class _HostProfilePageState extends ConsumerState<HostProfilePage> {
   final Color primaryGreen = const Color(0xFF1E4D40);
   final ImagePicker _picker = ImagePicker();
   bool _isUploading = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _profileFuture = SupabaseService.getUserProfile();
-  }
-
-  Future<void> _refreshProfile() async {
-    setState(() {
-      _profileFuture = SupabaseService.getUserProfile();
-    });
-  }
 
   Future<void> _pickAndUploadImage() async {
     try {
@@ -49,8 +38,7 @@ class _HostProfilePageState extends State<HostProfilePage> {
       );
 
       if (imageUrl != null) {
-        await SupabaseService.updateUserProfile({'profile_photo': imageUrl});
-        await _refreshProfile();
+        await ref.read(hostProfileProvider.notifier).updateProfile({'profile_photo': imageUrl});
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Profile picture updated successfully!')),
@@ -70,202 +58,199 @@ class _HostProfilePageState extends State<HostProfilePage> {
 
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder<Map<String, dynamic>?>(
-      future: _profileFuture,
-      builder: (context, snapshot) {
-        final userData = snapshot.data;
-        final fullName = userData?['full_name'] ?? 'Alex Rivera';
-        final profilePhoto = userData?['profile_photo'] ?? 'https://i.pravatar.cc/150?u=alex';
-        final email = userData?['email'] ?? 'alex.rivera@zenith.com';
-        final phone = userData?['phone_number'] ?? '+1 (555) 012-3456';
+    final profileAsync = ref.watch(hostProfileProvider);
 
-        return Scaffold(
-          backgroundColor: const Color(0xFFF1F7F5),
-          appBar: AppBar(
-            backgroundColor: Colors.white,
-            elevation: 0,
-            leading: IconButton(
-              icon: const Icon(Icons.arrow_back, color: Colors.black),
-              onPressed: () => Navigator.pop(context),
-            ),
-            title: Image.asset(
-              'assets/images/logo_1.jpeg',
-              height: 32,
-            ),
-            actions: [
-              IconButton(
-                icon: const Icon(Icons.notifications_none, color: Colors.black),
-                onPressed: () {},
-              ),
-              Padding(
-                padding: const EdgeInsets.only(right: 16.0),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Text(
-                      fullName.split(' ')[0],
-                      style: const TextStyle(color: Colors.black, fontSize: 12, fontWeight: FontWeight.bold),
-                    ),
-                    const Text(
-                      'HOST ACCOUNT',
-                      style: TextStyle(color: Colors.grey, fontSize: 8, fontWeight: FontWeight.bold),
-                    ),
-                  ],
-                ),
-              ),
-            ],
+    return profileAsync.when(
+      data: (profile) => Scaffold(
+        backgroundColor: const Color(0xFFF1F7F5),
+        appBar: AppBar(
+          backgroundColor: Colors.white,
+          elevation: 0,
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back, color: Colors.black),
+            onPressed: () => Navigator.pop(context),
           ),
-          body: snapshot.connectionState == ConnectionState.waiting
-              ? const Center(child: CircularProgressIndicator())
-              : LayoutBuilder(
-                  builder: (context, constraints) {
-                    final bool isMobile = constraints.maxWidth < 800;
-                    return SingleChildScrollView(
-                      padding: EdgeInsets.symmetric(
-                        horizontal: isMobile ? 12 : 40, 
-                        vertical: 24
-                      ),
-                      child: Center(
-                        child: ConstrainedBox(
-                          constraints: const BoxConstraints(maxWidth: 1000),
-                          child: Container(
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(24),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withOpacity(0.05),
-                                  blurRadius: 20,
-                                  offset: const Offset(0, 10),
-                                ),
-                              ],
-                            ),
-                            child: Column(
-                              children: [
-                                // Cover Photo & Profile Photo
-                                Stack(
-                                  clipBehavior: Clip.none,
-                                  children: [
-                                    Container(
-                                      height: isMobile ? 140 : 180,
-                                      decoration: BoxDecoration(
-                                        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-                                        gradient: LinearGradient(
-                                          begin: Alignment.topLeft,
-                                          end: Alignment.bottomRight,
-                                          colors: [
-                                            primaryGreen,
-                                            const Color(0xFF2E6B5A),
-                                          ],
-                                        ),
-                                      ),
-                                      child: Align(
-                                        alignment: Alignment.topRight,
-                                        child: Padding(
-                                          padding: const EdgeInsets.all(16.0),
-                                          child: GestureDetector(
-                                            onTap: _pickAndUploadImage,
-                                            child: Container(
-                                              padding: const EdgeInsets.all(8),
-                                              decoration: BoxDecoration(
-                                                color: Colors.white.withOpacity(0.2),
-                                                shape: BoxShape.circle,
-                                              ),
-                                              child: const Icon(Icons.edit, color: Colors.white, size: 20),
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                    Positioned(
-                                      bottom: -40,
-                                      left: isMobile ? 20 : 32,
-                                      child: GestureDetector(
-                                        onTap: _pickAndUploadImage,
-                                        child: Stack(
-                                          alignment: Alignment.center,
-                                          children: [
-                                            Container(
-                                              padding: const EdgeInsets.all(4),
-                                              decoration: BoxDecoration(
-                                                color: Colors.white,
-                                                borderRadius: BorderRadius.circular(16),
-                                              ),
-                                              child: ClipRRect(
-                                                borderRadius: BorderRadius.circular(12),
-                                                child: Image.network(
-                                                  profilePhoto,
-                                                  width: isMobile ? 100 : 120,
-                                                  height: isMobile ? 100 : 120,
-                                                  fit: BoxFit.cover,
-                                                ),
-                                              ),
-                                            ),
-                                            if (_isUploading)
-                                              const CircularProgressIndicator(color: Colors.white),
-                                          ],
-                                        ),
-                                      ),
-                                    ),
+          centerTitle: true,
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.notifications_none, color: Colors.black),
+              onPressed: () {},
+            ),
+            Padding(
+              padding: const EdgeInsets.only(right: 16.0),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    profile.name.split(' ')[0],
+                    style: const TextStyle(color: Colors.black, fontSize: 12, fontWeight: FontWeight.bold),
+                  ),
+                  const Text(
+                    'HOST ACCOUNT',
+                    style: TextStyle(color: Colors.grey, fontSize: 8, fontWeight: FontWeight.bold),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        body: LayoutBuilder(
+          builder: (context, constraints) {
+            final bool isMobile = constraints.maxWidth < 800;
+            return SingleChildScrollView(
+              padding: EdgeInsets.symmetric(
+                horizontal: isMobile ? 12 : 40, 
+                vertical: 24
+              ),
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 1000),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(24),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.05),
+                          blurRadius: 20,
+                          offset: const Offset(0, 10),
+                        ),
+                      ],
+                    ),
+                    child: Column(
+                      children: [
+                        // Cover Photo & Profile Photo
+                        Stack(
+                          clipBehavior: Clip.none,
+                          children: [
+                            Container(
+                              height: isMobile ? 140 : 180,
+                              decoration: BoxDecoration(
+                                borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+                                gradient: LinearGradient(
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                  colors: [
+                                    primaryGreen,
+                                    const Color(0xFF2E6B5A),
                                   ],
                                 ),
-                                const SizedBox(height: 50),
-                                Padding(
-                                  padding: EdgeInsets.all(isMobile ? 16.0 : 32.0),
-                                  child: isMobile 
-                                    ? Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          _buildMainProfileInfo(fullName, email, phone, userData?['address'], isMobile),
-                                          const SizedBox(height: 24),
-                                          _buildAboutMeSection(userData?['bio']),
-                                          const SizedBox(height: 24),
-                                          _buildStatsRow(isMobile),
-                                          const SizedBox(height: 24),
-                                          _buildRightSideActions(userData),
-                                        ],
-                                      )
-                                    : Row(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          // Left Side Info
-                                          Expanded(
-                                            flex: 3,
-                                            child: Column(
-                                              crossAxisAlignment: CrossAxisAlignment.start,
-                                              children: [
-                                                _buildMainProfileInfo(fullName, email, phone, userData?['address'], isMobile),
-                                                const SizedBox(height: 32),
-                                                _buildAboutMeSection(userData?['bio']),
-                                                const SizedBox(height: 32),
-                                                _buildStatsRow(isMobile),
-                                              ],
-                                            ),
-                                          ),
-                                          const SizedBox(width: 32),
-                                          // Right Side Actions
-                                          Expanded(
-                                            flex: 2,
-                                            child: _buildRightSideActions(userData),
-                                          ),
-                                        ],
+                              ),
+                              child: Align(
+                                alignment: Alignment.topRight,
+                                child: Padding(
+                                  padding: const EdgeInsets.all(16.0),
+                                  child: GestureDetector(
+                                    onTap: _pickAndUploadImage,
+                                    child: Container(
+                                      padding: const EdgeInsets.all(8),
+                                      decoration: BoxDecoration(
+                                        color: Colors.white.withOpacity(0.2),
+                                        shape: BoxShape.circle,
                                       ),
+                                      child: const Icon(Icons.edit, color: Colors.white, size: 20),
+                                    ),
+                                  ),
                                 ),
-                              ],
+                              ),
                             ),
-                          ),
+                            Positioned(
+                              bottom: -40,
+                              left: isMobile ? 20 : 32,
+                              child: GestureDetector(
+                                onTap: _pickAndUploadImage,
+                                child: Stack(
+                                  alignment: Alignment.center,
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.all(4),
+                                      decoration: BoxDecoration(
+                                        color: Colors.white,
+                                        borderRadius: BorderRadius.circular(16),
+                                      ),
+                                      child: ClipRRect(
+                                        borderRadius: BorderRadius.circular(12),
+                                        child: Image.network(
+                                          profile.profilePhoto,
+                                          width: isMobile ? 100 : 120,
+                                          height: isMobile ? 100 : 120,
+                                          fit: BoxFit.cover,
+                                          errorBuilder: (context, error, stackTrace) {
+                                            return Icon(
+                                              Icons.account_circle,
+                                              size: isMobile ? 100 : 120,
+                                              color: Colors.grey,
+                                            );
+                                          },
+                                        ),
+                                      ),
+                                    ),
+                                    if (_isUploading)
+                                      const CircularProgressIndicator(color: Colors.white),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
-                      ),
-                    );
-                  },
+                        const SizedBox(height: 50),
+                        Padding(
+                          padding: EdgeInsets.all(isMobile ? 16.0 : 32.0),
+                          child: isMobile 
+                            ? Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  _buildMainProfileInfo(profile, isMobile),
+                                  const SizedBox(height: 24),
+                                  _buildAboutMeSection(profile.bio),
+                                  const SizedBox(height: 24),
+                                  _buildStatsRow(isMobile),
+                                  const SizedBox(height: 24),
+                                  _buildRightSideActions(profile),
+                                ],
+                              )
+                            : Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  // Left Side Info
+                                  Expanded(
+                                    flex: 3,
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        _buildMainProfileInfo(profile, isMobile),
+                                        const SizedBox(height: 32),
+                                        _buildAboutMeSection(profile.bio),
+                                        const SizedBox(height: 32),
+                                        _buildStatsRow(isMobile),
+                                      ],
+                                    ),
+                                  ),
+                                  const SizedBox(width: 32),
+                                  // Right Side Actions
+                                  Expanded(
+                                    flex: 2,
+                                    child: _buildRightSideActions(profile),
+                                  ),
+                                ],
+                              ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
-        );
-      },
+              ),
+            );
+          },
+        ),
+      ),
+      loading: () => const Scaffold(body: Center(child: CircularProgressIndicator())),
+      error: (err, stack) => Scaffold(body: Center(child: Text('Error: $err'))),
     );
   }
 
-  Widget _buildMainProfileInfo(String fullName, String email, String phone, String? address, bool isMobile) {
+  Widget _buildMainProfileInfo(HostProfile profile, bool isMobile) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -278,11 +263,11 @@ class _HostProfilePageState extends State<HostProfilePage> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    fullName,
+                    profile.name,
                     style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
                   ),
                   const Text(
-                    'Lead Event Organizer @ Zenith Events',
+                    'Lead Event Organizer @ VolHub',
                     style: TextStyle(color: Colors.grey, fontSize: 13),
                   ),
                 ],
@@ -300,10 +285,10 @@ class _HostProfilePageState extends State<HostProfilePage> {
           spacing: 8,
           runSpacing: 8,
           children: [
-            _buildBadge(Icons.email_outlined, email),
-            _buildBadge(Icons.phone_outlined, phone),
-            _buildBadge(Icons.location_on_outlined, address ?? 'New York, NY'),
-            _buildBadge(Icons.language, 'zenithevents.com'),
+            _buildBadge(Icons.email_outlined, profile.email),
+            _buildBadge(Icons.phone_outlined, profile.phone),
+            _buildBadge(Icons.location_on_outlined, profile.address),
+            _buildBadge(Icons.language, 'volhub.com'),
           ],
         ),
       ],
@@ -315,25 +300,21 @@ class _HostProfilePageState extends State<HostProfilePage> {
       mainAxisSize: MainAxisSize.min,
       children: [
         GestureDetector(
-          onTap: () async {
-            await Navigator.push(
+          onTap: () {
+            Navigator.push(
               context,
               MaterialPageRoute(builder: (context) => const HostSettingsPage()),
             );
-            _refreshProfile();
           },
           child: _buildSmallSecondaryButton('Settings'),
         ),
         const SizedBox(width: 12),
         GestureDetector(
-          onTap: () async {
-            final result = await Navigator.push(
+          onTap: () {
+            Navigator.push(
               context,
               MaterialPageRoute(builder: (context) => const HostEditProfilePage()),
             );
-            if (result == true) {
-              _refreshProfile();
-            }
           },
           child: _buildSmallPrimaryButton('Edit Profile'),
         ),
@@ -341,7 +322,7 @@ class _HostProfilePageState extends State<HostProfilePage> {
     );
   }
 
-  Widget _buildAboutMeSection(String? bio) {
+  Widget _buildAboutMeSection(String bio) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -351,7 +332,7 @@ class _HostProfilePageState extends State<HostProfilePage> {
         ),
         const SizedBox(height: 8),
         Text(
-          bio ?? 'Passionate event organizer with over 10 years of experience in managing high-profile corporate galas, music festivals, and tech conferences. I specialize in logistics and vendor management, ensuring every event is a masterpiece.',
+          bio,
           style: const TextStyle(color: Colors.grey, fontSize: 14, height: 1.5),
         ),
       ],
@@ -361,7 +342,7 @@ class _HostProfilePageState extends State<HostProfilePage> {
   Widget _buildStatsRow(bool isMobile) {
     return Row(
       children: [
-        _buildStatCard('Total Events', '124'),
+        _buildStatCard('Total Requests', '124'),
         const SizedBox(width: 8),
         _buildStatCard('Active Now', '12'),
         const SizedBox(width: 8),
@@ -370,33 +351,25 @@ class _HostProfilePageState extends State<HostProfilePage> {
     );
   }
 
-  // Removed _buildMobileActions as per user request
-
-  Widget _buildRightSideActions(Map<String, dynamic>? userData) {
-    final settings = userData?['settings'] as Map<String, dynamic>?;
-    final bool notificationsEnabled = settings?['email_notifications'] == true || 
-                                     settings?['push_notifications'] == true || 
-                                     settings?['sms_alerts'] == true;
-
+  Widget _buildRightSideActions(HostProfile profile) {
     return Column(
       children: [
         _buildSectionCard(
           'Account Security',
           [
             _buildSecurityItem('Two-Factor Auth', 'ON'),
-            _buildSecurityItem('Notifications', notificationsEnabled ? 'Enabled' : 'Disabled'),
+            _buildSecurityItem('Notifications', 'Enabled'),
           ],
         ),
         const SizedBox(height: 24),
         _buildSectionCard(
           'Quick Actions',
           [
-            _buildQuickAction('Change Password', onTap: () async {
-               await Navigator.push(
+            _buildQuickAction('Change Password', onTap: () {
+               Navigator.push(
                 context,
                 MaterialPageRoute(builder: (context) => const HostSettingsPage()),
               );
-              _refreshProfile();
             }),
             _buildQuickAction('Update Billing'),
             _buildQuickAction('Deactivate Account', isDestructive: true),
@@ -454,32 +427,6 @@ class _HostProfilePageState extends State<HostProfilePage> {
           ],
         ),
       ),
-    );
-  }
-
-  Widget _buildPrimaryButton(String text) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(vertical: 12),
-      decoration: BoxDecoration(
-        color: const Color(0xFF031633),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      alignment: Alignment.center,
-      child: Text(text, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
-    );
-  }
-
-  Widget _buildSecondaryButton(String text) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(vertical: 12),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF1F7F5),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      alignment: Alignment.center,
-      child: Text(text, style: const TextStyle(color: Color(0xFF2E6B5A), fontWeight: FontWeight.bold, fontSize: 13)),
     );
   }
 
@@ -564,7 +511,7 @@ class _HostProfilePageState extends State<HostProfilePage> {
     return InkWell(
       onTap: () async {
         await SupabaseService.signOut();
-        if (mounted) {
+        if (context.mounted) {
           Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
         }
       },

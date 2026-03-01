@@ -1,17 +1,56 @@
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import '../../core/theme.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../../services/event_manager_service.dart';
 
-class StatsGrid extends StatelessWidget {
+class StatsGrid extends ConsumerStatefulWidget {
   const StatsGrid({super.key});
 
   @override
+  ConsumerState<StatsGrid> createState() => _StatsGridState();
+}
+
+class _StatsGridState extends ConsumerState<StatsGrid> {
+  Map<String, String> _stats = {
+    'Active Teams': '0',
+    'Total Members': '0',
+    'Open Job Postings': '0',
+    'Pending Applications': '0',
+    'Accepted Proposals': '0',
+    'Pending Proposals': '0',
+  };
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadStats();
+  }
+
+  Future<void> _loadStats() async {
+    final stats = await EventManagerService.getDashboardStats();
+    if (mounted) {
+      setState(() {
+        _stats = stats;
+        _isLoading = false;
+      });
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    // Data matching the screenshot
-    final stats = [
+    if (_isLoading) {
+      return const Center(child: Padding(
+        padding: EdgeInsets.all(32.0),
+        child: CircularProgressIndicator(color: AppColors.mintIce),
+      ));
+    }
+
+    final statsItems = [
       {
         'title': 'Active Teams',
-        'count': '2',
+        'count': _stats['Active Teams'] ?? '0',
         'icon': FontAwesomeIcons.peopleGroup,
         'bgColor': AppColors.hunterGreen,
         'textColor': Colors.white,
@@ -20,8 +59,8 @@ class StatsGrid extends StatelessWidget {
       },
       {
         'title': 'Total Members',
-        'count': '3',
-        'icon': FontAwesomeIcons.userGroup, // Close enough to the icon in image
+        'count': _stats['Total Members'] ?? '0',
+        'icon': FontAwesomeIcons.userGroup,
         'bgColor': AppColors.hunterGreen,
         'textColor': Colors.white,
         'subTextColor': Colors.white,
@@ -29,7 +68,7 @@ class StatsGrid extends StatelessWidget {
       },
       {
         'title': 'Open Job Postings',
-        'count': '1',
+        'count': _stats['Open Job Postings'] ?? '0',
         'icon': FontAwesomeIcons.suitcase,
         'bgColor': AppColors.hunterGreen,
         'textColor': Colors.white,
@@ -38,7 +77,7 @@ class StatsGrid extends StatelessWidget {
       },
       {
         'title': 'Pending Applications',
-        'count': '2',
+        'count': _stats['Pending Applications'] ?? '0',
         'icon': FontAwesomeIcons.paperPlane,
         'bgColor': AppColors.hunterGreen,
         'textColor': Colors.white,
@@ -47,7 +86,7 @@ class StatsGrid extends StatelessWidget {
       },
       {
         'title': 'Accepted Proposals',
-        'count': '1',
+        'count': _stats['Accepted Proposals'] ?? '0',
         'icon': FontAwesomeIcons.dollarSign,
         'bgColor': AppColors.hunterGreen,
         'textColor': Colors.white,
@@ -56,35 +95,42 @@ class StatsGrid extends StatelessWidget {
       },
       {
         'title': 'Pending Proposals',
-        'count': '1',
+        'count': _stats['Pending Proposals'] ?? '0',
         'icon': FontAwesomeIcons.chartLine,
         'bgColor': AppColors.hunterGreen,
         'textColor': Colors.white,
         'subTextColor': Colors.white.withOpacity(0.9),
-        'hasGraph': true, // Feature flag for graph
+        'hasGraph': true,
       },
     ];
 
-    return GridView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 3, // 3 columns as per screenshot
-        childAspectRatio: 1.1, // Provide even more vertical space to eliminate the 9.3px overflow
-        crossAxisSpacing: 16,
-        mainAxisSpacing: 16,
-      ),
-      itemCount: stats.length,
-      itemBuilder: (context, index) {
-        final item = stats[index];
-        return StatCard(
-          title: item['title'] as String,
-          count: item['count'] as String,
-          icon: item['icon'] as IconData,
-          bgColor: item['bgColor'] as Color,
-          textColor: item['textColor'] as Color,
-          subTextColor: item['subTextColor'] as Color,
-          hasGraph: item['hasGraph'] as bool,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final crossAxisCount = constraints.maxWidth < 600 ? 2 : 3;
+        final aspectRatio = constraints.maxWidth < 600 ? 1.4 : 1.1;
+
+        return GridView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: crossAxisCount,
+            childAspectRatio: aspectRatio,
+            crossAxisSpacing: 16,
+            mainAxisSpacing: 16,
+          ),
+          itemCount: statsItems.length,
+          itemBuilder: (context, index) {
+            final item = statsItems[index];
+            return StatCard(
+              title: item['title'] as String,
+              count: item['count'] as String,
+              icon: item['icon'] as IconData,
+              bgColor: item['bgColor'] as Color,
+              textColor: item['textColor'] as Color,
+              subTextColor: item['subTextColor'] as Color,
+              hasGraph: item['hasGraph'] as bool,
+            );
+          },
         );
       },
     );

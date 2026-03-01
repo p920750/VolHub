@@ -14,7 +14,7 @@ class ProfileDetailsPage extends StatefulWidget {
 }
 
 class _ProfileDetailsPageState extends State<ProfileDetailsPage> {
-  // Verification states: 'unverified', 'pending', 'verified'
+  // Verification states: 'unverified', 'pending', 'accepted', 'rejected'
   String verificationStatus = 'unverified';
 
   String? phoneError;
@@ -773,7 +773,7 @@ class _ProfileDetailsPageState extends State<ProfileDetailsPage> {
                         'Identity Verification',
                         style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
                       ),
-                      if (verificationStatus == 'verified')
+                      if (verificationStatus == 'accepted')
                         const Icon(Icons.check_circle, color: Colors.green)
                       else if (verificationStatus == 'pending')
                         Icon(Icons.hourglass_full, color: Colors.orange.shade400),
@@ -781,7 +781,7 @@ class _ProfileDetailsPageState extends State<ProfileDetailsPage> {
                   ),
                   const SizedBox(height: 12),
                   
-                  if (verificationStatus == 'verified')
+                  if (verificationStatus == 'accepted')
                     Container(
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
@@ -805,7 +805,7 @@ class _ProfileDetailsPageState extends State<ProfileDetailsPage> {
                                   ),
                                 ),
                                 Text(
-                                  'Your identity have been verified.',
+                                  'Your identity has been verified.',
                                   style: TextStyle(fontSize: 12, color: Colors.black54),
                                 ),
                               ],

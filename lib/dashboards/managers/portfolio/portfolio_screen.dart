@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:main_volhub/widgets/safe_avatar.dart';
 import 'package:file_picker/file_picker.dart';
 import 'dart:io';
 import '../core/manager_drawer.dart';
@@ -42,8 +43,10 @@ class _PortfolioScreenState extends State<PortfolioScreen> {
                 children: [
                   Row(
                     children: [
-                      const CircleAvatar(
-                        backgroundImage: NetworkImage('https://i.pravatar.cc/150?img=12'),
+                      const SafeAvatar(
+                        radius: 20,
+                        imageUrl: 'https://i.pravatar.cc/150?img=12',
+                        name: 'Alex Johnson',
                       ),
                       const SizedBox(width: 12),
                       Expanded(

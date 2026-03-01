@@ -40,7 +40,6 @@ class _VerificationDetailPageState extends State<VerificationDetailPage> {
           .from('users')
           .update({
             'verification_status': status,
-            'is_aadhar_verified': status == 'verified'
           })
           .eq('id', widget.profileData['id']);
 
@@ -48,7 +47,7 @@ class _VerificationDetailPageState extends State<VerificationDetailPage> {
         messenger.showSnackBar(
           SnackBar(
             content: Text('User marked as $status'),
-            backgroundColor: status == 'verified' ? AdminColors.success : AdminColors.error,
+            backgroundColor: status == 'accepted' ? AdminColors.success : AdminColors.error,
           ),
         );
         widget.onStatusChanged(); // Refresh parent list
@@ -96,7 +95,7 @@ class _VerificationDetailPageState extends State<VerificationDetailPage> {
             const SizedBox(width: 16),
             Expanded(
               child: ElevatedButton(
-                onPressed: _isProcessing ? null : () => _updateStatus('verified'),
+                onPressed: _isProcessing ? null : () => _updateStatus('accepted'),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AdminColors.success,
                   foregroundColor: Colors.white,

@@ -30,7 +30,8 @@ class ManagerDrawer extends ConsumerWidget {
                 children: [
                   CircleAvatar(
                     radius: 30,
-                    backgroundImage: NetworkImage(profile.profileImage),
+                    backgroundImage: profile.profileImage.isNotEmpty ? NetworkImage(profile.profileImage) : null,
+                    child: profile.profileImage.isEmpty ? const Icon(Icons.person, size: 30) : null,
                   ),
                   const SizedBox(width: 16),
                   Expanded(
@@ -77,9 +78,9 @@ class ManagerDrawer extends ConsumerWidget {
                 ),
                 _buildDrawerItem(
                   context,
-                  icon: Icons.storefront_outlined,
-                  label: 'Marketplace',
-                  route: '/manager-marketplace',
+                  icon: Icons.calendar_today_outlined,
+                  label: 'My Events',
+                  route: '/manager-my-events',
                 ),
                 _buildDrawerItem(
                   context,
@@ -101,9 +102,9 @@ class ManagerDrawer extends ConsumerWidget {
                 ),
                 _buildDrawerItem(
                   context,
-                  icon: Icons.person_search_outlined,
-                  label: 'Recruit',
-                  route: '/manager-recruit',
+                  icon: Icons.add_box_outlined,
+                  label: 'Post Events',
+                  route: '/manager-post-events',
                 ),
                 _buildDrawerItem(
                   context,
@@ -123,11 +124,10 @@ class ManagerDrawer extends ConsumerWidget {
                   icon: Icons.logout,
                   label: 'Logout',
                   route: '/login',
-                  onTap: () async {
-                    await SupabaseService.signOut();
-                    if (context.mounted) {
-                      Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
-                    }
+                  onTap: () {
+                    SupabaseService.signOut();
+                    ref.invalidate(userProfileProvider);
+                    Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
                   },
                 ),
               ],

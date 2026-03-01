@@ -30,7 +30,8 @@ class DashboardScreen extends ConsumerWidget {
               child: profileAsync.when(
                 data: (profile) => CircleAvatar(
                   radius: 16,
-                  backgroundImage: NetworkImage(profile.profileImage),
+                  backgroundImage: profile.profileImage.isNotEmpty ? NetworkImage(profile.profileImage) : null,
+                  child: profile.profileImage.isEmpty ? const Icon(Icons.person) : null,
                 ),
                 loading: () => const CircleAvatar(radius: 16, child: CircularProgressIndicator(strokeWidth: 2)),
                 error: (err, stack) => const CircleAvatar(radius: 16, child: Icon(Icons.error)),

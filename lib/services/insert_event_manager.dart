@@ -22,7 +22,7 @@ class InsertEventManager {
         email: email,
         password: password,
         fullName: fullName,
-        userType: 'event_manager',
+        userType: 'organizer',
         phone: phone,
         dob: dob,
       );

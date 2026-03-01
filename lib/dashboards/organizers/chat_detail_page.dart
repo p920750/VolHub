@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'dart:async';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:image_picker/image_picker.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -176,8 +177,8 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
               children: [
                 CircleAvatar(
                   radius: 18,
-                  backgroundImage: widget.avatar.startsWith('http') ? NetworkImage(widget.avatar) : null,
-                  child: !widget.avatar.startsWith('http') ? Text(widget.name[0]) : null,
+                  backgroundImage: widget.avatar.isNotEmpty ? (widget.avatar.startsWith('http') ? NetworkImage(widget.avatar) : null) : null,
+                  child: widget.avatar.isEmpty ? const Icon(Icons.person) : (!widget.avatar.startsWith('http') ? Text(widget.name.isNotEmpty ? widget.name[0] : '') : null),
                 ),
                 if (widget.isOnline)
                   Positioned(
@@ -317,6 +318,19 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
+                if (_replyingToMessage!['imagePath'] != null) ...[
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: kIsWeb 
+                      ? Image.network(_replyingToMessage!['imagePath'], width: 200, fit: BoxFit.cover)
+                      : Image.file(
+                          File(_replyingToMessage!['imagePath']),
+                          width: 200,
+                          fit: BoxFit.cover,
+                        ),
+                  ),
+                  const SizedBox(height: 8),
+                ],
                 Text(
                   isMe ? 'You' : widget.name,
                   style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Color(0xFF001529)),
