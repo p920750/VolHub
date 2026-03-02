@@ -10,6 +10,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:path_provider/path_provider.dart';
 import 'dart:io';
 import '../../../services/supabase_service.dart';
+import '../../screens/chat_profile_page.dart';
 import '../managers/core/theme.dart';
 import 'widgets/enhanced_media_viewer.dart';
 
@@ -175,10 +176,20 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
           children: [
             Stack(
               children: [
-                CircleAvatar(
-                  radius: 18,
-                  backgroundImage: widget.avatar.isNotEmpty ? (widget.avatar.startsWith('http') ? NetworkImage(widget.avatar) : null) : null,
-                  child: widget.avatar.isEmpty ? const Icon(Icons.person) : (!widget.avatar.startsWith('http') ? Text(widget.name.isNotEmpty ? widget.name[0] : '') : null),
+                GestureDetector(
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => ChatProfilePage(userId: widget.chatId),
+                      ),
+                    );
+                  },
+                  child: CircleAvatar(
+                    radius: 18,
+                    backgroundImage: widget.avatar.isNotEmpty ? (widget.avatar.startsWith('http') ? NetworkImage(widget.avatar) : null) : null,
+                    child: widget.avatar.isEmpty ? const Icon(Icons.person) : (!widget.avatar.startsWith('http') ? Text(widget.name.isNotEmpty ? widget.name[0] : '') : null),
+                  ),
                 ),
                 if (widget.isOnline)
                   Positioned(
@@ -200,9 +211,19 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  widget.name,
-                  style: const TextStyle(color: Colors.black, fontSize: 16, fontWeight: FontWeight.bold),
+                GestureDetector(
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => ChatProfilePage(userId: widget.chatId),
+                      ),
+                    );
+                  },
+                  child: Text(
+                    widget.name,
+                    style: const TextStyle(color: Colors.black, fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
                 ),
                 Text(
                   widget.isOnline ? 'Online' : 'Offline',
@@ -410,10 +431,20 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
           mainAxisAlignment: isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
           children: [
             if (!isMe) ...[
-              CircleAvatar(
-                radius: 14,
-                backgroundImage: widget.avatar.startsWith('http') ? NetworkImage(widget.avatar) : null,
-                child: !widget.avatar.startsWith('http') ? Text(widget.name[0], style: const TextStyle(fontSize: 10)) : null,
+              GestureDetector(
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => ChatProfilePage(userId: message['sender_id']),
+                    ),
+                  );
+                },
+                child: CircleAvatar(
+                  radius: 14,
+                  backgroundImage: widget.avatar.startsWith('http') ? NetworkImage(widget.avatar) : null,
+                  child: !widget.avatar.startsWith('http') ? Text(widget.name[0], style: const TextStyle(fontSize: 10)) : null,
+                ),
               ),
               const SizedBox(width: 8),
             ],
@@ -421,14 +452,24 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
               crossAxisAlignment: isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
               children: [
                 if (!isMe)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 4),
-                    child: Text(
-                      widget.name,
-                      style: const TextStyle(
-                        color: Color(0xFF00AA8D),
-                        fontWeight: FontWeight.bold,
-                        fontSize: 12,
+                  GestureDetector(
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => ChatProfilePage(userId: message['sender_id']),
+                        ),
+                      );
+                    },
+                    child: Padding(
+                      padding: const EdgeInsets.only(bottom: 4),
+                      child: Text(
+                        widget.name,
+                        style: const TextStyle(
+                          color: Color(0xFF00AA8D),
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                        ),
                       ),
                     ),
                   ),
@@ -474,10 +515,20 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
         mainAxisAlignment: isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
         children: [
           if (!isMe) ...[
-            CircleAvatar(
-              radius: 14,
-              backgroundImage: widget.avatar.startsWith('http') ? NetworkImage(widget.avatar) : null,
-              child: !widget.avatar.startsWith('http') ? Text(widget.name[0], style: const TextStyle(fontSize: 10)) : null,
+            GestureDetector(
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => ChatProfilePage(userId: message['sender_id']),
+                  ),
+                );
+              },
+              child: CircleAvatar(
+                radius: 14,
+                backgroundImage: widget.avatar.startsWith('http') ? NetworkImage(widget.avatar) : null,
+                child: !widget.avatar.startsWith('http') ? Text(widget.name[0], style: const TextStyle(fontSize: 10)) : null,
+              ),
             ),
             const SizedBox(width: 8),
           ],
@@ -485,14 +536,24 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
             crossAxisAlignment: isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
             children: [
               if (!isMe)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 4),
-                  child: Text(
-                    widget.name,
-                    style: const TextStyle(
-                      color: Color(0xFF00AA8D),
-                      fontWeight: FontWeight.bold,
-                      fontSize: 12,
+                GestureDetector(
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => ChatProfilePage(userId: message['sender_id']),
+                      ),
+                    );
+                  },
+                  child: Padding(
+                    padding: const EdgeInsets.only(bottom: 4),
+                    child: Text(
+                      widget.name,
+                      style: const TextStyle(
+                        color: Color(0xFF00AA8D),
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12,
+                      ),
                     ),
                   ),
                 ),

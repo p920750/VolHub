@@ -454,6 +454,8 @@ class EventManagerService {
       if (kDebugMode) print('Error deleting portfolio item: $e');
       rethrow;
     }
+  }
+
   /// Fetches volunteers who have applied for a specific event.
   static Stream<List<Map<String, dynamic>>> getApplicantsStream(String eventId) {
     return client

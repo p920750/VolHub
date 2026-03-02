@@ -50,6 +50,20 @@ class SupabaseService {
         .maybeSingle();
   }
 
+  // Fetch a specific user profile by ID (read-only for chat profiles)
+  static Future<Map<String, dynamic>?> getUserProfileById(String userId) async {
+    try {
+      return await client
+          .from('users')
+          .select('id, full_name, profile_photo, phone_number, country_code, role')
+          .eq('id', userId)
+          .maybeSingle();
+    } catch (e) {
+      if (kDebugMode) print('Error fetching user profile: $e');
+      return null;
+    }
+  }
+
   // Update public.users ONLY
   static Future<void> updateUsersTable(Map<String, dynamic> data) async {
     if (currentUser == null) throw Exception('Not authenticated');
@@ -718,64 +732,6 @@ class SupabaseService {
       rethrow;
     }
   }
-  ) async {
-    try {
-      final fileExt = file.path.split('.').last;
-      final timestamp = DateTime.now().toIso8601String().replaceAll(':', '-');
-<<<<<<< HEAD
-      final fileName = '$userId/cert_$timestamp.$fileExt';
-=======
-      final fileName = '$managerId/event_$timestamp.$fileExt';
->>>>>>> 0f257648c984340d7d4ba30f5eb1390dc4ccab07
-      
-      const bucketName = 'verification_docs'; 
-
-      await client.storage.from(bucketName).upload(
-            fileName,
-            file,
-            fileOptions: const FileOptions(cacheControl: '3600', upsert: false),
-          );
-
-      final String publicUrl = client.storage.from(bucketName).getPublicUrl(fileName);
-      return publicUrl;
-    } catch (e) {
-      if (kDebugMode) {
-<<<<<<< HEAD
-        print('Error uploading certificate: $e');
-=======
-        print('Error uploading event image: $e');
->>>>>>> 0f257648c984340d7d4ba30f5eb1390dc4ccab07
-      }
-      rethrow;
-    }
-  }
-
-<<<<<<< HEAD
-=======
-  // Web-compatible upload using bytes
-  static Future<String?> uploadEventImageBytes(
-    Uint8List bytes,
-    String fileName,
-    String userId,
-  ) async {
-    try {
-      final String path = '$userId/event_${DateTime.now().millisecondsSinceEpoch}_$fileName';
-      const bucketName = 'verification_docs';
-
-      await client.storage.from(bucketName).uploadBinary(
-        path,
-        bytes,
-        fileOptions: const FileOptions(cacheControl: '3600', upsert: false),
-      );
-
-      return client.storage.from(bucketName).getPublicUrl(path);
-    } catch (e) {
-      if (kDebugMode) print('Error uploading image bytes: $e');
-      rethrow;
-    }
-  }
-
->>>>>>> 0f257648c984340d7d4ba30f5eb1390dc4ccab07
   // Update user metadata (phone, address, avatar, etc.)
   static Future<void> updateUserMetadata(Map<String, dynamic> data) async {
     try {
