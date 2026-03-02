@@ -5,6 +5,7 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import '../core/manager_drawer.dart';
 import '../core/theme.dart';
 import '../../../services/supabase_service.dart';
+import '../../../services/category_service.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class PostEventsScreen extends StatefulWidget {
@@ -22,6 +23,7 @@ class _PostEventsScreenState extends State<PostEventsScreen> {
   final _locationController = TextEditingController();
   final _volunteersNeededController = TextEditingController();
   final _descriptionController = TextEditingController();
+  final _dropdownMenuController = TextEditingController();
   
   File? _selectedImage;
   final _picker = ImagePicker();
@@ -29,16 +31,96 @@ class _PostEventsScreenState extends State<PostEventsScreen> {
   DateTime? _eventDateTime;
   DateTime? _registrationDeadline;
   
-  final List<String> _availableCategories = [
-    'Wedding', 'Party', 'Corporate', 'Festival', 'Concert', 'Workshop', 'Charity', 'Sports', 'Other'
-  ];
+  List<String> _availableCategories = [];
   final List<String> _selectedCategories = [];
-
+  String? _selectedCategoryDropdown;
+  bool _showCustomCategoryInput = false;
   bool _isPosting = false;
+
+  final LayerLink _layerLink = LayerLink();
+  OverlayEntry? _overlayEntry;
+  bool _isDropdownOpen = false;
+
+  void _toggleDropdown() {
+    if (_isDropdownOpen) {
+      _closeDropdown();
+    } else {
+      _openDropdown();
+    }
+  }
+
+  void _openDropdown() {
+    final RenderBox renderBox = context.findRenderObject() as RenderBox;
+    final size = renderBox.size;
+
+    _overlayEntry = OverlayEntry(
+      builder: (context) => Positioned(
+        width: size.width - 32, // Padding left and right 16 each
+        child: CompositedTransformFollower(
+          link: _layerLink,
+          showWhenUnlinked: false,
+          offset: const Offset(0.0, 56.0), // Shift it below the container
+          child: Material(
+            elevation: 4,
+            borderRadius: BorderRadius.circular(12),
+            color: Colors.white,
+            child: Container(
+              constraints: const BoxConstraints(maxHeight: 250),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.grey.shade300),
+              ),
+              child: ListView(
+                padding: EdgeInsets.zero,
+                shrinkWrap: true,
+                children: _availableCategories.map((cat) {
+                  return InkWell(
+                    onTap: () {
+                      _closeDropdown();
+                      setState(() {
+                        _selectedCategoryDropdown = cat;
+                        if (cat == 'Other') {
+                          _showCustomCategoryInput = true;
+                        } else if (cat != null) {
+                          _showCustomCategoryInput = false;
+                          if (!_selectedCategories.contains(cat)) {
+                            _selectedCategories.insert(0, cat);
+                          }
+                          _selectedCategoryDropdown = null;
+                        }
+                      });
+                    },
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      child: Text(cat, style: const TextStyle(fontSize: 16)),
+                    ),
+                  );
+                }).toList(),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    Overlay.of(context).insert(_overlayEntry!);
+    setState(() {
+      _isDropdownOpen = true;
+    });
+  }
+
+  void _closeDropdown() {
+    _overlayEntry?.remove();
+    _overlayEntry = null;
+    setState(() {
+      _isDropdownOpen = false;
+    });
+  }
 
   @override
   void initState() {
     super.initState();
+    _loadCategories();
     if (widget.editEvent != null) {
       _nameController.text = widget.editEvent!['name'] ?? widget.editEvent!['title'] ?? '';
       _locationController.text = widget.editEvent!['location'] ?? '';
@@ -63,6 +145,15 @@ class _PostEventsScreenState extends State<PostEventsScreen> {
     }
   }
 
+  Future<void> _loadCategories() async {
+    final cats = await CategoryService.getCategories();
+    if (mounted) {
+      setState(() {
+        _availableCategories = cats;
+      });
+    }
+  }
+
   @override
   void dispose() {
     _nameController.dispose();
@@ -70,6 +161,8 @@ class _PostEventsScreenState extends State<PostEventsScreen> {
     _volunteersNeededController.dispose();
     _descriptionController.dispose();
     _categoryController.dispose();
+    _dropdownMenuController.dispose();
+    _closeDropdown();
     super.dispose();
   }
 
@@ -252,7 +345,38 @@ class _PostEventsScreenState extends State<PostEventsScreen> {
               const SizedBox(height: 24),
               _buildSectionTitle('Categories'),
               const SizedBox(height: 8),
-              _buildCategoryInput(),
+              CompositedTransformTarget(
+                link: _layerLink,
+                child: GestureDetector(
+                  onTap: _toggleDropdown,
+                  child: Container(
+                    height: 50,
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    decoration: BoxDecoration(
+                      color: Colors.grey[50],
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.black54),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          _selectedCategoryDropdown ?? 'Select a category to add',
+                          style: TextStyle(
+                            color: _selectedCategoryDropdown == null ? Colors.grey[600] : Colors.black,
+                            fontSize: 16,
+                          ),
+                        ),
+                        Icon(_isDropdownOpen ? Icons.arrow_drop_up : Icons.arrow_drop_down, color: Colors.grey),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              if (_showCustomCategoryInput) ...[
+                const SizedBox(height: 12),
+                _buildCategoryInput(),
+              ],
               const SizedBox(height: 12),
               Wrap(
                 spacing: 8,
@@ -271,27 +395,6 @@ class _PostEventsScreenState extends State<PostEventsScreen> {
                   );
                 }).toList(),
               ),
-              if (_availableCategories.any((cat) => !_selectedCategories.contains(cat))) ...[
-                const SizedBox(height: 16),
-                const Text('Suggested:', style: TextStyle(fontSize: 14, color: Colors.grey)),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 8,
-                  children: _availableCategories
-                      .where((cat) => !_selectedCategories.contains(cat))
-                      .map((cat) {
-                    return ActionChip(
-                      label: Text(cat),
-                      onPressed: () {
-                        setState(() {
-                          _selectedCategories.insert(0, cat);
-                        });
-                      },
-                      backgroundColor: Colors.grey[100],
-                    );
-                  }).toList(),
-                ),
-              ],
 
               const SizedBox(height: 32),
               SizedBox(
@@ -343,6 +446,9 @@ class _PostEventsScreenState extends State<PostEventsScreen> {
       setState(() {
         _selectedCategories.insert(0, text); // Add to top
         _categoryController.clear();
+        _showCustomCategoryInput = false;
+        _dropdownMenuController.clear();
+        _selectedCategoryDropdown = null; // reset to allow continuous selection
       });
     }
   }
