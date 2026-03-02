@@ -23,6 +23,7 @@ class SupabaseService {
     String? avatarUrl,
     String? phone,
     String? countryCode,
+    String? bio,
     bool isEmailVerified = false,
   }) async {
     await client.from('users').insert({
@@ -33,6 +34,7 @@ class SupabaseService {
       'profile_photo': avatarUrl,
       'phone_number': phone,
       'country_code': countryCode,
+      'bio': bio,
       'is_email_verified': isEmailVerified,
     });
   }
@@ -120,7 +122,7 @@ class SupabaseService {
         'dob': dob, // Format: YYYY-MM-DD
       },
       emailRedirectTo: kIsWeb
-          ? '${Uri.base.origin}/#/email-confirm'
+          ? '${Uri.base.origin}/email-confirm'
           : 'io.supabase.volhub://email-confirm',
     );
 
@@ -240,6 +242,7 @@ class SupabaseService {
     required String dob,
     required bool isEmailVerified,
     required bool isPhoneVerified,
+    String? bio,
     String countryCode = '+91',
   }) async {
     final user = currentUser;
@@ -260,11 +263,40 @@ class SupabaseService {
       'phone_number': phone,
       'country_code': countryCode,
       'date_of_birth': dob,
+      'bio': bio,
       'is_email_verified': isEmailVerified,
       'is_phone_verified': isPhoneVerified,
     });
 
     if (kDebugMode) print('User record created in public.users');
+  }
+
+  // Admin: Add a new manager (System Bypass Version)
+  static Future<void> addManager({
+    required String email,
+    required String password,
+    required String fullName,
+    String? phone,
+    String? companyName,
+    String? companyLocation,
+  }) async {
+    // We use a custom RPC to create the user directly in the database.
+    // This bypasses the Supabase Auth email rate limits and marks the user as verified.
+    try {
+      await client.rpc('create_manager_admin', params: {
+        'in_email': email,
+        'in_password': password,
+        'in_full_name': fullName,
+        'in_phone': phone,
+        'in_company_name': companyName,
+        'in_company_location': companyLocation,
+      });
+    } catch (e) {
+      if (e.toString().contains('duplicate key')) {
+        throw Exception('A user with this email already exists.');
+      }
+      rethrow;
+    }
   }
 
   // Legacy/Direct Sign up (Kept for reference or alternative flow)
@@ -341,7 +373,25 @@ class SupabaseService {
     }
   }
 
-  // Update password (after clicking reset link)
+  // Verify current password by attempting a silent sign-in
+  static Future<bool> verifyCurrentPassword(String password) async {
+    try {
+      final email = currentUser?.email;
+      if (email == null) return false;
+      
+      // Attempt to sign in with the provided password to verify it
+      await client.auth.signInWithPassword(
+        email: email,
+        password: password,
+      );
+      return true;
+    } catch (e) {
+      if (kDebugMode) print('Password verification failed: $e');
+      return false;
+    }
+  }
+
+  // Update password for logged in user
   static Future<void> updatePassword(String newPassword) async {
     try {
       await client.auth.updateUser(UserAttributes(password: newPassword));
@@ -409,32 +459,6 @@ class SupabaseService {
     }
   }
 
-  // Sign in with Facebook OAuth
-  static Future<bool> signInWithFacebook() async {
-    try {
-      // Use appropriate redirect URL based on platform
-      String redirectTo;
-      if (kIsWeb) {
-        // For web, use the Supabase callback URL
-        // This must match what's configured in Supabase dashboard
-        redirectTo = '${SupabaseConfig.supabaseUrl}/auth/v1/callback';
-      } else {
-        // For mobile, use deep link
-        redirectTo = 'io.supabase.volhub://login-callback';
-      }
-
-      await client.auth.signInWithOAuth(
-        OAuthProvider.facebook,
-        redirectTo: redirectTo,
-        authScreenLaunchMode: kIsWeb
-            ? LaunchMode.platformDefault
-            : LaunchMode.externalApplication,
-      );
-      return true;
-    } catch (e) {
-      rethrow;
-    }
-  }
 
   // Handle OAuth callback (for deep linking)
   static Future<AuthSessionUrlResponse?> handleOAuthCallback(Uri uri) async {
@@ -472,38 +496,28 @@ class SupabaseService {
   static Future<void> handlePostAuthRedirect(BuildContext context) async {
     try {
       if (kDebugMode) print('--- Handling Post-Auth Redirect ---');
-
-      // Check if we are currently on the signup page
-      // If so, we don't want to redirect automatically, as the user
-      // might be clicking the email confirmation link while still in the app.
-      bool isOnSignup = false;
-      try {
-        final currentRoute = ModalRoute.of(context)?.settings.name;
-        if (kDebugMode) print('Current route: $currentRoute');
-        if (currentRoute == '/signup') {
-          isOnSignup = true;
-        }
-      } catch (e) {
-        if (kDebugMode) print('Error checking current route: $e');
-      }
-
-      if (isOnSignup) {
-        if (kDebugMode) print('User is on signup page, skipping automatic redirection.');
-        return;
-      }
       
       final userData = await getUserFromUsersTable();
       
       if (!context.mounted) return;
 
+      final session = client.auth.currentSession;
+      final provider = session?.user.appMetadata['provider'];
+
       if (userData == null || userData['role'] == null) {
         // New user or missing role (e.g., first-time Google user)
-        if (kDebugMode) print('No profile found, redirecting to role selection');
-        Navigator.pushNamedAndRemoveUntil(
-          context,
-          '/end-user-type-selection',
-          (route) => false,
-        );
+        // ONLY redirect to role selection if it's NOT an email signup
+        // (Email signups handled by SignupPage after verification)
+        if (provider != 'email') {
+          if (kDebugMode) print('No profile found (OAuth), redirecting to role selection');
+          Navigator.pushNamedAndRemoveUntil(
+            context,
+            '/end-user-type-selection',
+            (route) => false,
+          );
+        } else {
+          if (kDebugMode) print('Email signup in progress, skipping auto-redirection');
+        }
       } else {
         // Existing user with role
         final role = userData['role'];
@@ -533,19 +547,19 @@ class SupabaseService {
             '/admin-dashboard',
             (route) => false,
           );
-        } else if (role == 'organizer') {
-          // TODO: Redirect to Organizer Dashboard when implemented
-          // For now, show message and stay or go to a fallback
-          if (kDebugMode) print('Organizer role detected - TODO: Dashboard');
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Organizer Dashboard coming soon!')),
+        } else if (role == 'organizer' || role == 'host') {
+          if (kDebugMode) print('Redirecting to organizer dashboard');
+          Navigator.pushNamedAndRemoveUntil(
+            context,
+            '/organizer-dashboard',
+            (route) => false,
           );
-          // Fallback if needed, or just stay on login
-        } else if (role == 'manager') {
-          // TODO: Redirect to Manager Dashboard when implemented
-          if (kDebugMode) print('Manager role detected - TODO: Dashboard');
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Manager Dashboard coming soon!')),
+        } else if (role == 'manager' || role == 'event_manager') {
+          if (kDebugMode) print('Redirecting to manager dashboard');
+          Navigator.pushNamedAndRemoveUntil(
+            context,
+            '/manager-dashboard',
+            (route) => false,
           );
         } else {
             if (kDebugMode) print('Unknown role: $role');
@@ -570,12 +584,6 @@ class SupabaseService {
     String userId,
   ) async {
     try {
-      // Add file size check (e.g., limit to 10MB)
-      final int sizeInBytes = await file.length();
-      if (sizeInBytes > 10 * 1024 * 1024) {
-        throw Exception('File too large. Maximum size is 10MB.');
-      }
-
       final fileExt = file.path.split('.').last;
       final timestamp = DateTime.now().toIso8601String().replaceAll(':', '-');
       final fileName = '$userId/$timestamp.$fileExt';
@@ -608,12 +616,6 @@ class SupabaseService {
     String userId,
   ) async {
     try {
-      // Add file size check (e.g., limit to 5MB)
-      final int sizeInBytes = await file.length();
-      if (sizeInBytes > 5 * 1024 * 1024) {
-        throw Exception('Profile photo too large. Maximum size is 5MB.');
-      }
-
       final fileExt = file.path.split('.').last;
       final timestamp = DateTime.now().toIso8601String().replaceAll(':', '-');
       // Storing directly in userId folder to comply with RLS policy: 
@@ -638,6 +640,57 @@ class SupabaseService {
     }
   }
 
+  // Upload event image
+  static Future<String?> uploadEventImage(
+    File file,
+    String managerId,
+  ) async {
+    try {
+      final fileExt = file.path.split('.').last;
+      final timestamp = DateTime.now().toIso8601String().replaceAll(':', '-');
+      final fileName = '$managerId/event_$timestamp.$fileExt';
+      
+      const bucketName = 'verification_docs'; 
+
+      await client.storage.from(bucketName).upload(
+            fileName,
+            file,
+            fileOptions: const FileOptions(cacheControl: '3600', upsert: false),
+          );
+
+      final String publicUrl = client.storage.from(bucketName).getPublicUrl(fileName);
+      return publicUrl;
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error uploading event image: $e');
+      }
+      rethrow;
+    }
+  }
+
+  // Web-compatible upload using bytes
+  static Future<String?> uploadEventImageBytes(
+    Uint8List bytes,
+    String fileName,
+    String userId,
+  ) async {
+    try {
+      final String path = '$userId/event_${DateTime.now().millisecondsSinceEpoch}_$fileName';
+      const bucketName = 'verification_docs';
+
+      await client.storage.from(bucketName).uploadBinary(
+        path,
+        bytes,
+        fileOptions: const FileOptions(cacheControl: '3600', upsert: false),
+      );
+
+      return client.storage.from(bucketName).getPublicUrl(path);
+    } catch (e) {
+      if (kDebugMode) print('Error uploading image bytes: $e');
+      rethrow;
+    }
+  }
+
   // Update user metadata (phone, address, avatar, etc.)
   static Future<void> updateUserMetadata(Map<String, dynamic> data) async {
     try {
@@ -648,6 +701,163 @@ class SupabaseService {
       );
     } catch (e) {
       rethrow;
+    }
+  }
+  // Fetch users by role (for Manager Messaging)
+  static Future<List<Map<String, dynamic>>> getUsersByRole(String role) async {
+    try {
+      final response = await client
+          .from('users')
+          .select('id, full_name, role, profile_photo, email')
+          .eq('role', role);
+      return List<Map<String, dynamic>>.from(response);
+    } catch (e) {
+      if (kDebugMode) print('Error fetching $role users: $e');
+      return [];
+    }
+  }
+
+  // Search users by name or email
+  static Future<List<Map<String, dynamic>>> searchUsers(String query) async {
+    try {
+      final response = await client
+          .from('users')
+          .select('id, full_name, role, profile_photo, email')
+          .or('full_name.ilike.%$query%,email.ilike.%$query%');
+      return List<Map<String, dynamic>>.from(response);
+    } catch (e) {
+      if (kDebugMode) print('Error searching users: $e');
+      return [];
+    }
+  }
+
+  // --- Chat System Methods ---
+
+  // Send a message (text, image, file, location)
+  static Future<void> sendMessage({
+    required String receiverId,
+    required String content,
+    String type = 'text', // 'text', 'image', 'file', 'location'
+  }) async {
+    if (currentUser == null) return;
+    
+    await client.from('messages').insert({
+      'sender_id': currentUser!.id,
+      'receiver_id': receiverId,
+      'content': content,
+      'message_type': type,
+    });
+  }
+
+  // Upload a chat attachment (image or file)
+  static Future<String?> uploadChatAttachment({
+    required File file,
+    required String chatId, // Can be receiverId or groupId
+  }) async {
+    try {
+      final fileExt = file.path.split('.').last;
+      final fileName = '${DateTime.now().millisecondsSinceEpoch}.$fileExt';
+      final filePath = '$chatId/$fileName';
+      
+      await client.storage.from('chat_attachments').upload(
+        filePath,
+        file,
+        fileOptions: const FileOptions(cacheControl: '3600', upsert: false),
+      );
+
+      final String publicUrl = client.storage
+          .from('chat_attachments')
+          .getPublicUrl(filePath);
+      
+      return publicUrl;
+    } catch (e) {
+      if (kDebugMode) print('Error uploading attachment: $e');
+      return null;
+    }
+  }
+
+  // Get stream of messages for a specific chat (live updates)
+  static Stream<List<Map<String, dynamic>>> getMessagesStream(String otherUserId) {
+    if (currentUser == null) return const Stream.empty();
+
+    return client
+        .from('messages')
+        .stream(primaryKey: ['id'])
+        .order('created_at', ascending: false) // Newest first for reverse List
+        .map((data) {
+          // Filter client-side for the specific conversation
+          final myId = currentUser!.id;
+          return data.where((msg) {
+            final sender = msg['sender_id'];
+            final receiver = msg['receiver_id'];
+            final deletedBy = List<String>.from(msg['deleted_by_users'] ?? []);
+            
+            // Check if message belongs to this chat AND is not deleted by me
+            final isRelevant = (sender == myId && receiver == otherUserId) || 
+                               (sender == otherUserId && receiver == myId);
+            final isNotDeleted = !deletedBy.contains(myId);
+            
+            return isRelevant && isNotDeleted;
+          }).toList();
+        });
+  }
+
+  // Delete message
+  static Future<void> deleteMessage({
+    required String messageId,
+    required bool forEveryone,
+  }) async {
+    if (currentUser == null) return;
+
+    if (forEveryone) {
+      // Hard delete (or could use a 'deleted_at' flag for soft delete)
+      await client.from('messages').delete().eq('id', messageId);
+    } else {
+      // Soft delete for current user only
+      // We append current user ID to 'deleted_by_users' array
+      // Using a raw SQL update via rpc would be ideal, but for now we fetch-update
+      // Or use the postgres specific syntax if Supabase client supports it easily.
+      // Easiest reliable way without RPC:
+      
+      final res = await client.from('messages').select('deleted_by_users').eq('id', messageId).single();
+      List<String> currentDeleted = List<String>.from(res['deleted_by_users'] ?? []);
+      
+      if (!currentDeleted.contains(currentUser!.id)) {
+        currentDeleted.add(currentUser!.id);
+        await client.from('messages').update({
+          'deleted_by_users': currentDeleted
+        }).eq('id', messageId);
+      }
+    }
+  }
+
+  // Mark messages from a specific user as read
+  static Future<void> markMessagesAsRead(String senderId) async {
+    if (currentUser == null) return;
+
+    await client
+        .from('messages')
+        .update({'is_read': true})
+        .eq('sender_id', senderId)
+        .eq('receiver_id', currentUser!.id)
+        .eq('is_read', false);
+  }
+
+  // Get ALL messages where I am sender or receiver (for Recent Chats)
+  // We will group them client-side to find unique conversations
+  static Future<List<Map<String, dynamic>>> getAllMyMessages() async {
+    if (currentUser == null) return [];
+
+    try {
+      final response = await client
+          .from('messages')
+          .select()
+          .or('sender_id.eq.${currentUser!.id},receiver_id.eq.${currentUser!.id}')
+          .order('created_at', ascending: false); // Latest first
+      return List<Map<String, dynamic>>.from(response);
+    } catch (e) {
+      if (kDebugMode) print('Error fetching my messages: $e');
+      return [];
     }
   }
 }

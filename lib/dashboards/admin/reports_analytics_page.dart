@@ -85,7 +85,7 @@ class _ReportsAnalyticsPageState extends State<ReportsAnalyticsPage> {
                          const SizedBox(width: 16),
                          _buildLegendItem(Colors.purple, 'Managers'),
                          const SizedBox(width: 16),
-                         _buildLegendItem(Colors.pink, 'Hosts'),
+                         _buildLegendItem(Colors.pink, 'Organizers'),
                       ],
                     ),
                     const SizedBox(height: 16),

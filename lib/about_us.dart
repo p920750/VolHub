@@ -288,14 +288,6 @@ class AboutUsPage extends StatelessWidget {
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             _SocialIconButton(
-                              icon: Icons.facebook,
-                              color: const Color(0xFF1877F2),
-                              onTap: () {
-                                // TODO: Open Facebook
-                              },
-                            ),
-                            const SizedBox(width: 16),
-                            _SocialIconButton(
                               icon: Icons.g_mobiledata,
                               color: Colors.black87,
                               onTap: () {

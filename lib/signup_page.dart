@@ -158,7 +158,6 @@ class SignupPageState extends State<SignupPage> {
     final email = _emailController.text.trim();
     final phone = _phoneController.text.trim();
     final dob = _dobController.text.trim();
-    final password = _passwordController.text.trim();
     
     // Map role
     final String role;
@@ -167,7 +166,6 @@ class SignupPageState extends State<SignupPage> {
     } else if (_selectedRole == "Event Organizers") {
       role = "organizer";
     } else {
-      // This should not happen if validation works
       role = _selectedRole ?? "volunteer";
     }
 
@@ -228,10 +226,7 @@ class SignupPageState extends State<SignupPage> {
           ),
         );
         // Navigate or show success
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const LoginPage()),
-        );
+        Navigator.pushReplacementNamed(context, '/login');
       }
     } catch (e) {
       if (mounted) {
@@ -313,8 +308,31 @@ class SignupPageState extends State<SignupPage> {
     bool isValid = true;
     setState(() {
       _nameError = _nameController.text.isEmpty ? "This field is required" : null;
-      _dobError =
-          _dobController.text.isEmpty ? "This field is required" : null;
+      _dobError = _dobController.text.isEmpty ? "This field is required" : null;
+
+      if (_dobController.text.isNotEmpty) {
+        try {
+          final parts = _dobController.text.split('/');
+          if (parts.length == 3) {
+            final birthDate = DateTime(
+                int.parse(parts[2]), int.parse(parts[1]), int.parse(parts[0]));
+            final today = DateTime.now();
+            int age = today.year - birthDate.year;
+            if (today.month < birthDate.month ||
+                (today.month == birthDate.month && today.day < birthDate.day)) {
+              age--;
+            }
+            if (age < 18) {
+              _dobError = "Age must be at least 18 years";
+              isValid = false;
+            }
+          }
+        } catch (_) {
+          _dobError = "Invalid date format";
+          isValid = false;
+        }
+      }
+
       _phoneError = _phoneController.text.isEmpty
           ? "This field is required"
           : (!_phoneRegex.hasMatch(_phoneController.text.trim())
@@ -366,6 +384,30 @@ class SignupPageState extends State<SignupPage> {
       _nameError = name.isEmpty ? "Required for verification" : null;
       _phoneError = phone.isEmpty ? "Required for verification" : null;
       _dobError = dob.isEmpty ? "Required for verification" : null;
+
+      if (dob.isNotEmpty) {
+        try {
+          final parts = dob.split('/');
+          if (parts.length == 3) {
+            final birthDate = DateTime(
+                int.parse(parts[2]), int.parse(parts[1]), int.parse(parts[0]));
+            final today = DateTime.now();
+            int age = today.year - birthDate.year;
+            if (today.month < birthDate.month ||
+                (today.month == birthDate.month && today.day < birthDate.day)) {
+              age--;
+            }
+            if (age < 18) {
+              _dobError = "Age must be at least 18 years";
+              hasErrors = true;
+            }
+          }
+        } catch (_) {
+          _dobError = "Invalid date format";
+          hasErrors = true;
+        }
+      }
+
       _roleError = _selectedRole == null ? "Select a role first" : null;
       _emailError = !_emailRegex.hasMatch(email) ? "Invalid email" : null;
       _passwordError = password.length < 6

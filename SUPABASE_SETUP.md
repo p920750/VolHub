@@ -132,7 +132,7 @@ If you want to store user profiles, you can create a `profiles` table:
 
 ## Next Steps
 
-- Set up social authentication (Google, Facebook, etc.)
+- Set up social authentication (Google, etc.)
 - Create additional database tables for your app
 - Implement real-time subscriptions
 - Add file storage for user avatars

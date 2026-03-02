@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:app_links/app_links.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter_web_plugins/url_strategy.dart'; // Added for clean URLs
 import 'config/supabase_config.dart';
 import 'front_page.dart';
 import 'about_app.dart';
@@ -10,21 +12,44 @@ import 'login_page.dart';
 import 'signup_page.dart';
 import 'email_confirm_page.dart';
 import 'reset_password_page.dart';
+import 'forget_page.dart'; // Added for named route
 import 'screens/app_opening.dart';
 import 'dashboards/volunteers/volunteer_home_page.dart';
 import 'auth/auth_session_holder.dart';
 import 'dashboards/admin/admin_home_page.dart';
-import 'dashboards/event_manager/event_dashboard_page.dart';
+import 'dashboards/organizers/host_dashboard_page.dart';
+import 'dashboards/organizers/post_event_page.dart';
+import 'dashboards/organizers/host_messages_page.dart';
+import 'dashboards/organizers/my_events_page.dart';
+import 'dashboards/organizers/edit_event_page.dart';
+import 'dashboards/organizers/host_profile_page.dart';
+import 'dashboards/organizers/host_profile_public_page.dart';
+import 'dashboards/managers/dashboard/dashboard_screen.dart';
 import 'services/verification_stream.dart';
 import 'services/supabase_service.dart';
 import 'enduser_type_selection.dart';
 import 'volunteer_type_selection.dart';
+// Manager Module Imports
+import 'dashboards/managers/events/my_events_screen.dart';
+import 'dashboards/managers/messages/messages_screen.dart';
+import 'dashboards/managers/portfolio/portfolio_screen.dart';
+import 'dashboards/managers/proposals/proposals_screen.dart';
+import 'dashboards/managers/post_events/post_events_screen.dart';
+import 'dashboards/managers/teams/my_teams_screen.dart';
+import 'dashboards/managers/profile/profile_screen.dart';
+import 'dashboards/managers/profile/edit_profile_screen.dart';
+import 'dashboards/managers/profile/manager_profile_public_page.dart';
+import 'dashboards/managers/proposals/proposal_details_screen.dart';
 
 // Global navigator key for deep link navigation
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  
+  if (kIsWeb) {
+    usePathUrlStrategy(); // Removes '#' from URL
+  }
 
   // Initialize Supabase
   await Supabase.initialize(
@@ -192,7 +217,11 @@ void main() async {
     }
   }
 
-  runApp(const MyApp());
+  runApp(
+    const ProviderScope(
+      child: MyApp(),
+    ),
+  );
 }
 
 class MyApp extends StatefulWidget {
@@ -247,11 +276,50 @@ class _MyAppState extends State<MyApp> {
         '/reset-password': (context) => const ResetPasswordPage(),
         '/end-user-type-selection': (context) => const EndUserTypeSelectionPage(),
         '/volunteer-type-selection': (context) => const VolunteerTypeSelectionPage(),
+        '/forget-password': (context) => const ForgetPage(),
 
         // ✅ DASHBOARD ROUTES
         '/volunteer-dashboard': (context) => const VolunteerHomePage(),
         '/admin-dashboard': (context) => const AdminHomePage(),
-        '/event-dashboard': (context) => const EventDashboardPage(),
+
+        '/organizer-dashboard': (context) => const HostDashboardPage(),
+        '/post-event': (context) => const PostEventPage(),
+        '/organizer-messages': (context) => const HostMessagesPage(),
+        '/my-events': (context) => const MyEventsPage(),
+        '/edit-event': (context) {
+          final args = ModalRoute.of(context)?.settings.arguments;
+          if (args == null || args is! Map<String, dynamic>) {
+            return const Scaffold(body: Center(child: Text('Error: No event data provided')));
+          }
+          return EditEventPage(event: args);
+        },
+        '/organizer-profile': (context) => const HostProfilePage(),
+        '/host-profile-public': (context) {
+          final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+          final hostId = args?['hostId'] as String? ?? '';
+          return HostProfilePublicPage(hostId: hostId);
+        },
+        '/manager-dashboard': (context) => const DashboardScreen(),
+        '/manager-my-events': (context) => const MyEventsScreen(),
+        '/manager-messages': (context) => const MessagesScreen(),
+        '/manager-portfolio': (context) => const PortfolioScreen(),
+        '/manager-proposals': (context) => const ProposalsScreen(),
+        '/manager-post-events': (context) => const PostEventsScreen(),
+        '/manager-teams': (context) => const MyTeamsScreen(),
+        '/manager-profile': (context) => const ProfileScreen(),
+        '/manager-profile-edit': (context) => const EditProfileScreen(),
+        '/manager-profile-public': (context) {
+          final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+          final managerId = args?['managerId'] as String? ?? '';
+          return ManagerProfilePublicPage(managerId: managerId);
+        },
+        '/manager-proposal-details': (context) {
+          final args = ModalRoute.of(context)?.settings.arguments;
+          if (args == null || args is! Map<String, dynamic>) {
+             return const Scaffold(body: Center(child: Text('Error: No event details provided')));
+          }
+          return ProposalDetailsScreen(event: args);
+        },
       },
       onGenerateRoute: (settings) {
         if (settings.name == '/email-confirm' ||

@@ -28,7 +28,7 @@ class _AppOpeningPageState extends State<AppOpeningPage>
     /// LOGO CONTROLLER (SLOW RUBBER BAND)
     _logoController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 3200),
+      duration: const Duration(milliseconds: 8000),
     );
 
     _logoFade = CurvedAnimation(
@@ -66,7 +66,7 @@ class _AppOpeningPageState extends State<AppOpeningPage>
     /// ICON CONTROLLER (ROTATION + ARC)
     _iconController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 3800),
+      duration: const Duration(milliseconds: 11000),
     );
 
     _iconFade = CurvedAnimation(parent: _iconController, curve: Curves.easeIn);
@@ -75,45 +75,54 @@ class _AppOpeningPageState extends State<AppOpeningPage>
       CurvedAnimation(parent: _iconController, curve: Curves.easeOutBack),
     );
 
-    /// Slow full rotation (360°)
-    _iconRotate = Tween<double>(begin: 0, end: 1).animate(
+    /// visible rotation (6 full turns)
+    _iconRotate = Tween<double>(begin: 0, end: 6).animate(
       CurvedAnimation(
         parent: _iconController,
-        curve: const Interval(0.0, 0.45, curve: Curves.easeInOut),
+        curve: Curves.easeInOut,
       ),
     );
 
-    /// Long arc motion
+    /// Slow triangular motion
     _iconArcSlide =
         TweenSequence<Offset>([
+          // Move Right
           TweenSequenceItem(
-            tween: Tween(begin: Offset.zero, end: const Offset(0.45, -0.25)),
-            weight: 50,
+            tween: Tween(begin: Offset.zero, end: const Offset(0.5, 0.0)),
+            weight: 33,
           ),
+          // Move to Peak
           TweenSequenceItem(
-            tween: Tween(begin: const Offset(0.45, -0.25), end: Offset.zero),
-            weight: 50,
+            tween: Tween(begin: const Offset(0.5, 0.0), end: const Offset(0.25, -0.3)),
+            weight: 33,
+          ),
+          // Back to Original Position
+          TweenSequenceItem(
+            tween: Tween(begin: const Offset(0.25, -0.3), end: Offset.zero),
+            weight: 34,
           ),
         ]).animate(
           CurvedAnimation(
             parent: _iconController,
-            curve: const Interval(0.45, 1.0, curve: Curves.easeInOut),
+            curve: Curves.easeInOut,
           ),
         );
 
     /// PLAY SEQUENCE
     _logoController.forward();
 
-    Future.delayed(const Duration(milliseconds: 1800), () {
-  _iconController.forward();
-});
+    Future.delayed(const Duration(milliseconds: 3000), () {
+      _iconController.forward();
+    });
 
-
-    Future.delayed(const Duration(seconds: 15), () {
+    Future<void> _navigateToHome() async {
+      await Future.delayed(const Duration(milliseconds: 15000));
       if (mounted) {
         Navigator.pushReplacementNamed(context, '/');
       }
-    });
+    }
+
+    _navigateToHome();
   }
 
   @override

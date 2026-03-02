@@ -26,23 +26,8 @@ class _IdentityVerificationPageState extends State<IdentityVerificationPage> {
       );
 
       if (result != null && result.files.single.path != null) {
-        final file = File(result.files.single.path!);
-        final sizeInBytes = await file.length();
-        
-        if (sizeInBytes > 10 * 1024 * 1024) {
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('File too large. Maximum size is 10MB.'),
-                backgroundColor: Colors.red,
-              ),
-            );
-          }
-          return;
-        }
-
         setState(() {
-          _selectedFile = file;
+          _selectedFile = File(result.files.single.path!);
           _fileName = result.files.single.name;
         });
       }
@@ -80,7 +65,7 @@ class _IdentityVerificationPageState extends State<IdentityVerificationPage> {
         
         await SupabaseService.client.from('users').update({
           'verification_status': 'pending', // Manual verification required
-          'verification_doc_url': url,
+          'aadhar_doc_url': url,
           'verification_submitted_at': DateTime.now().toIso8601String(),
           if (fullName != null) 'full_name': fullName,
         }).eq('id', user.id);

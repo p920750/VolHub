@@ -82,23 +82,9 @@ class _VolunteerProfilePageState extends State<VolunteerProfilePage> {
       maxHeight: 1024,
       imageQuality: 85,
     );
-  
+
     if (picked != null) {
       final file = File(picked.path);
-      final sizeInBytes = await file.length();
-  
-      if (sizeInBytes > 5 * 1024 * 1024) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Profile photo too large. Maximum size is 5MB.'),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
-        return;
-      }
-  
       setState(() {
         _profileImage = file;
       });

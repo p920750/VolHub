@@ -25,7 +25,7 @@ class _VerificationDetailPageState extends State<VerificationDetailPage> {
   @override
   void initState() {
     super.initState();
-    _docUrl = widget.profileData['verification_doc_url'];
+    _docUrl = widget.profileData['aadhar_doc_url'];
   }
 
    Future<void> _updateStatus(String status) async {
@@ -38,14 +38,16 @@ class _VerificationDetailPageState extends State<VerificationDetailPage> {
     try {
       await SupabaseService.client
           .from('users')
-          .update({'verification_status': status})
+          .update({
+            'verification_status': status,
+          })
           .eq('id', widget.profileData['id']);
 
       if (mounted) {
         messenger.showSnackBar(
           SnackBar(
             content: Text('User marked as $status'),
-            backgroundColor: status == 'verified' ? AdminColors.success : AdminColors.error,
+            backgroundColor: status == 'accepted' ? AdminColors.success : AdminColors.error,
           ),
         );
         widget.onStatusChanged(); // Refresh parent list
@@ -93,7 +95,7 @@ class _VerificationDetailPageState extends State<VerificationDetailPage> {
             const SizedBox(width: 16),
             Expanded(
               child: ElevatedButton(
-                onPressed: _isProcessing ? null : () => _updateStatus('verified'),
+                onPressed: _isProcessing ? null : () => _updateStatus('accepted'),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AdminColors.success,
                   foregroundColor: Colors.white,

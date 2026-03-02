@@ -1,6 +1,6 @@
 # OAuth Redirect URL Setup Guide
 
-This guide explains how to fix the "localhost error" when using Google/Facebook login.
+This guide explains how to fix the "localhost error" when using Google login.
 
 ## Problem
 
