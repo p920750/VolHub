@@ -4,6 +4,7 @@ import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import '../../services/supabase_service.dart';
 import '../../services/host_service.dart';
+import '../../services/category_service.dart';
 
 class PostEventPage extends StatefulWidget {
   const PostEventPage({super.key});
@@ -35,11 +36,101 @@ class _PostEventPageState extends State<PostEventPage> {
   bool _isFetchingProfile = true;
 
   // Manual entry only for category
+  List<String> _categories = [];
+  String? _selectedCategory;
+  bool _showCustomCategoryInput = false;
+
+  final LayerLink _layerLink = LayerLink();
+  OverlayEntry? _overlayEntry;
+  bool _isDropdownOpen = false;
+
+  void _toggleDropdown() {
+    if (_isDropdownOpen) {
+      _closeDropdown();
+    } else {
+      _openDropdown();
+    }
+  }
+
+  void _openDropdown() {
+    final RenderBox renderBox = context.findRenderObject() as RenderBox;
+    final size = renderBox.size;
+
+    _overlayEntry = OverlayEntry(
+      builder: (context) => Positioned(
+        width: size.width - 48, // 24 padding on left and right
+        child: CompositedTransformFollower(
+          link: _layerLink,
+          showWhenUnlinked: false,
+          offset: const Offset(0.0, 56.0),
+          child: Material(
+            elevation: 4,
+            borderRadius: BorderRadius.circular(12),
+            color: Colors.white,
+            child: Container(
+              constraints: const BoxConstraints(maxHeight: 250),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.grey.shade300),
+              ),
+              child: ListView(
+                padding: EdgeInsets.zero,
+                shrinkWrap: true,
+                children: _categories.map((cat) {
+                  return InkWell(
+                    onTap: () {
+                      _closeDropdown();
+                      setState(() {
+                        _selectedCategory = cat;
+                        _showCustomCategoryInput = (cat == 'Other');
+                        if (cat != 'Other') {
+                          _categoryController.text = cat;
+                        } else {
+                          _categoryController.clear();
+                        }
+                      });
+                    },
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      child: Text(cat, style: const TextStyle(fontSize: 16)),
+                    ),
+                  );
+                }).toList(),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    Overlay.of(context).insert(_overlayEntry!);
+    setState(() {
+      _isDropdownOpen = true;
+    });
+  }
+
+  void _closeDropdown() {
+    _overlayEntry?.remove();
+    _overlayEntry = null;
+    setState(() {
+      _isDropdownOpen = false;
+    });
+  }
 
   @override
   void initState() {
     super.initState();
     _loadHostProfile();
+    _loadCategories();
+  }
+
+  Future<void> _loadCategories() async {
+    final cats = await CategoryService.getCategories();
+    if (mounted) {
+      setState(() {
+        _categories = cats;
+      });
+    }
   }
 
   Future<void> _loadHostProfile() async {
@@ -70,6 +161,7 @@ class _PostEventPageState extends State<PostEventPage> {
     _reqsController.dispose();
     _detailsController.dispose();
     _categoryController.dispose();
+    _closeDropdown();
     super.dispose();
   }
 
@@ -189,11 +281,67 @@ class _PostEventPageState extends State<PostEventPage> {
                   const SizedBox(height: 20),
 
                   // Event Category
-                  _buildTextField(
-                    controller: _categoryController,
-                    label: 'Event Category',
-                    placeholder: 'Type event category manually...',
+                  const Text('Event Category', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Color(0xFF001529))),
+                  const SizedBox(height: 8),
+                  FormField<String>(
+                    initialValue: _selectedCategory,
+                    validator: (value) {
+                      if (_selectedCategory == null || _selectedCategory!.isEmpty) {
+                        return 'Please select a category';
+                      }
+                      return null;
+                    },
+                    builder: (field) {
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          CompositedTransformTarget(
+                            link: _layerLink,
+                            child: GestureDetector(
+                              onTap: _toggleDropdown,
+                              child: Container(
+                                height: 50,
+                                padding: const EdgeInsets.symmetric(horizontal: 16),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(
+                                    color: field.hasError ? Colors.red : Colors.grey.withOpacity(0.3),
+                                    width: field.hasError ? 1.5 : 1.0,
+                                  ),
+                                ),
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Text(
+                                      _selectedCategory ?? 'Select a category',
+                                      style: TextStyle(
+                                        color: _selectedCategory == null ? Colors.grey[600] : Colors.black,
+                                        fontSize: 14,
+                                      ),
+                                    ),
+                                    Icon(_isDropdownOpen ? Icons.arrow_drop_up : Icons.arrow_drop_down, color: Colors.grey),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                          if (field.hasError) ...[
+                            const SizedBox(height: 4),
+                            Text(field.errorText ?? 'Please select a category', style: const TextStyle(color: Colors.red, fontSize: 12, fontWeight: FontWeight.w500)),
+                          ],
+                        ],
+                      );
+                    },
                   ),
+                  if (_showCustomCategoryInput) ...[
+                    const SizedBox(height: 12),
+                    _buildTextField(
+                      controller: _categoryController,
+                      label: 'Custom Category',
+                      placeholder: 'Type your custom category...',
+                    ),
+                  ],
                   const SizedBox(height: 20),
 
                   // Location
