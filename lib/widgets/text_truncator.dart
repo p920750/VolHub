@@ -7,6 +7,8 @@ class TextTruncator extends StatefulWidget {
   final TextStyle? style;
   final String readMoreText;
   final TextStyle? readMoreStyle;
+  final bool? isExpanded;
+  final VoidCallback? onToggle;
 
   const TextTruncator({
     super.key,
@@ -16,6 +18,8 @@ class TextTruncator extends StatefulWidget {
     this.style,
     this.readMoreText = '....Read more',
     this.readMoreStyle,
+    this.isExpanded,
+    this.onToggle,
   });
 
   @override
@@ -23,63 +27,129 @@ class TextTruncator extends StatefulWidget {
 }
 
 class _TextTruncatorState extends State<TextTruncator> {
-  bool _isExpanded = false;
+  bool _internalIsExpanded = false;
+
+  bool get _isExpanded => widget.isExpanded ?? _internalIsExpanded;
+
+  void _handleToggle() {
+    if (widget.onToggle != null) {
+      widget.onToggle!();
+    } else {
+      setState(() {
+        _internalIsExpanded = !_internalIsExpanded;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    if (_isExpanded) {
-      return Text(
-        widget.text,
-        style: widget.style,
-      );
-    }
+    if (widget.text.isEmpty) return const Text('N/A');
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final textPainter = TextPainter(
-          text: TextSpan(text: widget.text, style: widget.style),
-          maxLines: widget.maxLines,
+        final style = widget.style ?? const TextStyle(fontSize: 14, color: Colors.black87);
+        // Force height 1.5 for offset calculations if not provided
+        final effectiveStyle = style.copyWith(height: style.height ?? 1.5);
+        
+        final span = TextSpan(text: widget.text, style: effectiveStyle);
+        
+        final tp = TextPainter(
+          text: span,
           textDirection: TextDirection.ltr,
-        )..layout(maxWidth: constraints.maxWidth);
+          maxLines: widget.maxLines,
+        );
+        tp.layout(maxWidth: constraints.maxWidth);
 
-        if (!textPainter.didExceedMaxLines) {
-          return Text(widget.text, style: widget.style);
+        if (!tp.didExceedMaxLines) {
+          return Text(widget.text, style: effectiveStyle);
         }
 
-        // Get the position of the end of the maxLines-th line
-        final lineMetrics = textPainter.computeLineMetrics();
-        if (lineMetrics.length < widget.maxLines) {
-          return Text(widget.text, style: widget.style);
-        }
-
-        // The user requirement: "if the contents ... is more than 5 lines in the fifth line 
-        // after 30 characters like '....Read more'".
-        // This is tricky to do exactly with TextPainter because lines might be shorter than 30 chars.
-        // We'll use an approximation: we show maxLines - 1 full lines, and on the maxLines-th line,
-        // we show up to 30 characters before the "Read more".
-        
-        // This logic is a bit complex for a standard Text widget. 
-        // Let's use a simpler approach that respects the "5 lines" and "30 chars" requirement.
-        
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              widget.text,
-              maxLines: widget.maxLines,
-              overflow: TextOverflow.ellipsis,
-              style: widget.style,
+        if (_isExpanded) {
+          return RichText(
+            text: TextSpan(
+              style: effectiveStyle,
+              children: [
+                TextSpan(text: '${widget.text} '),
+                WidgetSpan(
+                  alignment: PlaceholderAlignment.baseline,
+                  baseline: TextBaseline.alphabetic,
+                  child: GestureDetector(
+                    onTap: _handleToggle,
+                    child: const Text(
+                      'Read less',
+                      style: TextStyle(
+                        color: Colors.black,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
-            InkWell(
-              onTap: () => setState(() => _isExpanded = true),
-              child: Text(
-                widget.readMoreText,
-                style: widget.readMoreStyle ?? const TextStyle(color: Colors.blue, fontWeight: FontWeight.bold),
+          );
+        }
+
+        // Need to truncate exactly at the maxLines line, 7th word.
+        // Get the position of the end of the previous line.
+        final targetLinesBefore = widget.maxLines - 1;
+        final posLine = tp.getPositionForOffset(Offset(0, effectiveStyle.fontSize! * effectiveStyle.height! * targetLinesBefore)).offset;
+        
+        String linesBefore = '';
+        String lastLineRender = '';
+
+        try {
+          if (posLine > 0 && posLine < widget.text.length) {
+            linesBefore = widget.text.substring(0, posLine);
+            String rest = widget.text.substring(posLine).trimLeft();
+            List<String> wordsLast = rest.split(RegExp(r'\s+'));
+            if (wordsLast.length > 7) {
+              lastLineRender = wordsLast.take(7).join(' ');
+            } else {
+              lastLineRender = rest;
+            }
+          } else {
+             final words = widget.text.split(' ');
+             int target = words.length > 40 ? 40 : words.length ~/ 2;
+             linesBefore = words.take(target - 7).join(' ');
+             lastLineRender = words.skip(target - 7).take(7).join(' ');
+          }
+        } catch (e) {
+          linesBefore = widget.text.substring(0, widget.text.length > 100 ? 100 : widget.text.length);
+          lastLineRender = '';
+        }
+
+        String truncatedText = linesBefore;
+        if (truncatedText.isNotEmpty && !truncatedText.endsWith(' ') && !truncatedText.endsWith('\n')) {
+            truncatedText += ' ';
+        }
+        truncatedText += '$lastLineRender....';
+
+        return RichText(
+          text: TextSpan(
+            style: effectiveStyle,
+            children: [
+              TextSpan(text: truncatedText),
+              WidgetSpan(
+                alignment: PlaceholderAlignment.baseline,
+                baseline: TextBaseline.alphabetic,
+                child: GestureDetector(
+                  onTap: _handleToggle,
+                  child: const Text(
+                    'Read more',
+                    style: TextStyle(
+                      color: Colors.black,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                    ),
+                  ),
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         );
       },
     );
   }
 }
+

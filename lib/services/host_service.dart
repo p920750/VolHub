@@ -27,6 +27,10 @@ class HostService {
       return response.map((e) => {
         'id': e['id'],
         'title': e['name'],
+        'description': e['description'],
+        'requirements': e['requirements'],
+        'budget': e['budget'],
+        'host_name': e['host_name'],
         'imageUrl': e['image_url'], // Added for HostDashboardPage compatibility
         'image_url': e['image_url'],
         'date': e['date'] != null ? _formatDate(e['date']) : 'TBD',
@@ -36,6 +40,7 @@ class HostService {
         'status': (e['status'] ?? 'pending').toString().toLowerCase(),
         'rejection_reason': e['rejection_reason'],
         'manager_id': e['user_id'],
+        'assigned_manager_id': e['assigned_manager_id'],
         'user_id': e['user_id'],
         'manager_ids': e['manager_ids'],
         'volunteer_ids': e['volunteer_ids'],
@@ -43,6 +48,8 @@ class HostService {
         'time': (e['time'] == null || e['time'].toString().trim().isEmpty || e['time'] == 'TBD') ? 'TBD' : e['time'],
         'posted_at': e['posted_at'] ?? (e['created_at'] != null ? _formatDateTimeDetailed(e['created_at']) : 'N/A'),
         'date_time_formatted': _formatDateTimeForMyEvents(e['date'], e['time']),
+        'registration_deadline_formatted': _formatDeadlineForMyEvents(e['registration_deadline']),
+        'registration_deadline': e['registration_deadline'],
         'created_at': e['created_at'],
         'created_at_formatted': e['created_at'] != null ? _formatDateTimeDetailed(e['created_at']) : 'N/A',
       }).toList();
@@ -71,6 +78,7 @@ class HostService {
         'category': event['category'],
         'time': event['time'],
         'posted_at': event['posted_at'],
+        'registration_deadline': event['registration_deadline'],
       });
       
       if (kDebugMode) print('Event added to Supabase: ${event['title']}');
@@ -95,6 +103,7 @@ class HostService {
         'image_url': event['image_url'],
         'category': event['category'],
         'time': event['time'],
+        'registration_deadline': event['registration_deadline'],
       }).eq('id', id);
       
       if (kDebugMode) print('Event updated in Supabase: ${event['title']}');
@@ -156,14 +165,43 @@ class HostService {
 
   static Future<List<Map<String, dynamic>>> getEventApplications(String eventId) async {
     try {
-      final response = await SupabaseService.client
-          .from('event_applications')
-          .select('*, users!event_applications_manager_id_fkey(*)')
-          .eq('event_id', eventId);
+      // 1. Fetch the event to get the manager_ids array
+      final eventResponse = await SupabaseService.client
+          .from('events')
+          .select('manager_ids, rejection_reason')
+          .eq('id', eventId)
+          .maybeSingle();
+
+      if (eventResponse == null) return [];
+
+      final List<dynamic> managerIds = List<dynamic>.from(eventResponse['manager_ids'] ?? []);
       
-      return List<Map<String, dynamic>>.from(response);
+      // Inject the rejected manager back into the display pool if the organizer rejected them
+      final String? rejectionReason = eventResponse['rejection_reason'];
+      if (rejectionReason != null && rejectionReason.startsWith('ORGANIZER_REJECTED::')) {
+        final parts = rejectionReason.split('::');
+        if (parts.length >= 3) {
+          final rejectedManagerId = parts[1];
+          if (!managerIds.contains(rejectedManagerId)) {
+            managerIds.add(rejectedManagerId);
+          }
+        }
+      }
+
+      if (managerIds.isEmpty) return [];
+
+      // 2. Fetch all users whose IDs are in the manager_ids array
+      final usersResponse = await SupabaseService.client
+          .from('users')
+          .select()
+          .inFilter('id', managerIds.map((id) => id.toString()).toList());
+
+      // 3. Map into the 'users' nested format expected by the UI
+      return (usersResponse as List).map((user) => {
+        'users': user,
+      }).toList();
     } catch (e) {
-      if (kDebugMode) print('Error fetching event applications: $e');
+      if (kDebugMode) print('Error fetching event applicants from array: $e');
       return [];
     }
   }
@@ -195,7 +233,13 @@ class HostService {
       return (response as List).map((e) => {
         'id': e['id'],
         'title': e['name'],
+        'description': e['description'],
+        'requirements': e['requirements'],
         'date': e['date'] != null ? _formatDate(e['date']) : 'TBD',
+        'time': e['time'],
+        'date_time_formatted': _formatDateTimeForMyEvents(e['date'], e['time']),
+        'registration_deadline': e['registration_deadline'],
+        'registration_deadline_formatted': _formatDeadlineForMyEvents(e['registration_deadline']),
         'location': e['location'] ?? 'Online',
         'status': e['status'] == 'upcoming' ? 'Pending' : (e['status'] == 'active' ? 'Active' : 'Completed'),
         'imageUrl': e['image_url'] ?? 'https://images.unsplash.com/photo-1501281668745-f7f57925c3b4?w=800',
@@ -206,6 +250,40 @@ class HostService {
     } catch (e) {
       if (kDebugMode) print('Error fetching matching events: $e');
       return [];
+    }
+  }
+
+  static Future<void> acceptManager(String eventId, String managerId) async {
+    try {
+      await SupabaseService.client.from('events').update({
+        'assigned_manager_id': managerId,
+        'rejection_reason': null,
+      }).eq('id', eventId);
+      if (kDebugMode) print('Organizer assigned manager: $managerId to event: $eventId');
+    } catch (e) {
+      if (kDebugMode) print('Error assigning manager: $e');
+      rethrow;
+    }
+  }
+
+  static Future<void> rejectManager(String eventId, String managerId, String reason) async {
+    try {
+      final serializedReason = 'ORGANIZER_REJECTED::$managerId::$reason';
+      await SupabaseService.client.from('events').update({
+        'assigned_manager_id': null,
+        'rejection_reason': serializedReason,
+      }).eq('id', eventId);
+      
+      // The user explicitly instructed to delete the manager ID from the manager_ids list when organizer rejects
+      await SupabaseService.client.rpc('remove_manager_from_event', params: {
+        'event_id': eventId,
+        'manager_id': managerId,
+      });
+
+      if (kDebugMode) print('Organizer rejected manager: $managerId from event: $eventId with reason: $reason');
+    } catch (e) {
+      if (kDebugMode) print('Error rejecting manager: $e');
+      rethrow;
     }
   }
 
@@ -247,6 +325,26 @@ class HostService {
       return '$day/$month/$year at $time';
     } catch (e) {
       return '${dateInput.toString()} at ${timeStr ?? "TBD"}';
+    }
+  }
+
+  static String _formatDeadlineForMyEvents(dynamic dateInput) {
+    if (dateInput == null) return 'Not set';
+    try {
+      final DateTime date = dateInput is DateTime ? dateInput : DateTime.parse(dateInput.toString());
+      final day = date.day.toString().padLeft(2, '0');
+      final month = date.month.toString().padLeft(2, '0');
+      final year = date.year;
+      
+      final hour24 = date.hour;
+      final minute = date.minute.toString().padLeft(2, '0');
+      final ampm = hour24 >= 12 ? 'pm' : 'am';
+      final hour12 = hour24 == 0 ? 12 : (hour24 > 12 ? hour24 - 12 : hour24);
+      final hourStr = hour12.toString().padLeft(2, '0');
+      
+      return '$day/$month/$year on or before $hourStr:$minute $ampm';
+    } catch (e) {
+      return dateInput.toString();
     }
   }
 }

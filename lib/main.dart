@@ -23,6 +23,7 @@ import 'dashboards/organizers/host_messages_page.dart';
 import 'dashboards/organizers/my_events_page.dart';
 import 'dashboards/organizers/edit_event_page.dart';
 import 'dashboards/organizers/host_profile_page.dart';
+import 'dashboards/organizers/host_profile_public_page.dart';
 import 'dashboards/managers/dashboard/dashboard_screen.dart';
 import 'services/verification_stream.dart';
 import 'services/supabase_service.dart';
@@ -293,6 +294,11 @@ class _MyAppState extends State<MyApp> {
           return EditEventPage(event: args);
         },
         '/organizer-profile': (context) => const HostProfilePage(),
+        '/host-profile-public': (context) {
+          final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+          final hostId = args?['hostId'] as String? ?? '';
+          return HostProfilePublicPage(hostId: hostId);
+        },
         '/manager-dashboard': (context) => const DashboardScreen(),
         '/manager-my-events': (context) => const MyEventsScreen(),
         '/manager-messages': (context) => const MessagesScreen(),
