@@ -25,12 +25,16 @@ class _EditEventPageState extends State<EditEventPage> {
   late TextEditingController _locationController;
   late TextEditingController _dateController;
   late TextEditingController _timeController;
+  late TextEditingController _deadlineDateController;
+  late TextEditingController _deadlineTimeController;
   late TextEditingController _budgetController;
   late TextEditingController _reqsController;
   late TextEditingController _detailsController;
   late TextEditingController _categoryController;
 
   DateTime? _selectedDate;
+  DateTime? _selectedDeadlineDate;
+  TimeOfDay? _selectedDeadlineTime;
   bool _isSaving = false;
 
   List<String> _categories = [];
@@ -121,24 +125,48 @@ class _EditEventPageState extends State<EditEventPage> {
     super.initState();
     _titleController = TextEditingController(text: widget.event['title']);
     _locationController = TextEditingController(text: widget.event['location']);
-    _dateController = TextEditingController(text: widget.event['date']);
-    _timeController = TextEditingController(text: widget.event['time']);
     _budgetController = TextEditingController(text: widget.event['budget']);
     _reqsController = TextEditingController(text: widget.event['requirements']);
     _detailsController = TextEditingController(text: widget.event['description']);
     _categoryController = TextEditingController(text: widget.event['category']);
-    
-    if (widget.event['image_url'] != null && widget.event['image_url'].toString().isNotEmpty) {
-      _existingImageUrls = widget.event['image_url'].toString().split(',').map((s) => s.trim()).toList();
-    }
-    
     _loadCategories();
-    
     // Attempt to parse existing date if possible
+    String formattedDate = '';
+    String timeStr = widget.event['time'] ?? '';
     if (widget.event['date_raw'] != null) {
       try {
         _selectedDate = DateTime.parse(widget.event['date_raw']);
+        formattedDate = "${_selectedDate!.day.toString().padLeft(2, '0')}/${_selectedDate!.month.toString().padLeft(2, '0')}/${_selectedDate!.year}";
       } catch (_) {}
+    }
+    
+    _dateController = TextEditingController(text: formattedDate.isEmpty ? widget.event['date'] : formattedDate);
+    _timeController = TextEditingController(text: timeStr);
+
+    // Parse existing registration_deadline
+    String formattedDeadlineDate = '';
+    String formattedDeadlineTime = '';
+    if (widget.event['registration_deadline'] != null && widget.event['registration_deadline'].toString().isNotEmpty) {
+      try {
+        final DateTime parsedDeadline = DateTime.parse(widget.event['registration_deadline']);
+        _selectedDeadlineDate = parsedDeadline;
+        _selectedDeadlineTime = TimeOfDay.fromDateTime(parsedDeadline);
+        formattedDeadlineDate = "${parsedDeadline.day.toString().padLeft(2, '0')}/${parsedDeadline.month.toString().padLeft(2, '0')}/${parsedDeadline.year}";
+        
+        final hour24 = parsedDeadline.hour;
+        final minute = parsedDeadline.minute.toString().padLeft(2, '0');
+        final ampm = hour24 >= 12 ? 'pm' : 'am';
+        final hour12 = hour24 == 0 ? 12 : (hour24 > 12 ? hour24 - 12 : hour24);
+        final hourStr = hour12.toString().padLeft(2, '0');
+        formattedDeadlineTime = "$hourStr:$minute $ampm";
+      } catch (_) {}
+    }
+
+    _deadlineDateController = TextEditingController(text: formattedDeadlineDate);
+    _deadlineTimeController = TextEditingController(text: formattedDeadlineTime);
+
+    if (widget.event['image_url'] != null && widget.event['image_url'].toString().isNotEmpty) {
+      _existingImageUrls = widget.event['image_url'].toString().split(',').map((s) => s.trim()).toList();
     }
   }
 
@@ -168,6 +196,8 @@ class _EditEventPageState extends State<EditEventPage> {
     _locationController.dispose();
     _dateController.dispose();
     _timeController.dispose();
+    _deadlineDateController.dispose();
+    _deadlineTimeController.dispose();
     _budgetController.dispose();
     _reqsController.dispose();
     _detailsController.dispose();
@@ -185,7 +215,21 @@ class _EditEventPageState extends State<EditEventPage> {
     if (pickedDate != null) {
       setState(() {
         _selectedDate = pickedDate;
-        _dateController.text = "${pickedDate.month.toString().padLeft(2, '0')}/${pickedDate.day.toString().padLeft(2, '0')}/${pickedDate.year}";
+        _dateController.text = "${pickedDate.day.toString().padLeft(2, '0')}/${pickedDate.month.toString().padLeft(2, '0')}/${pickedDate.year}";
+      });
+    }
+  }
+
+  Future<void> _pickDeadlineDateInSequence() async {
+    final DateTime? pickedDate = await showDialog<DateTime>(
+      context: context,
+      builder: (context) => const _CustomDatePickerDialog(),
+    );
+
+    if (pickedDate != null) {
+      setState(() {
+        _selectedDeadlineDate = pickedDate;
+        _deadlineDateController.text = "${pickedDate.day.toString().padLeft(2, '0')}/${pickedDate.month.toString().padLeft(2, '0')}/${pickedDate.year}";
       });
     }
   }
@@ -330,12 +374,13 @@ class _EditEventPageState extends State<EditEventPage> {
               const SizedBox(height: 20),
 
               Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Expanded(
                     child: _buildTextField(
                       controller: _dateController,
-                      label: 'Date',
-                      placeholder: 'mm/dd/yyyy',
+                      label: 'Event Date',
+                      placeholder: 'dd/mm/yyyy',
                       icon: Icons.calendar_today_outlined,
                       readOnly: true,
                       onTap: _pickDateInSequence,
@@ -345,8 +390,8 @@ class _EditEventPageState extends State<EditEventPage> {
                   Expanded(
                     child: _buildTextField(
                       controller: _timeController,
-                      label: 'Time',
-                      placeholder: '--:-- --',
+                      label: 'Event Time',
+                      placeholder: 'hh:mm am/pm',
                       icon: Icons.access_time,
                       readOnly: true,
                       onTap: () async {
@@ -354,8 +399,45 @@ class _EditEventPageState extends State<EditEventPage> {
                           context: context,
                           initialTime: TimeOfDay.now(),
                         );
-                        if (time != null) {
+                        if (time != null && context.mounted) {
                           _timeController.text = time.format(context);
+                        }
+                      },
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
+
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: _buildTextField(
+                      controller: _deadlineDateController,
+                      label: 'Deadline Date',
+                      placeholder: 'dd/mm/yyyy',
+                      icon: Icons.event_available_outlined,
+                      readOnly: true,
+                      onTap: _pickDeadlineDateInSequence,
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: _buildTextField(
+                      controller: _deadlineTimeController,
+                      label: 'Deadline Time',
+                      placeholder: 'hh:mm am/pm',
+                      icon: Icons.timer_outlined,
+                      readOnly: true,
+                      onTap: () async {
+                        final time = await showTimePicker(
+                          context: context,
+                          initialTime: TimeOfDay.now(),
+                        );
+                        if (time != null && context.mounted) {
+                          _selectedDeadlineTime = time;
+                          _deadlineTimeController.text = time.format(context);
                         }
                       },
                     ),
@@ -621,10 +703,23 @@ class _EditEventPageState extends State<EditEventPage> {
         ];
 
         final String timeValue = _timeController.text.trim();
+        
+        DateTime? combinedDeadline;
+        if (_selectedDeadlineDate != null) {
+          combinedDeadline = DateTime(
+            _selectedDeadlineDate!.year,
+            _selectedDeadlineDate!.month,
+            _selectedDeadlineDate!.day,
+            _selectedDeadlineTime?.hour ?? 23,
+            _selectedDeadlineTime?.minute ?? 59,
+          );
+        }
+
         final Map<String, dynamic> updates = {
           'title': _titleController.text,
           'location': _locationController.text,
           'date': _selectedDate?.toIso8601String() ?? (widget.event['date_raw'] == 'TBD' ? null : widget.event['date_raw']),
+          'registration_deadline': combinedDeadline?.toIso8601String(),
           'budget': _budgetController.text,
           'requirements': _reqsController.text,
           'description': _detailsController.text,

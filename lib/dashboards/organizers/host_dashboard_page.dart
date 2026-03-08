@@ -425,7 +425,7 @@ class _HostDashboardPageState extends ConsumerState<HostDashboardPage> {
               children: [
                 const Icon(Icons.calendar_today_outlined, size: 14, color: Colors.grey),
                 const SizedBox(width: 6),
-                Text(date, style: const TextStyle(fontSize: 13, color: Colors.grey)),
+                Expanded(child: Text(date, style: const TextStyle(fontSize: 13, color: Colors.grey))),
               ],
             ),
             const SizedBox(height: 6),
@@ -433,7 +433,7 @@ class _HostDashboardPageState extends ConsumerState<HostDashboardPage> {
               children: [
                 const Icon(Icons.location_on_outlined, size: 14, color: Colors.grey),
                 const SizedBox(width: 6),
-                Text(location, style: const TextStyle(fontSize: 13, color: Colors.grey)),
+                Expanded(child: Text(location, style: const TextStyle(fontSize: 13, color: Colors.grey))),
               ],
             ),
             const Divider(height: 24),

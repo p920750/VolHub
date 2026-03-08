@@ -166,19 +166,22 @@ class HostService {
   static Future<List<Map<String, dynamic>>> getEventApplications(String eventId) async {
     try {
       // 1. Fetch the event to get the manager_ids array
+      if (kDebugMode) print('Fetching event applications for eventId: $eventId');
+      
       final eventResponse = await SupabaseService.client
           .from('events')
           .select('manager_ids, rejection_reason')
           .eq('id', eventId)
           .maybeSingle();
 
+      if (kDebugMode) print('Event response: $eventResponse');
       if (eventResponse == null) return [];
 
       final List<dynamic> managerIds = List<dynamic>.from(eventResponse['manager_ids'] ?? []);
       
-      // Inject the rejected manager back into the display pool if the organizer rejected them
+      // Inject the rejected manager back into the display pool if the organizer or manager rejected
       final String? rejectionReason = eventResponse['rejection_reason'];
-      if (rejectionReason != null && rejectionReason.startsWith('ORGANIZER_REJECTED::')) {
+      if (rejectionReason != null) {
         final parts = rejectionReason.split('::');
         if (parts.length >= 3) {
           final rejectedManagerId = parts[1];
@@ -188,6 +191,25 @@ class HostService {
         }
       }
 
+      // Fetch applied managers from event_applications
+      final applicationsResponse = await SupabaseService.client
+          .from('event_applications')
+          .select('manager_id')
+          .eq('event_id', eventId);
+          
+      if (kDebugMode) print('Applications response: $applicationsResponse');
+          
+      final appliedIds = (applicationsResponse as List)
+          .map((e) => e['manager_id'])
+          .where((id) => id != null)
+          .toList();
+          
+      for (var id in appliedIds) {
+        if (!managerIds.contains(id)) managerIds.add(id);
+      }
+
+      if (kDebugMode) print('Final manager IDs: $managerIds');
+
       if (managerIds.isEmpty) return [];
 
       // 2. Fetch all users whose IDs are in the manager_ids array
@@ -195,6 +217,8 @@ class HostService {
           .from('users')
           .select()
           .inFilter('id', managerIds.map((id) => id.toString()).toList());
+          
+      if (kDebugMode) print('Users response: $usersResponse');
 
       // 3. Map into the 'users' nested format expected by the UI
       return (usersResponse as List).map((user) => {
@@ -229,7 +253,15 @@ class HostService {
           .inFilter('category', managerCategories)
           .not('user_id', 'eq', user.id) // Exclude events created by this user
           .order('created_at', ascending: false);
+
+      // 3. Fetch applications for this manager
+      final appliedResponse = await SupabaseService.client
+          .from('event_applications')
+          .select('event_id')
+          .eq('manager_id', user.id);
       
+      final appliedIds = (appliedResponse as List).map((e) => e['event_id']).toSet();
+
       return (response as List).map((e) => {
         'id': e['id'],
         'title': e['name'],
@@ -246,6 +278,11 @@ class HostService {
         'budget': e['budget'] ?? 'Not specified',
         'category': e['category'] ?? 'Other',
         'host_name': e['host_name'] ?? 'Organizer',
+        'host': {'full_name': e['host_name'] ?? 'Organizer'},
+        'manager_has_applied': appliedIds.contains(e['id']),
+        'assigned_manager_id': e['assigned_manager_id'],
+        'rejection_reason': e['rejection_reason'],
+        'manager_ids': e['manager_ids'],
       }).toList();
     } catch (e) {
       if (kDebugMode) print('Error fetching matching events: $e');

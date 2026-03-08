@@ -18,6 +18,10 @@ class ProposalDetailsScreen extends StatefulWidget {
 class _ProposalDetailsScreenState extends State<ProposalDetailsScreen> {
   bool _isAccepting = false;
   bool _isApplied = false;
+  bool _isOrganizerRejected = false;
+  bool _isManagerRejected = false;
+  String? _actualReason;
+  String? _expandedFieldId;
 
   @override
   void initState() {
@@ -26,6 +30,22 @@ class _ProposalDetailsScreenState extends State<ProposalDetailsScreen> {
     final managerIds = widget.event['manager_ids'] as List<dynamic>?;
     if (managerIds != null && managerIds.contains(userId)) {
       _isApplied = true;
+    } else if (widget.event['manager_has_applied'] == true) {
+      _isApplied = true;
+    }
+    
+    // Parse the new serialized rejection format
+    final rejectionStr = widget.event['rejection_reason'] as String?;
+    if (rejectionStr != null && userId != null) {
+      final parts = rejectionStr.split('::');
+      if (parts.length >= 3 && parts[1] == userId) {
+        if (parts[0] == 'ORGANIZER_REJECTED') {
+          _isOrganizerRejected = true;
+        } else if (parts[0] == 'MANAGER_REJECTED') {
+          _isManagerRejected = true;
+        }
+        _actualReason = parts.sublist(2).join('::');
+      }
     }
   }
 
@@ -43,7 +63,7 @@ class _ProposalDetailsScreenState extends State<ProposalDetailsScreen> {
   Future<void> _handleAccept() async {
     setState(() => _isAccepting = true);
     try {
-      await EventManagerService.acceptEvent(widget.event['id']);
+      await EventManagerService.acceptEvent(widget.event['id'].toString());
       setState(() {
         _isApplied = true;
         _isAccepting = false;
@@ -63,6 +83,93 @@ class _ProposalDetailsScreenState extends State<ProposalDetailsScreen> {
     }
   }
 
+  Future<void> _showRejectDialog() async {
+    final deadlineStr = widget.event['registration_deadline'];
+    if (deadlineStr != null) {
+      try {
+        final deadline = DateTime.parse(deadlineStr.toString());
+        final currentDiff = deadline.difference(DateTime.now()).inDays;
+        if (currentDiff == 5) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Cannot reject the accepted event only five days left')),
+            );
+          }
+          return;
+        }
+      } catch (_) {}
+    }
+
+    final reasonController = TextEditingController();
+    
+    final bool? confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Cancel Proposal Agreement'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('Please state your reason for withdrawing from this event. The organizer will be notified.'),
+            const SizedBox(height: 16),
+            TextField(
+              controller: reasonController,
+              decoration: const InputDecoration(
+                labelText: 'Mandatory Reason',
+                border: OutlineInputBorder(),
+              ),
+              maxLines: 3,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Go Back'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              if (reasonController.text.trim().isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Reason is strictly required.')),
+                );
+                return;
+              }
+              Navigator.pop(context, true);
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Reject Event', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      setState(() => _isAccepting = true); // Repurpose loading state
+      try {
+        await EventManagerService.rejectEvent(widget.event['id'].toString(), reasonController.text.trim());
+        if (mounted) {
+          setState(() {
+            _isManagerRejected = true;
+            _actualReason = reasonController.text.trim();
+            _isAccepting = false;
+            // Optimistically update local view so button changes back
+            widget.event['assigned_manager_id'] = null; 
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('You have withdrawn from this event.')),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          setState(() => _isAccepting = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Failed to withdraw: $e')),
+          );
+        }
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final host = widget.event['host'] as Map<String, dynamic>?;
@@ -73,6 +180,7 @@ class _ProposalDetailsScreenState extends State<ProposalDetailsScreen> {
     final budget = widget.event['budget'] ?? 'Not specified';
     final description = widget.event['description'] ?? '';
     final requirements = widget.event['requirements'] ?? '';
+    final eventId = widget.event['id']?.toString() ?? 'unknown';
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -105,7 +213,7 @@ class _ProposalDetailsScreenState extends State<ProposalDetailsScreen> {
                         children: [
                           const Icon(Icons.location_on, size: 16, color: Colors.grey),
                           const SizedBox(width: 4),
-                          Text(location, style: const TextStyle(fontSize: 16, color: Colors.grey)),
+                          Text('Event Location: $location', style: const TextStyle(fontSize: 16, color: Colors.grey)),
                         ],
                       ),
                       const SizedBox(height: 4),
@@ -114,7 +222,16 @@ class _ProposalDetailsScreenState extends State<ProposalDetailsScreen> {
                         children: [
                           const Icon(Icons.calendar_today, size: 14, color: Colors.grey),
                           const SizedBox(width: 4),
-                          Text(dateTime, style: const TextStyle(fontSize: 14, color: Colors.grey)),
+                          Text('Event Date: $dateTime', style: const TextStyle(fontSize: 14, color: Colors.grey)),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      // 3b) Deadline for Acceptance
+                      Row(
+                        children: [
+                          const Icon(Icons.timer_outlined, size: 14, color: Colors.grey),
+                          const SizedBox(width: 4),
+                          Text('Deadline for Acceptance: ${widget.event['registration_deadline_formatted'] ?? 'Not set'}', style: const TextStyle(fontSize: 14, color: Colors.grey)),
                         ],
                       ),
                     ],
@@ -151,6 +268,16 @@ class _ProposalDetailsScreenState extends State<ProposalDetailsScreen> {
               maxLines: 10,
               charThreshold: 30,
               style: const TextStyle(fontSize: 15, height: 1.5),
+              isExpanded: _expandedFieldId == '${eventId}_description',
+              onToggle: () {
+                setState(() {
+                  if (_expandedFieldId == '${eventId}_description') {
+                    _expandedFieldId = null;
+                  } else {
+                    _expandedFieldId = '${eventId}_description';
+                  }
+                });
+              },
             ),
             const SizedBox(height: 24),
 
@@ -162,6 +289,16 @@ class _ProposalDetailsScreenState extends State<ProposalDetailsScreen> {
               maxLines: 10,
               charThreshold: 30,
               style: const TextStyle(fontSize: 15, height: 1.5),
+              isExpanded: _expandedFieldId == '${eventId}_requirements',
+              onToggle: () {
+                setState(() {
+                  if (_expandedFieldId == '${eventId}_requirements') {
+                    _expandedFieldId = null;
+                  } else {
+                    _expandedFieldId = '${eventId}_requirements';
+                  }
+                });
+              },
             ),
             const SizedBox(height: 32),
 
@@ -197,6 +334,121 @@ class _ProposalDetailsScreenState extends State<ProposalDetailsScreen> {
               ),
             ],
             const SizedBox(height: 32),
+            // 7.5) Rejection Reason (if applicable)
+            if (_isApplied && widget.event['assigned_manager_id'] == null && widget.event['rejection_reason'] != null) ...[
+              const SizedBox(height: 12),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.red.withOpacity(0.05),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.red.withOpacity(0.3)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Row(
+                      children: [
+                        Icon(Icons.info_outline, color: Colors.red, size: 20),
+                        SizedBox(width: 8),
+                        Text('Application Update', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold, fontSize: 16)),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Reason: ${_actualReason ?? widget.event['rejection_reason']}',
+                      style: TextStyle(color: Colors.red[800], fontSize: 14),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 32),
+            ],
+
+            // 7.75) Organizer Details
+            if (widget.event['assigned_manager_id'] == EventManagerService.client.auth.currentUser?.id) ...[
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF1F7F5),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: Colors.grey.shade200),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(Icons.info_outline, color: Color(0xFF1E4D40), size: 18),
+                        const SizedBox(width: 8),
+                        const Text(
+                          'Organizer Details',
+                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                        ),
+                        const Spacer(),
+                        TextButton(
+                          onPressed: () {
+                            final host = widget.event['host'] as Map<String, dynamic>?;
+                            if (host != null && host['id'] != null) {
+                              Navigator.pushNamed(
+                                context,
+                                '/host-profile-public',
+                                arguments: {'hostId': host['id']},
+                              );
+                            }
+                          },
+                          style: TextButton.styleFrom(
+                            padding: EdgeInsets.zero,
+                            minimumSize: Size.zero,
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          ),
+                          child: const Text('View Profile', style: TextStyle(color: Color(0xFF1E4D40), fontSize: 13, fontWeight: FontWeight.bold)),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    _buildContactRow(Icons.email_outlined, widget.event['host']?['email'] ?? 'No email provided'),
+                    const SizedBox(height: 8),
+                    _buildContactRow(Icons.location_on_outlined, widget.event['host']?['company_location'] ?? 'No location provided'),
+                  ],
+                ),
+              ),
+              if ((_isOrganizerRejected || _isManagerRejected) && widget.event['assigned_manager_id'] == null && _actualReason != null) ...[
+                const SizedBox(height: 24),
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.red.withOpacity(0.05),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.red.withOpacity(0.3)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          const Icon(Icons.info_outline, color: Colors.red, size: 20),
+                          const SizedBox(width: 8),
+                          Text(
+                            _isOrganizerRejected ? 'Organizer Rejected Application' : 'You Withdrew/Rejected', 
+                            style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold, fontSize: 14)
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Reason: $_actualReason',
+                        style: TextStyle(color: Colors.red[800], fontSize: 14),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+              const SizedBox(height: 32),
+            ],
+
             // 8) "Ready to accept" button centrally aligned
             Center(
               child: _buildAcceptButton(),
@@ -211,14 +463,19 @@ class _ProposalDetailsScreenState extends State<ProposalDetailsScreen> {
   void _showEnlargedImage(BuildContext context, String imageUrl) {
     showDialog(
       context: context,
-      builder: (context) => Dialog(
+      builder: (context) => Dialog.fullscreen(
         backgroundColor: Colors.black,
-        insetPadding: EdgeInsets.zero,
         child: Stack(
           alignment: Alignment.center,
           children: [
-            InteractiveViewer(
-              child: Image.network(imageUrl, fit: BoxFit.contain),
+            SizedBox(
+              width: double.infinity,
+              height: double.infinity,
+              child: InteractiveViewer(
+                minScale: 0.5,
+                maxScale: 4.0,
+                child: Image.network(imageUrl, fit: BoxFit.contain),
+              ),
             ),
             Positioned(
               top: 40,
@@ -234,7 +491,126 @@ class _ProposalDetailsScreenState extends State<ProposalDetailsScreen> {
     );
   }
 
+  bool get _isPastDeadline {
+    final deadlineStr = widget.event['registration_deadline'];
+    if (deadlineStr == null) return false;
+    try {
+      final deadline = DateTime.parse(deadlineStr.toString());
+      return DateTime.now().isAfter(deadline);
+    } catch (_) {
+      return false;
+    }
+  }
+
+  bool get _canRejectManager {
+    final deadlineStr = widget.event['registration_deadline'];
+    if (deadlineStr == null) return true;
+    try {
+      final deadline = DateTime.parse(deadlineStr.toString());
+      return deadline.difference(DateTime.now()).inDays >= 5;
+    } catch (_) {
+      return true;
+    }
+  }
+
   Widget _buildAcceptButton() {
+    final String? assignedManagerId = widget.event['assigned_manager_id'];
+    final userId = EventManagerService.client.auth.currentUser?.id;
+
+    if (assignedManagerId == userId && userId != null) {
+      if (_isPastDeadline) {
+        return Column(
+          children: [
+            Container(
+              width: double.infinity,
+              height: 56,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: Colors.green.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.green),
+              ),
+              child: const Text(
+                'Accepted & Acceptance closed',
+                style: TextStyle(color: Colors.green, fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+            ),
+          ],
+        );
+      }
+      return Column(
+        children: [
+          Container(
+            width: double.infinity,
+            height: 56,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: Colors.green.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.green),
+            ),
+            child: const Text(
+              'Accepted',
+              style: TextStyle(color: Colors.green, fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+          ),
+          const SizedBox(height: 12),
+          if (_canRejectManager) ...[
+            SizedBox(
+              width: double.infinity,
+              height: 56,
+              child: ElevatedButton(
+                onPressed: _isAccepting ? null : _showRejectDialog,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.red[50],
+                  foregroundColor: Colors.red,
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+                child: _isAccepting 
+                  ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.red))
+                  : const Text('Reject', style: TextStyle(fontWeight: FontWeight.bold)),
+              ),
+            ),
+          ],
+        ],
+      );
+    }
+
+    if (_isManagerRejected || _isOrganizerRejected) {
+      return Container(
+        width: double.infinity,
+        height: 56,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: Colors.red.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.red),
+        ),
+        child: const Text(
+          'Rejected',
+          style: TextStyle(color: Colors.red, fontSize: 16, fontWeight: FontWeight.bold),
+        ),
+      );
+    }
+
+    if (assignedManagerId != null && assignedManagerId != userId) {
+      return Container(
+        width: double.infinity,
+        height: 56,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: Colors.red.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.red),
+        ),
+        child: Text(
+          _isPastDeadline ? 'Assigned manager & Acceptance closed' : 'Assigned manager',
+          style: const TextStyle(color: Colors.red, fontSize: 16, fontWeight: FontWeight.bold),
+        ),
+      );
+    }
+
     if (_isApplied) {
       return Container(
         width: double.infinity,
@@ -248,6 +624,23 @@ class _ProposalDetailsScreenState extends State<ProposalDetailsScreen> {
         child: const Text(
           'Waiting for approval',
           style: TextStyle(color: Colors.orange, fontSize: 16, fontWeight: FontWeight.bold),
+        ),
+      );
+    }
+
+    if (_isPastDeadline) {
+      return Container(
+        width: double.infinity,
+        height: 56,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: Colors.red.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.red),
+        ),
+        child: const Text(
+          'Acceptance closed',
+          style: TextStyle(color: Colors.red, fontSize: 16, fontWeight: FontWeight.bold),
         ),
       );
     }
@@ -267,6 +660,22 @@ class _ProposalDetailsScreenState extends State<ProposalDetailsScreen> {
             ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
             : const Text('Ready to accept', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
       ),
+    );
+  }
+
+  Widget _buildContactRow(IconData icon, String text) {
+    return Row(
+      children: [
+        Icon(icon, size: 16, color: Colors.grey[600]),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            text,
+            style: TextStyle(fontSize: 14, color: Colors.grey[800]),
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+      ],
     );
   }
 }

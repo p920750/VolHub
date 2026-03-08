@@ -4,6 +4,7 @@ import '../core/manager_drawer.dart';
 import '../core/theme.dart';
 import '../post_events/post_events_screen.dart';
 import '../../../services/event_manager_service.dart';
+import '../../../../widgets/safe_avatar.dart';
 
 class MyEventsScreen extends StatefulWidget {
   const MyEventsScreen({super.key});
@@ -15,6 +16,14 @@ class MyEventsScreen extends StatefulWidget {
 class _MyEventsScreenState extends State<MyEventsScreen> {
   List<Map<String, dynamic>> _events = [];
   bool _isLoading = true;
+
+  Color _getSlotsColor(int available, int total) {
+    if (total <= 0) return Colors.red;
+    final ratio = available / total;
+    if (ratio > 0.5) return Colors.green;
+    if (ratio > 0.2) return Colors.orange;
+    return Colors.red;
+  }
 
   @override
   void initState() {
@@ -125,11 +134,41 @@ class _MyEventsScreenState extends State<MyEventsScreen> {
                               width: double.infinity,
                               fit: BoxFit.cover,
                             ),
-                          ListTile(
-                            title: Text(event['name'] ?? 'No Title', style: const TextStyle(fontWeight: FontWeight.bold)),
-                            subtitle: Text('Date: ${event['date']?.split('T')[0] ?? 'TBD'}'),
-                            trailing: PopupMenuButton<String>(
-                              onSelected: (value) {
+                            ListTile(
+                              title: Text(event['name'] ?? 'No Title', style: const TextStyle(fontWeight: FontWeight.bold)),
+                              subtitle: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text('Date: ${event['date']?.split('T')[0] ?? 'TBD'}'),
+                                  if (event['role_description'] != null) ...[
+                                    const SizedBox(height: 4),
+                                    Text(event['role_description'], style: TextStyle(color: Colors.grey[600], fontSize: 13), maxLines: 2, overflow: TextOverflow.ellipsis),
+                                  ],
+                                  const SizedBox(height: 4),
+                                  Row(
+                                    children: [
+                                      Icon(
+                                        event['payment_type'] == 'Paid' ? Icons.payment : Icons.volunteer_activism, 
+                                        size: 14, 
+                                        color: event['payment_type'] == 'Paid' ? Colors.green : Colors.grey
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        event['payment_type'] == 'Paid' 
+                                            ? 'Paid (${event['payment_amount'] ?? ''})' 
+                                            : 'Unpaid',
+                                        style: TextStyle(
+                                          color: event['payment_type'] == 'Paid' ? Colors.green[700] : Colors.grey[700], 
+                                          fontSize: 12,
+                                          fontWeight: event['payment_type'] == 'Paid' ? FontWeight.w600 : FontWeight.normal
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                              trailing: PopupMenuButton<String>(
+                                onSelected: (value) {
                                 if (value == 'edit') {
                                   Navigator.push(
                                     context,
@@ -153,7 +192,16 @@ class _MyEventsScreenState extends State<MyEventsScreen> {
                               children: [
                                 Icon(Icons.people, size: 16, color: Colors.grey[600]),
                                 const SizedBox(width: 4),
-                                Text('${event['current_volunteers_count'] ?? 0} / ${event['volunteers_needed'] ?? 0} Volunteers', style: TextStyle(color: Colors.grey[600])),
+                                Text(
+                                  '${(event['volunteers_needed'] ?? 0) - (event['current_volunteers_count'] ?? 0)} slots left', 
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: _getSlotsColor(
+                                      (event['volunteers_needed'] ?? 0) - (event['current_volunteers_count'] ?? 0), 
+                                      event['volunteers_needed'] ?? 1
+                                    )
+                                  ),
+                                ),
                                 const Spacer(),
                                 TextButton(
                                   onPressed: () {
@@ -214,44 +262,247 @@ class _MyEventsScreenState extends State<MyEventsScreen> {
                     final applicants = snapshot.data!;
                     return ListView.builder(
                       controller: scrollController,
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                       itemCount: applicants.length,
                       itemBuilder: (context, index) {
                         final app = applicants[index];
                         final volunteer = app['volunteer'] as Map<String, dynamic>?;
                         if (volunteer == null) return const SizedBox.shrink();
 
-                        return ListTile(
-                          leading: CircleAvatar(
-                            backgroundImage: NetworkImage(volunteer['profile_photo'] ?? 'https://i.pravatar.cc/150?u=${volunteer['id']}'),
-                          ),
-                          title: Text(volunteer['full_name'] ?? 'Unknown Volunteer'),
-                          subtitle: Text(volunteer['email'] ?? ''),
-                          trailing: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              IconButton(
-                                icon: const Icon(Icons.phone, color: Colors.green, size: 20),
-                                onPressed: () {
-                                  // Call logic
-                                },
-                              ),
-                              IconButton(
-                                icon: const Icon(Icons.link, color: Colors.blue, size: 20),
-                                onPressed: () {
-                                  // Profile link logic
-                                },
+                        final String status = app['status'] ?? 'pending';
+                        final bool isAccepted = status == 'accepted';
+                        final bool isRejected = status == 'rejected';
+
+                        return GestureDetector(
+                          onTap: () {
+                            Navigator.pushNamed(
+                              context,
+                              '/volunteer-public-profile',
+                              arguments: {'volunteerId': volunteer['id'].toString()},
+                            );
+                          },
+                          child: Container(
+                            margin: const EdgeInsets.only(bottom: 12),
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: Colors.grey[200]!),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.02),
+                                blurRadius: 4,
+                                offset: const Offset(0, 2),
                               ),
                             ],
                           ),
-                        );
-                      },
-                    );
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  SafeAvatar(
+                                    imageUrl: volunteer['profile_photo'] ?? 'https://i.pravatar.cc/150?u=${volunteer['id']}',
+                                    name: volunteer['full_name'] ?? 'Unknown Volunteer',
+                                    radius: 24,
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          volunteer['full_name'] ?? 'Unknown Volunteer',
+                                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                                        ),
+                                        Text(
+                                          volunteer['email'] ?? '',
+                                          style: TextStyle(color: Colors.grey[600], fontSize: 13),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  // Moved status badge to the top/right of the card for more prominence
+                                  if (isAccepted || isRejected || status == 'withdrawn')
+                                    _buildLargeStatusBadge(status),
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+                              if (isAccepted)
+                                const Padding(
+                                  padding: EdgeInsets.only(bottom: 8.0),
+                                  child: Text('Volunteer Joined', style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold, fontSize: 12)),
+                                ),
+                              if (!isAccepted && !isRejected) ...[
+                                const SizedBox(height: 16),
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: OutlinedButton(
+                                        onPressed: () => _handleRejectVolunteer(event['id'].toString(), volunteer['id'].toString()),
+                                        style: OutlinedButton.styleFrom(
+                                          foregroundColor: Colors.red,
+                                          side: const BorderSide(color: Colors.red),
+                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                        ),
+                                        child: const Text('Reject'),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: ElevatedButton(
+                                        onPressed: () => _handleAcceptVolunteer(event['id'].toString(), volunteer['id'].toString()),
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: AppColors.midnightBlue,
+                                          foregroundColor: Colors.white,
+                                          elevation: 0,
+                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                        ),
+                                        child: const Text('Accept'),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  );
                   },
                 ),
               ),
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Future<void> _handleAcceptVolunteer(String eventId, String volunteerId) async {
+    try {
+      await EventManagerService.acceptVolunteer(eventId, volunteerId);
+      if (mounted) {
+        _showSuccessDialog('Volunteer Accepted', 'The volunteer has been successfully joined to the event.');
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+      }
+    }
+  }
+
+  void _showSuccessDialog(String title, String message) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        icon: const Icon(Icons.check_circle, color: Colors.green, size: 64),
+        title: Text(title, textAlign: TextAlign.center),
+        content: Text(message, textAlign: TextAlign.center),
+        actions: [
+          Center(
+            child: ElevatedButton(
+              onPressed: () => Navigator.pop(context),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.midnightBlue,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+              child: const Text('Great!'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _handleRejectVolunteer(String eventId, String volunteerId) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Reject Volunteer'),
+        content: const Text('Are you sure you want to reject this volunteer?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Reject'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      try {
+        await EventManagerService.rejectVolunteer(eventId, volunteerId);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Volunteer rejected.')));
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+        }
+      }
+    }
+  }
+
+  Widget _buildLargeStatusBadge(String status) {
+    Color color;
+    String label;
+    switch (status) {
+      case 'accepted':
+        color = Colors.green;
+        label = 'APPROVED';
+        break;
+      case 'rejected':
+        color = Colors.red;
+        label = 'REJECTED';
+        break;
+      case 'withdrawn':
+        color = Colors.grey;
+        label = 'WITHDRAWN';
+        break;
+      default:
+        color = Colors.orange;
+        label = 'PENDING';
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 11),
+      ),
+    );
+  }
+}
+
+class StatusBadge extends StatelessWidget {
+  final String label;
+  final Color color;
+
+  const StatusBadge({super.key, required this.label, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withOpacity(0.5)),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.bold),
       ),
     );
   }

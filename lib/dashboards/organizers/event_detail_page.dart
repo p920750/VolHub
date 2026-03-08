@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'dart:io';
 import '../../services/host_service.dart';
 import 'edit_event_page.dart';
+import '../../../widgets/safe_avatar.dart';
 
 class EventDetailPage extends StatefulWidget {
   final Map<String, dynamic> event;
@@ -21,6 +22,7 @@ class _EventDetailPageState extends State<EventDetailPage> {
   Map<String, dynamic>? _managerInfo;
   bool _isLoadingManagerInfo = false;
   bool _isEditMode = false; // Added this line
+  String? _expandedFieldId;
 
   @override
   void initState() {
@@ -95,6 +97,114 @@ class _EventDetailPageState extends State<EventDetailPage> {
     }
   }
 
+  Future<void> _handleAcceptManager(String managerId) async {
+    try {
+      await HostService.acceptManager(_currentEvent['id'].toString(), managerId);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Manager successfully assigned!')),
+        );
+        _loadEventData(); // Reload to reflect changes
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to assign manager: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _handleRejectManager(String managerId) async {
+    final String? deadlineStr = _currentEvent['registration_deadline'];
+    int? daysLeft;
+    if (deadlineStr != null) {
+      try {
+        final deadline = DateTime.parse(deadlineStr);
+        daysLeft = deadline.difference(DateTime.now()).inDays;
+      } catch (_) {}
+    }
+
+    if (daysLeft != null && daysLeft == 5) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Cannot reject the accepted manager since only 5 days left for deadline')),
+        );
+      }
+      return;
+    }
+
+    if (daysLeft != null && daysLeft < 5) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Cannot reject the manager. Deadline is too close.')),
+        );
+      }
+      return;
+    }
+
+    final TextEditingController reasonController = TextEditingController();
+    
+    final bool? confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Reject Manager'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('Please provide a reason for rejecting this manager. They will be notified.'),
+            const SizedBox(height: 16),
+            TextField(
+              controller: reasonController,
+              decoration: const InputDecoration(
+                labelText: 'Rejection Reason',
+                border: OutlineInputBorder(),
+              ),
+              maxLines: 3,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              if (reasonController.text.trim().isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Please enter a reason')),
+                );
+                return;
+              }
+              Navigator.pop(context, true);
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Reject', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    try {
+      await HostService.rejectManager(_currentEvent['id'].toString(), managerId, reasonController.text.trim());
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Manager rejected successfully.')),
+        );
+        _loadEventData(); // Reload to reflect changes
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to reject manager: $e')),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final String title = _currentEvent['title'] ?? 'Event Details';
@@ -105,7 +215,8 @@ class _EventDetailPageState extends State<EventDetailPage> {
     final String requirements = _currentEvent['requirements'] ?? 'No specific requirements listed.';
     final String description = _currentEvent['description'] ?? 'No description provided.';
     final String imageUrls = _currentEvent['image_url'] ?? '';
-    final String status = _currentEvent['status'] ?? 'Pending';
+    final String status = _getDynamicStatus(_currentEvent);
+    final String eventId = _currentEvent['id']?.toString() ?? 'unknown';
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -161,9 +272,43 @@ class _EventDetailPageState extends State<EventDetailPage> {
                     ),
                   ),
                   const SizedBox(height: 16),
-                  _buildInfoRow(Icons.calendar_today_outlined, 'Date & Time', dateTime),
+                  _buildInfoRow(Icons.location_on_outlined, 'Event Location', location),
                   const SizedBox(height: 12),
-                  _buildInfoRow(Icons.location_on_outlined, 'Location', location),
+                  _buildInfoRow(Icons.calendar_today_outlined, 'Event Date', dateTime),
+                  const SizedBox(height: 12),
+                  _buildInfoRow(Icons.timer_outlined, 'Deadline for Acceptance', _currentEvent['registration_deadline_formatted'] ?? 'Not set'),
+                  Builder(
+                    builder: (context) {
+                      if (status == 'Acceptance started') {
+                         int daysLeft = 999;
+                         if (_currentEvent['registration_deadline'] != null) {
+                           try {
+                             daysLeft = DateTime.parse(_currentEvent['registration_deadline']).difference(DateTime.now()).inDays;
+                           } catch (_) {}
+                         }
+                         if (daysLeft <= 5) {
+                           return Padding(
+                             padding: const EdgeInsets.only(top: 12.0),
+                             child: Row(
+                               children: [
+                                 Container(
+                                   padding: const EdgeInsets.all(8),
+                                   decoration: BoxDecoration(
+                                     color: Colors.orange[50],
+                                     borderRadius: BorderRadius.circular(8),
+                                   ),
+                                   child: const Icon(Icons.warning_amber_rounded, size: 20, color: Colors.orange),
+                                 ),
+                                 const SizedBox(width: 16),
+                                 const Text('Please accept a manager', style: TextStyle(color: Colors.orange, fontSize: 16, fontWeight: FontWeight.bold)),
+                               ],
+                             ),
+                           );
+                         }
+                      }
+                      return const SizedBox.shrink();
+                    }
+                  ),
                   const SizedBox(height: 12),
                   _buildInfoRow(Icons.person_outline, 'Posted By', _currentEvent['host_name'] ?? 'Host'),
                   const SizedBox(height: 12),
@@ -180,7 +325,42 @@ class _EventDetailPageState extends State<EventDetailPage> {
                     ),
                   ),
                   const SizedBox(height: 12),
-                  _ExpandableText(text: description),
+                  _ExpandableText(
+                    text: description,
+                    isExpanded: _expandedFieldId == '${eventId}_description',
+                    onToggle: () {
+                      setState(() {
+                        if (_expandedFieldId == '${eventId}_description') {
+                          _expandedFieldId = null;
+                        } else {
+                          _expandedFieldId = '${eventId}_description';
+                        }
+                      });
+                    },
+                  ),
+                  const SizedBox(height: 24),
+                  const Text(
+                    'Company Requirements',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF1A1A1A),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  _ExpandableText(
+                    text: requirements,
+                    isExpanded: _expandedFieldId == '${eventId}_requirements',
+                    onToggle: () {
+                      setState(() {
+                        if (_expandedFieldId == '${eventId}_requirements') {
+                          _expandedFieldId = null;
+                        } else {
+                          _expandedFieldId = '${eventId}_requirements';
+                        }
+                      });
+                    },
+                  ),
                   if (status == 'rejected' && _currentEvent['rejection_reason'] != null) ...[
                     const SizedBox(height: 24),
                     Container(
@@ -237,9 +417,10 @@ class _EventDetailPageState extends State<EventDetailPage> {
                                 children: [
                                   ListTile(
                                     contentPadding: EdgeInsets.zero,
-                                    leading: CircleAvatar(
+                                    leading: SafeAvatar(
                                       radius: 30,
-                                      backgroundImage: NetworkImage(_managerInfo!['profile_photo'] ?? 'https://i.pravatar.cc/150?u=manager'),
+                                      imageUrl: _managerInfo!['profile_photo'] ?? 'https://i.pravatar.cc/150?u=manager',
+                                      name: _managerInfo!['full_name'] ?? 'Manager',
                                     ),
                                     title: Text(
                                       _managerInfo!['full_name'] ?? 'Manager',
@@ -272,8 +453,6 @@ class _EventDetailPageState extends State<EventDetailPage> {
                             ),
                           ),
                   ],
-                  const SizedBox(height: 32),
-                  _ExpandableText(text: requirements),
                   if (imageUrls.isNotEmpty && imageUrls != 'null' && !imageUrls.contains('blob:')) ...[
                     const SizedBox(height: 32),
                     const Text(
@@ -322,8 +501,9 @@ class _EventDetailPageState extends State<EventDetailPage> {
                                 child: Column(
                                   children: [
                                     ListTile(
-                                      leading: CircleAvatar(
-                                        backgroundImage: NetworkImage(manager['profile_photo'] ?? 'https://i.pravatar.cc/150?u=${manager['id']}'),
+                                      leading: SafeAvatar(
+                                        imageUrl: manager['profile_photo'] ?? 'https://i.pravatar.cc/150?u=${manager['id']}',
+                                        name: manager['full_name'] ?? 'Manager',
                                       ),
                                       title: Text(manager['full_name'] ?? 'Unknown Manager', style: const TextStyle(fontWeight: FontWeight.bold)),
                                       subtitle: Column(
@@ -340,38 +520,9 @@ class _EventDetailPageState extends State<EventDetailPage> {
                                           ),
                                         ],
                                       ),
-                                      trailing: isConfirmed 
-                                        ? const Chip(label: Text('Confirmed'), backgroundColor: Colors.green, labelStyle: TextStyle(color: Colors.white))
-                                        : (false // You might want to allow multiple managers now
-                                            ? null // Don't show confirm button if someone else is confirmed
-                                            : ElevatedButton(
-                                                onPressed: () async {
-                                                  try {
-                                                    await HostService.confirmManager(_currentEvent['id'].toString(), manager['id']);
-                                                    if (mounted) {
-                                                      ScaffoldMessenger.of(context).showSnackBar(
-                                                        const SnackBar(content: Text('Manager confirmed!')),
-                                                      );
-                                                      _loadEventData();
-                                                    }
-                                                  } catch (e) {
-                                                    if (mounted) {
-                                                      ScaffoldMessenger.of(context).showSnackBar(
-                                                        SnackBar(content: Text('Failed to confirm: $e')),
-                                                      );
-                                                    }
-                                                  }
-                                                },
-                                                style: ElevatedButton.styleFrom(
-                                                  backgroundColor: const Color(0xFF1E4D40), 
-                                                  foregroundColor: Colors.white,
-                                                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                                                ),
-                                                child: const Text('Confirm'),
-                                              )),
                                     ),
                                     Padding(
-                                      padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                                      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
                                       child: Row(
                                         mainAxisAlignment: MainAxisAlignment.end,
                                         children: [
@@ -386,9 +537,143 @@ class _EventDetailPageState extends State<EventDetailPage> {
                                             icon: const Icon(Icons.person_outline, size: 16),
                                             label: const Text('View Profile', style: TextStyle(fontSize: 12)),
                                           ),
+                                          const Spacer(),
+                                            if (_currentEvent['assigned_manager_id'] == manager['id']) ...[
+                                              const Text('Accepted', style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold)),
+                                              const SizedBox(width: 12),
+                                              Builder(
+                                                builder: (context) {
+                                                  int? daysLeft;
+                                                  if (_currentEvent['registration_deadline'] != null) {
+                                                    try {
+                                                      daysLeft = DateTime.parse(_currentEvent['registration_deadline']).difference(DateTime.now()).inDays;
+                                                    } catch (_) {}
+                                                  }
+                                                  if (daysLeft == null || daysLeft >= 5) {
+                                                    return ElevatedButton(
+                                                      onPressed: () => _handleRejectManager(manager['id']),
+                                                      style: ElevatedButton.styleFrom(backgroundColor: Colors.red[50], foregroundColor: Colors.red, elevation: 0),
+                                                      child: const Text('Reject'),
+                                                    );
+                                                  }
+                                                  return const SizedBox.shrink();
+                                                }
+                                              ),
+                                            ] else ...[
+                                            Builder(
+                                              builder: (context) {
+                                                final rejectionReasonStr = _currentEvent['rejection_reason'] as String?;
+                                                bool isOrganizerRejected = false;
+                                                bool isManagerRejected = false;
+                                                String? actualReason;
+
+                                                if (rejectionReasonStr != null) {
+                                                  final parts = rejectionReasonStr.split('::');
+                                                  if (parts.length >= 3 && parts[1] == manager['id']) {
+                                                    isOrganizerRejected = parts[0] == 'ORGANIZER_REJECTED';
+                                                    isManagerRejected = parts[0] == 'MANAGER_REJECTED';
+                                                    actualReason = parts.sublist(2).join('::');
+                                                  }
+                                                }
+
+                                                if (isOrganizerRejected || isManagerRejected) {
+                                                  return const SizedBox.shrink(); // Rejection boxes handled below the ListTile
+                                                } else if (_currentEvent['assigned_manager_id'] == manager['id']) {
+                                                  return const SizedBox.shrink(); // "Accepted" already handled or needs to be shown
+                                                } else if (_currentEvent['assigned_manager_id'] == null) {
+                                                  return ElevatedButton(
+                                                    onPressed: () => _handleAcceptManager(manager['id']),
+                                                    style: ElevatedButton.styleFrom(
+                                                      backgroundColor: const Color(0xFF1E4D40),
+                                                      foregroundColor: Colors.white,
+                                                      elevation: 0,
+                                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                                                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                                                    ),
+                                                    child: const Text('Accept', style: TextStyle(fontWeight: FontWeight.bold)),
+                                                  );
+                                                }
+                                                return const SizedBox.shrink();
+                                              }
+                                            ),
+                                          ],
                                         ],
                                       ),
                                     ),
+                                      // Rejection or Assignment status boxes
+                                      Builder(
+                                        builder: (context) {
+                                          final rejectionReasonStr = _currentEvent['rejection_reason'] as String?;
+                                          bool isOrganizerRejected = false;
+                                          bool isManagerRejected = false;
+                                          String? actualReason;
+
+                                          if (rejectionReasonStr != null) {
+                                            final parts = rejectionReasonStr.split('::');
+                                            if (parts.length >= 3 && parts[1] == manager['id']) {
+                                              isOrganizerRejected = parts[0] == 'ORGANIZER_REJECTED';
+                                              isManagerRejected = parts[0] == 'MANAGER_REJECTED';
+                                              actualReason = parts.sublist(2).join('::');
+                                            }
+                                          }
+
+                                          if (isManagerRejected) {
+                                            return Padding(
+                                              padding: const EdgeInsets.all(16.0),
+                                              child: Container(
+                                                width: double.infinity,
+                                                padding: const EdgeInsets.all(16),
+                                                decoration: BoxDecoration(
+                                                  color: Colors.red[50],
+                                                  borderRadius: BorderRadius.circular(12),
+                                                  border: Border.all(color: Colors.red[100]!),
+                                                ),
+                                                child: Column(
+                                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                                  children: [
+                                                    Row(
+                                                      children: [
+                                                        Icon(Icons.info_outline, color: Colors.red[400], size: 20),
+                                                        const SizedBox(width: 8),
+                                                        const Text(
+                                                          'Application Update',
+                                                          style: TextStyle(
+                                                            color: Colors.red,
+                                                            fontWeight: FontWeight.bold,
+                                                            fontSize: 16,
+                                                          ),
+                                                        ),
+                                                      ],
+                                                    ),
+                                                    const SizedBox(height: 8),
+                                                    Text(
+                                                      'Reason: ${actualReason ?? "No reason provided"}',
+                                                      style: TextStyle(color: Colors.red[700], height: 1.4),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                            );
+                                          } else if (isOrganizerRejected) {
+                                            return Padding(
+                                              padding: const EdgeInsets.all(16.0),
+                                              child: Container(
+                                                width: double.infinity,
+                                                padding: const EdgeInsets.all(12),
+                                                decoration: BoxDecoration(
+                                                  color: Colors.grey[100],
+                                                  borderRadius: BorderRadius.circular(8),
+                                                ),
+                                                child: Text(
+                                                  'You rejected this manager: $actualReason',
+                                                  style: const TextStyle(color: Colors.grey),
+                                                ),
+                                              ),
+                                            );
+                                          }
+                                          return const SizedBox.shrink();
+                                        },
+                                      ),
                                   ],
                                 ),
                               ),
@@ -560,20 +845,37 @@ class _EventDetailPageState extends State<EventDetailPage> {
   }
 
   Color _getStatusColor(String status) {
-    switch (status.toLowerCase()) {
-      case 'accepted':
-        return Colors.blue;
-      case 'active':
-        return Colors.green;
-      case 'rejected':
-        return Colors.red;
-      case 'pending':
-        return Colors.orange;
-      case 'completed':
-        return Colors.grey;
-      default:
-        return Colors.orange;
+    status = status.toLowerCase();
+    if (status.contains('deadline over')) return Colors.red;
+    if (status.contains('acceptance started')) return Colors.blue;
+    if (status.contains('assigned manager')) return Colors.green;
+    return Colors.orange;
+  }
+
+  String _getDynamicStatus(Map<String, dynamic> event) {
+    final String? deadlineStr = event['registration_deadline'];
+    bool isPastDeadline = false;
+    if (deadlineStr != null) {
+      try {
+        final deadline = DateTime.parse(deadlineStr);
+        isPastDeadline = DateTime.now().isAfter(deadline);
+      } catch (_) {}
     }
+
+    if (event['assigned_manager_id'] != null) {
+      return isPastDeadline ? 'Assigned manager & Deadline over' : 'Assigned manager';
+    }
+
+    final List<dynamic> managerIds = event['manager_ids'] ?? [];
+    if (managerIds.isNotEmpty || event['rejection_reason'] != null) {
+      return isPastDeadline ? 'Acceptance started & Deadline over' : 'Acceptance started';
+    }
+
+    if (isPastDeadline) {
+      return 'Deadline over'; 
+    }
+
+    return 'Pending';
   }
 
   Widget _buildInfoRow(IconData icon, String label, String value) {
@@ -685,22 +987,18 @@ class _EventDetailPageState extends State<EventDetailPage> {
   void _showEnlargedImage(String url) {
     showDialog(
       context: context,
-      builder: (context) => Dialog(
-        backgroundColor: Colors.transparent,
-        insetPadding: EdgeInsets.zero,
+      builder: (context) => Dialog.fullscreen(
+        backgroundColor: Colors.black,
         child: Stack(
+          alignment: Alignment.center,
           children: [
-            GestureDetector(
-              onTap: () => Navigator.pop(context),
-              child: Container(
-                width: double.infinity,
-                height: double.infinity,
-                color: Colors.black.withValues(alpha: 0.9),
-                child: Center(
-                  child: InteractiveViewer(
-                    child: _buildGalleryImage(url),
-                  ),
-                ),
+            SizedBox(
+              width: double.infinity,
+              height: double.infinity,
+              child: InteractiveViewer(
+                minScale: 0.5,
+                maxScale: 4.0,
+                child: _buildGalleryImage(url),
               ),
             ),
             Positioned(
@@ -748,82 +1046,126 @@ class _EventDetailPageState extends State<EventDetailPage> {
   }
 }
 
-class _ExpandableText extends StatefulWidget {
+class _ExpandableText extends StatelessWidget {
   final String text;
-  const _ExpandableText({required this.text});
+  final bool isExpanded;
+  final VoidCallback onToggle;
 
-  @override
-  State<_ExpandableText> createState() => _ExpandableTextState();
-}
-
-class _ExpandableTextState extends State<_ExpandableText> {
-  bool _isExpanded = false;
+  const _ExpandableText({
+    super.key,
+    required this.text,
+    required this.isExpanded,
+    required this.onToggle,
+  });
 
   @override
   Widget build(BuildContext context) {
-    if (widget.text.isEmpty) return const Text('N/A');
+    if (text.isEmpty) return Text('N/A', style: TextStyle(fontSize: 16, color: Colors.grey[700]));
 
-    final lines = widget.text.split('\n');
-    bool shouldShowReadMore = false;
-    
-    // Logic: contents more than 10 lines 
-    // OR in 10th line more than 20 characters
-    if (lines.length > 10) {
-      shouldShowReadMore = true;
-    } else if (lines.length == 10 && lines[9].length > 20) {
-      shouldShowReadMore = true;
-    }
-
-    if (_isExpanded || !shouldShowReadMore) {
-      return Text(
-        widget.text,
-        style: TextStyle(
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final style = TextStyle(
           fontSize: 16,
           color: Colors.grey[700],
           height: 1.6,
-        ),
-      );
-    }
+        );
+        final span = TextSpan(text: text, style: style);
+        
+        final tp = TextPainter(
+          text: span,
+          textDirection: TextDirection.ltr,
+          maxLines: 10,
+        );
+        tp.layout(maxWidth: constraints.maxWidth);
 
-    // Truncate to 10 lines, and the 10th line to 20 characters
-    String truncatedText = '';
-    for (int i = 0; i < 9; i++) {
-       truncatedText += '${lines[i]}\n';
-    }
-    String tenthLine = lines[9];
-    if (tenthLine.length > 20) {
-      tenthLine = '${tenthLine.substring(0, 20)}... ';
-    } else {
-      tenthLine = '$tenthLine... ';
-    }
-    truncatedText += tenthLine;
+        if (!tp.didExceedMaxLines) {
+          return Text(text, style: style);
+        }
 
-    return RichText(
-      text: TextSpan(
-        style: TextStyle(
-          fontSize: 16,
-          color: Colors.grey[700],
-          height: 1.6,
-        ),
-        children: [
-          TextSpan(text: truncatedText),
-          WidgetSpan(
-            alignment: PlaceholderAlignment.baseline,
-            baseline: TextBaseline.alphabetic,
-            child: GestureDetector(
-              onTap: () => setState(() => _isExpanded = true),
-              child: const Text(
-                'Read more',
-                style: TextStyle(
-                  color: Colors.black,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 16,
+        if (isExpanded) {
+          return RichText(
+            text: TextSpan(
+              style: style,
+              children: [
+                TextSpan(text: '$text '),
+                WidgetSpan(
+                  alignment: PlaceholderAlignment.baseline,
+                  baseline: TextBaseline.alphabetic,
+                  child: GestureDetector(
+                    onTap: onToggle,
+                    child: const Text(
+                      'Read less',
+                      style: TextStyle(
+                        color: Colors.black,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        }
+
+        // We want to truncate after exactly 10 lines and 7 words.
+        // We find the offset for the end of the 9th line (start of 10th line)
+        final pos10 = tp.getPositionForOffset(Offset(0, style.fontSize! * style.height! * 9.5)).offset;
+        
+        String lines1To9 = '';
+        String line10Render = '';
+
+        try {
+          if (pos10 > 0 && pos10 < text.length) {
+            lines1To9 = text.substring(0, pos10);
+            String rest = text.substring(pos10).trimLeft();
+            List<String> words10 = rest.split(RegExp(r'\s+'));
+            if (words10.length > 7) {
+              line10Render = words10.take(7).join(' ');
+            } else {
+              line10Render = rest;
+            }
+          } else {
+             final words = text.split(' ');
+             int target = words.length > 40 ? 40 : words.length ~/ 2;
+             lines1To9 = words.take(target - 7).join(' ');
+             line10Render = words.skip(target - 7).take(7).join(' ');
+          }
+        } catch (e) {
+          lines1To9 = text.substring(0, text.length > 100 ? 100 : text.length);
+          line10Render = '';
+        }
+
+        String truncatedText = lines1To9;
+        if (truncatedText.isNotEmpty && !truncatedText.endsWith(' ') && !truncatedText.endsWith('\n')) {
+             truncatedText += ' ';
+        }
+        truncatedText += '$line10Render....';
+
+        return RichText(
+          text: TextSpan(
+            style: style,
+            children: [
+              TextSpan(text: truncatedText),
+              WidgetSpan(
+                alignment: PlaceholderAlignment.baseline,
+                baseline: TextBaseline.alphabetic,
+                child: GestureDetector(
+                  onTap: onToggle,
+                  child: const Text(
+                    'Read more',
+                    style: TextStyle(
+                      color: Colors.black,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
+                  ),
                 ),
               ),
-            ),
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 }

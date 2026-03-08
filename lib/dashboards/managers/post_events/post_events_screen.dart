@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
@@ -23,9 +24,12 @@ class _PostEventsScreenState extends State<PostEventsScreen> {
   final _locationController = TextEditingController();
   final _volunteersNeededController = TextEditingController();
   final _descriptionController = TextEditingController();
+  final _roleDescriptionController = TextEditingController();
+  final _paymentAmountController = TextEditingController();
   final _dropdownMenuController = TextEditingController();
   
-  File? _selectedImage;
+  Uint8List? _selectedImageBytes;
+  String? _selectedImageName;
   final _picker = ImagePicker();
   
   DateTime? _eventDateTime;
@@ -35,6 +39,15 @@ class _PostEventsScreenState extends State<PostEventsScreen> {
   final List<String> _selectedCategories = [];
   String? _selectedCategoryDropdown;
   bool _showCustomCategoryInput = false;
+  
+  String _paymentType = 'Unpaid';
+  bool _certificateProvided = false;
+  bool _foodProvided = false;
+  final List<String> _skillsRequired = [];
+  final _skillController = TextEditingController();
+  
+  String _eventStatus = 'open'; // Default to open
+  
   bool _isPosting = false;
 
   final LayerLink _layerLink = LayerLink();
@@ -137,10 +150,28 @@ class _PostEventsScreenState extends State<PostEventsScreen> {
         _registrationDeadline = DateTime.tryParse(widget.editEvent!['registration_deadline']);
       }
       
+      
       if (widget.editEvent!['categories'] != null) {
         _selectedCategories.addAll(List<String>.from(widget.editEvent!['categories']));
       } else if (widget.editEvent!['category'] != null) {
         _selectedCategories.add(widget.editEvent!['category'].toString());
+      }
+      
+      _roleDescriptionController.text = widget.editEvent!['role_description'] ?? '';
+      _paymentType = widget.editEvent!['payment_type'] ?? 'Unpaid';
+      _paymentAmountController.text = widget.editEvent!['payment_amount'] ?? '';
+      _certificateProvided = widget.editEvent!['certificate_provided'] == true;
+      _foodProvided = widget.editEvent!['food_provided'] == true;
+      
+      final currentStatus = widget.editEvent!['status'];
+      if (currentStatus == 'active') {
+        _eventStatus = 'open';
+      } else if (currentStatus == 'closed' || currentStatus == 'draft') {
+        _eventStatus = currentStatus;
+      }
+      
+      if (widget.editEvent!['skills_required'] != null) {
+        _skillsRequired.addAll(List<String>.from(widget.editEvent!['skills_required']));
       }
     }
   }
@@ -160,7 +191,10 @@ class _PostEventsScreenState extends State<PostEventsScreen> {
     _locationController.dispose();
     _volunteersNeededController.dispose();
     _descriptionController.dispose();
+    _roleDescriptionController.dispose();
+    _paymentAmountController.dispose();
     _categoryController.dispose();
+    _skillController.dispose();
     _dropdownMenuController.dispose();
     _closeDropdown();
     super.dispose();
@@ -169,18 +203,48 @@ class _PostEventsScreenState extends State<PostEventsScreen> {
   Future<void> _pickImage() async {
     final pickedFile = await _picker.pickImage(source: ImageSource.gallery);
     if (pickedFile != null) {
+      final bytes = await pickedFile.readAsBytes();
       setState(() {
-        _selectedImage = File(pickedFile.path);
+        _selectedImageBytes = bytes;
+        _selectedImageName = pickedFile.name;
       });
     }
   }
 
   Future<void> _pickDateTime(BuildContext context, bool isEventDate) async {
+    DateTime initialDate = DateTime.now();
+    DateTime firstDate = DateTime.now();
+    DateTime lastDate = DateTime.now().add(const Duration(days: 365));
+
+    if (isEventDate) {
+      if (_registrationDeadline != null) {
+        firstDate = _registrationDeadline!.add(const Duration(days: 4, hours: 23, minutes: 59));
+      } else {
+        firstDate = DateTime.now().add(const Duration(days: 4));
+      }
+      initialDate = firstDate.isAfter(initialDate) ? firstDate : initialDate;
+    } else {
+      if (_eventDateTime != null) {
+        lastDate = _eventDateTime!.subtract(const Duration(days: 4));
+      }
+    }
+
+    // Enforce bounds to prevent crashes
+    if (initialDate.isAfter(lastDate)) initialDate = lastDate;
+    if (initialDate.isBefore(firstDate)) initialDate = firstDate;
+
+    if (firstDate.isAfter(lastDate)) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Invalid date range. Ensure the event is at least 4 days after the deadline.')));
+      }
+      return;
+    }
+
     final DateTime? pickedDate = await showDatePicker(
       context: context,
-      initialDate: DateTime.now(),
-      firstDate: DateTime.now(),
-      lastDate: DateTime.now().add(const Duration(days: 365)),
+      initialDate: initialDate,
+      firstDate: firstDate,
+      lastDate: lastDate,
     );
     if (pickedDate == null) return;
 
@@ -205,10 +269,18 @@ class _PostEventsScreenState extends State<PostEventsScreen> {
   }
 
   Future<void> _postEvent() async {
-    if (!_formKey.currentState!.validate()) return;
-    if (_eventDateTime == null) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please select event date and time')));
-      return;
+    if (_eventStatus != 'draft') {
+      if (!_formKey.currentState!.validate()) return;
+      if (_eventDateTime == null) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please select event date and time')));
+        return;
+      }
+    } else {
+      // Basic validation for draft: At least need a name
+      if (_nameController.text.trim().isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please provide an event name to save as draft')));
+        return;
+      }
     }
 
     setState(() => _isPosting = true);
@@ -218,21 +290,33 @@ class _PostEventsScreenState extends State<PostEventsScreen> {
       if (user == null) throw Exception('Not authenticated');
 
       String? imageUrl;
-      if (_selectedImage != null) {
-        imageUrl = await SupabaseService.uploadEventImage(_selectedImage!, user.id);
+      if (_selectedImageBytes != null && _selectedImageName != null) {
+        imageUrl = await SupabaseService.uploadEventImageBytes(
+          _selectedImageBytes!, 
+          _selectedImageName!, 
+          user.id
+        );
       }
 
+      final dbStatus = _eventStatus == 'open' ? 'active' : _eventStatus;
+      
       final eventData = {
         'name': _nameController.text,
         'image_url': imageUrl ?? widget.editEvent?['image_url'],
         'location': _locationController.text,
-        'volunteers_needed': int.parse(_volunteersNeededController.text),
+        'volunteers_needed': int.tryParse(_volunteersNeededController.text) ?? 1,
         'description': _descriptionController.text,
+        'role_description': _roleDescriptionController.text,
+        'payment_type': _paymentType,
+        'payment_amount': _paymentType == 'Paid' ? _paymentAmountController.text : null,
+        'certificate_provided': _certificateProvided,
+        'food_provided': _foodProvided,
+        'skills_required': _skillsRequired,
         'categories': _selectedCategories,
         'registration_deadline': _registrationDeadline?.toIso8601String(),
         'date': _eventDateTime?.toIso8601String(),
         'user_id': user.id,
-        'status': 'active',
+        'status': dbStatus,
         'current_volunteers_count': widget.editEvent?['current_volunteers_count'] ?? 0,
       };
 
@@ -256,11 +340,26 @@ class _PostEventsScreenState extends State<PostEventsScreen> {
       _locationController.clear();
       _volunteersNeededController.clear();
       _descriptionController.clear();
+      _roleDescriptionController.clear();
+      _paymentAmountController.clear();
       setState(() {
-        _selectedImage = null;
+        _selectedImageBytes = null;
+        _selectedImageName = null;
         _eventDateTime = null;
         _registrationDeadline = null;
         _selectedCategories.clear();
+        _skillsRequired.clear();
+        _paymentType = 'Unpaid';
+        _certificateProvided = false;
+        _foodProvided = false;
+        _eventStatus = 'open';
+      });
+
+      // Redirect to My Events page
+      Future.delayed(const Duration(seconds: 1), () {
+        if (mounted) {
+          Navigator.pushReplacementNamed(context, '/manager-my-events');
+        }
       });
 
     } catch (e) {
@@ -297,10 +396,10 @@ class _PostEventsScreenState extends State<PostEventsScreen> {
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(color: Colors.grey[300]!),
                   ),
-                  child: _selectedImage != null
+                  child: _selectedImageBytes != null
                       ? ClipRRect(
                           borderRadius: BorderRadius.circular(12),
-                          child: Image.file(_selectedImage!, fit: BoxFit.cover),
+                          child: Image.memory(_selectedImageBytes!, fit: BoxFit.cover),
                         )
                       : const Column(
                           mainAxisAlignment: MainAxisAlignment.center,
@@ -319,9 +418,97 @@ class _PostEventsScreenState extends State<PostEventsScreen> {
               const SizedBox(height: 16),
               _buildTextField(_locationController, 'Event location', Icons.location_on),
               const SizedBox(height: 16),
-              _buildTextField(_volunteersNeededController, 'Number of volunteers needed', Icons.people, keyboardType: TextInputType.number),
+              
+              TextFormField(
+                controller: _volunteersNeededController,
+                keyboardType: TextInputType.number,
+                decoration: InputDecoration(
+                  labelText: 'Number of volunteers needed (Max 50)',
+                  prefixIcon: const Icon(Icons.people),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  filled: true,
+                  fillColor: Colors.grey[50],
+                ),
+                validator: (value) {
+                  if (value == null || value.isEmpty) return 'Please enter number of volunteers needed';
+                  final num = int.tryParse(value);
+                  if (num == null) return 'Please enter a valid number';
+                  if (num <= 0) return 'Must need at least 1 volunteer';
+                  if (num > 50) return 'Cannot exceed 50 volunteers';
+                  return null;
+                },
+              ),
+              const SizedBox(height: 16),
+              
+              _buildTextField(_roleDescriptionController, 'Role Description', Icons.work_outline, maxLines: 2),
+              const SizedBox(height: 16),
+              
+              _buildSectionTitle('Payment & Benefits'),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: RadioListTile<String>(
+                      title: const Text('Unpaid'),
+                      value: 'Unpaid',
+                      groupValue: _paymentType,
+                      onChanged: (value) => setState(() => _paymentType = value!),
+                      contentPadding: EdgeInsets.zero,
+                    ),
+                  ),
+                  Expanded(
+                    child: RadioListTile<String>(
+                      title: const Text('Paid'),
+                      value: 'Paid',
+                      groupValue: _paymentType,
+                      onChanged: (value) => setState(() => _paymentType = value!),
+                      contentPadding: EdgeInsets.zero,
+                    ),
+                  ),
+                ],
+              ),
+              if (_paymentType == 'Paid') ...[
+                const SizedBox(height: 8),
+                _buildTextField(_paymentAmountController, 'Payment Amount (e.g. ₹500/day)', Icons.currency_rupee),
+              ],
+              
+              const SizedBox(height: 16),
+              SwitchListTile(
+                title: const Text('Certificate Provided'),
+                value: _certificateProvided,
+                onChanged: (val) => setState(() => _certificateProvided = val),
+              ),
+              SwitchListTile(
+                title: const Text('Food Provided'),
+                value: _foodProvided,
+                onChanged: (val) => setState(() => _foodProvided = val),
+              ),
+              
+              const SizedBox(height: 16),
+              _buildSectionTitle('Event description'),
               const SizedBox(height: 16),
               _buildTextField(_descriptionController, 'Event description', Icons.description, maxLines: 3),
+              
+              const SizedBox(height: 24),
+              _buildSectionTitle('Skills Required'),
+              const SizedBox(height: 8),
+              _buildSkillInput(),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 8,
+                runSpacing: 4,
+                children: _skillsRequired.map((skill) {
+                  return Chip(
+                    label: Text(skill),
+                    onDeleted: () {
+                      setState(() {
+                        _skillsRequired.remove(skill);
+                      });
+                    },
+                    deleteIcon: const Icon(Icons.close, size: 16),
+                  );
+                }).toList(),
+              ),
               
               const SizedBox(height: 24),
               _buildSectionTitle('Date & Deadline'),
@@ -396,6 +583,31 @@ class _PostEventsScreenState extends State<PostEventsScreen> {
                 }).toList(),
               ),
 
+              const SizedBox(height: 24),
+              _buildSectionTitle('Application Status Control'),
+              const SizedBox(height: 8),
+              DropdownButtonFormField<String>(
+                value: _eventStatus,
+                decoration: InputDecoration(
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  filled: true,
+                  fillColor: Colors.grey[50],
+                  prefixIcon: const Icon(Icons.settings_suggest),
+                ),
+                items: const [
+                  DropdownMenuItem(value: 'open', child: Text('Open (Visible to Volunteers)')),
+                  DropdownMenuItem(value: 'closed', child: Text('Closed (Hidden from Volunteers)')),
+                  DropdownMenuItem(value: 'draft', child: Text('Draft (Save to resume later)')),
+                ],
+                onChanged: (value) {
+                  if (value != null) {
+                    setState(() {
+                      _eventStatus = value;
+                    });
+                  }
+                },
+              ),
+
               const SizedBox(height: 32),
               SizedBox(
                 width: double.infinity,
@@ -409,7 +621,7 @@ class _PostEventsScreenState extends State<PostEventsScreen> {
                   ),
                   child: _isPosting 
                     ? const CircularProgressIndicator(color: Colors.white) 
-                    : Text(widget.editEvent != null ? 'Update Event' : 'Post & Send', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                    : Text(widget.editEvent != null ? 'Update Event' : 'Save Event', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                 ),
               ),
               const SizedBox(height: 32),
@@ -449,6 +661,34 @@ class _PostEventsScreenState extends State<PostEventsScreen> {
         _showCustomCategoryInput = false;
         _dropdownMenuController.clear();
         _selectedCategoryDropdown = null; // reset to allow continuous selection
+      });
+    }
+  }
+
+  Widget _buildSkillInput() {
+    return TextFormField(
+      controller: _skillController,
+      decoration: InputDecoration(
+        labelText: 'Add skill and press Enter',
+        prefixIcon: const Icon(Icons.star_border),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+        filled: true,
+        fillColor: Colors.grey[50],
+        suffixIcon: IconButton(
+          icon: const Icon(Icons.add),
+          onPressed: _addSkill,
+        ),
+      ),
+      onFieldSubmitted: (_) => _addSkill(),
+    );
+  }
+
+  void _addSkill() {
+    final text = _skillController.text.trim();
+    if (text.isNotEmpty && !_skillsRequired.contains(text)) {
+      setState(() {
+        _skillsRequired.add(text);
+        _skillController.clear();
       });
     }
   }

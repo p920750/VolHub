@@ -20,15 +20,52 @@ class ManagerProposalCard extends StatefulWidget {
 class _ManagerProposalCardState extends State<ManagerProposalCard> {
   bool _isAccepting = false;
   bool _isApplied = false;
+  bool _isOrganizerRejected = false;
+  String? _actualReason;
 
   @override
   void initState() {
     super.initState();
+    _checkAppliedStatus();
+  }
+
+  @override
+  void didUpdateWidget(ManagerProposalCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.event != oldWidget.event) {
+      _checkAppliedStatus();
+    }
+  }
+
+  void _checkAppliedStatus() {
     // Check if manager is already in manager_ids or has a pending application
     final userId = EventManagerService.client.auth.currentUser?.id;
     final managerIds = widget.event['manager_ids'] as List<dynamic>?;
+    
+    bool applied = false;
     if (managerIds != null && managerIds.contains(userId)) {
-      _isApplied = true;
+      applied = true;
+    } else if (widget.event['manager_has_applied'] == true) {
+      applied = true;
+    }
+
+    bool isRejected = false;
+    String? reason;
+    final rejectionStr = widget.event['rejection_reason'] as String?;
+    if (rejectionStr != null && userId != null) {
+      final parts = rejectionStr.split('::');
+      if (parts.length >= 3 && parts[1] == userId && parts[0] == 'ORGANIZER_REJECTED') {
+        isRejected = true;
+        reason = parts.sublist(2).join('::');
+      }
+    }
+    
+    if (_isApplied != applied || _isOrganizerRejected != isRejected) {
+      setState(() {
+        _isApplied = applied;
+        _isOrganizerRejected = isRejected;
+        _actualReason = reason;
+      });
     }
   }
 
@@ -46,7 +83,7 @@ class _ManagerProposalCardState extends State<ManagerProposalCard> {
   Future<void> _handleAccept() async {
     setState(() => _isAccepting = true);
     try {
-      await EventManagerService.acceptEvent(widget.event['id']);
+      await EventManagerService.acceptEvent(widget.event['id'].toString());
       setState(() {
         _isApplied = true;
         _isAccepting = false;
@@ -102,7 +139,7 @@ class _ManagerProposalCardState extends State<ManagerProposalCard> {
                 children: [
                   const Icon(Icons.location_on, size: 16, color: Colors.grey),
                   const SizedBox(width: 4),
-                  Text(location, style: const TextStyle(color: Colors.grey)),
+                  Expanded(child: Text(location, style: const TextStyle(color: Colors.grey))),
                 ],
               ),
               const SizedBox(height: 4),
@@ -112,7 +149,7 @@ class _ManagerProposalCardState extends State<ManagerProposalCard> {
                 children: [
                    const Icon(Icons.calendar_today, size: 16, color: Colors.grey),
                   const SizedBox(width: 4),
-                  Text(dateTime, style: const TextStyle(color: Colors.grey)),
+                  Expanded(child: Text(dateTime, style: const TextStyle(color: Colors.grey))),
                 ],
               ),
               const SizedBox(height: 12),
@@ -163,6 +200,39 @@ class _ManagerProposalCardState extends State<ManagerProposalCard> {
   }
 
   Widget _buildAcceptButton({bool centered = false}) {
+    final String? assignedManagerId = widget.event['assigned_manager_id'];
+    final userId = EventManagerService.client.auth.currentUser?.id;
+
+    if (assignedManagerId == userId && userId != null) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          color: Colors.green.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: Colors.green),
+        ),
+        child: const Text(
+          'Accepted',
+          style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold),
+        ),
+      );
+    }
+
+    if (_isOrganizerRejected) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          color: Colors.red.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: Colors.red),
+        ),
+        child: const Text(
+          'Rejected',
+          style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
+        ),
+      );
+    }
+
     if (_isApplied) {
       return Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),

@@ -34,7 +34,7 @@ class EventManagerService {
       final assignedResponse = await client
           .from('events')
           .select('id')
-          .contains('manager_ids', '{${user.id}}');
+          .or('assigned_manager_id.eq.${user.id},manager_ids.cs.{${user.id}}');
       final acceptedProposals = (assignedResponse as List?)?.length ?? 0;
 
       // 3. Active Teams (Managed by this user)
@@ -54,7 +54,7 @@ class EventManagerService {
         final eventsManaged = await client
             .from('events')
             .select('id')
-            .contains('manager_ids', '{${user.id}}');
+            .or('assigned_manager_id.eq.${user.id},manager_ids.cs.{${user.id}}');
             
         if (eventsManaged != null && eventsManaged.isNotEmpty) {
           final eventIds = (eventsManaged as List?)?.map((e) => e['id']).toList() ?? [];
@@ -143,7 +143,7 @@ class EventManagerService {
 
       if (categories == null || categories.isEmpty) return [];
 
-      var query = client.from('events').select('*, host:users(*)').eq('status', 'pending');
+      var query = client.from('events').select('*').eq('status', 'pending');
       
       query = query.inFilter('category', categories);
       
@@ -151,7 +151,6 @@ class EventManagerService {
 
       final response = await query.order('created_at', ascending: false);
       
-      // Filter out events the manager has already accepted/applied for
       final appliedResponse = await client
           .from('event_applications')
           .select('event_id')
@@ -159,7 +158,17 @@ class EventManagerService {
       
       final appliedIds = (appliedResponse as List?)?.map((e) => e['event_id']).toSet() ?? {};
 
-      return response.where((e) => !appliedIds.contains(e['id'])).toList();
+      return response.map((e) {
+        final Map<String, dynamic> eventMap = Map<String, dynamic>.from(e);
+        eventMap['manager_has_applied'] = appliedIds.contains(eventMap['id']);
+        // Fallback for ProposalDetailsScreen
+        if (eventMap['host'] == null) {
+          eventMap['host'] = {
+            'full_name': eventMap['host_name'] ?? 'Organizer',
+          };
+        }
+        return eventMap;
+      }).toList();
     } catch (e) {
       if (kDebugMode) print('Error fetching event requests: $e');
       return [];
@@ -178,7 +187,7 @@ class EventManagerService {
           ?.map((e) => e.toString())
           .toList() ?? [];
 
-      const selectColumns = '*, host:users(*)'; 
+      const selectColumns = '*'; 
 
       // 1. Pending events in manager's categories
       List<dynamic> pendingEvents = [];
@@ -197,7 +206,7 @@ class EventManagerService {
       final assignedEvents = await client
           .from('events')
           .select(selectColumns)
-          .contains('manager_ids', '{${user.id}}');
+          .or('assigned_manager_id.eq.${user.id},manager_ids.cs.{${user.id}}');
 
       // 3. Events this manager has applied for (via event_applications table)
       final appliedResponse = await client
@@ -239,7 +248,15 @@ class EventManagerService {
         return dateB.compareTo(dateA);
       });
 
-      return result;
+      return result.map((e) {
+        if (e['host'] == null) {
+          e['host'] = {
+            'full_name': e['host_name'] ?? 'Organizer',
+          };
+        }
+        e['manager_has_applied'] = appliedIds.contains(e['id']);
+        return e;
+      }).toList();
     } catch (e) {
       if (kDebugMode) print('Error fetching proposals: $e');
       return [];
@@ -405,9 +422,10 @@ class EventManagerService {
   static Stream<List<Map<String, dynamic>>> getApplicantsStream(String eventId) {
     return client
         .from('event_applications')
-        .stream(primaryKey: ['id'])
+        .stream(primaryKey: ['event_id', 'volunteer_id'])
         .eq('event_id', eventId)
         .order('created_at', ascending: false)
+        .map((data) => data.where((e) => e['manager_id'] == null || e['manager_id'] != e['volunteer_id']).toList()) // Filter for volunteer apps
         .asyncMap((data) async {
           if (data.isEmpty) return [];
           
@@ -425,6 +443,96 @@ class EventManagerService {
         });
   }
 
+  /// Manager accepts a volunteer's application.
+  static Future<void> acceptVolunteer(String eventId, String volunteerId) async {
+    try {
+      // 1. Update application status
+      await client
+          .from('event_applications')
+          .update({'status': 'accepted'})
+          .eq('event_id', eventId)
+          .eq('volunteer_id', volunteerId);
+
+      // 2. Add to volunteer_ids array and increment count
+      final currentEvent = await client
+          .from('events')
+          .select('volunteer_ids, current_volunteers_count')
+          .eq('id', eventId)
+          .maybeSingle();
+
+      if (currentEvent != null) {
+        List<dynamic> currentVolunteers = List<dynamic>.from(currentEvent['volunteer_ids'] ?? []);
+        if (!currentVolunteers.contains(volunteerId)) {
+          currentVolunteers.add(volunteerId);
+          final currentCount = (currentEvent['current_volunteers_count'] ?? 0) as int;
+          
+          await client.from('events').update({
+            'volunteer_ids': currentVolunteers,
+            'current_volunteers_count': currentCount + 1,
+          }).eq('id', eventId);
+        }
+      }
+
+      // Also call RPC in case there's other logic wrapped in it, but we handled the critical parts above
+      try {
+        await client.rpc('accept_volunteer', params: {
+          'p_event_id': eventId,
+          'p_volunteer_id': volunteerId,
+        });
+      } catch (e) {
+        if (kDebugMode) print('RPC accept_volunteer failed or missing, but manual update succeeded: $e');
+      }
+
+      if (kDebugMode) print('Manager accepted volunteer: $volunteerId for event: $eventId');
+    } catch (e) {
+      if (kDebugMode) print('Error accepting volunteer: $e');
+      throw Exception('Failed to accept volunteer: $e');
+    }
+  }
+
+  /// Manager rejects a volunteer's application.
+  static Future<void> rejectVolunteer(String eventId, String volunteerId, [String? reason]) async {
+    try {
+      final response = await client
+          .from('event_applications')
+          .update({
+            'status': 'rejected',
+          })
+          .eq('event_id', eventId)
+          .eq('volunteer_id', volunteerId)
+          .select();
+
+      if (response == null || response.isEmpty) {
+        throw Exception('Application rejection failed. Row not found or permission denied (RLS error).');
+      }
+
+      // If they were previously accepted, remove them from the array
+      final currentEvent = await client
+          .from('events')
+          .select('volunteer_ids, current_volunteers_count')
+          .eq('id', eventId)
+          .maybeSingle();
+
+      if (currentEvent != null) {
+        List<dynamic> currentVolunteers = List<dynamic>.from(currentEvent['volunteer_ids'] ?? []);
+        if (currentVolunteers.contains(volunteerId)) {
+          currentVolunteers.remove(volunteerId);
+          final currentCount = (currentEvent['current_volunteers_count'] ?? 0) as int;
+          
+          await client.from('events').update({
+            'volunteer_ids': currentVolunteers,
+            'current_volunteers_count': currentCount > 0 ? currentCount - 1 : 0,
+          }).eq('id', eventId);
+        }
+      }
+
+      if (kDebugMode) print('Manager rejected volunteer: $volunteerId for event: $eventId');
+    } catch (e) {
+      if (kDebugMode) print('Error rejecting volunteer: $e');
+      rethrow;
+    }
+  }
+
   /// Manager accepts/applies for an event.
   static Future<void> acceptEvent(String eventId) async {
     try {
@@ -434,8 +542,19 @@ class EventManagerService {
       await client.from('event_applications').insert({
         'event_id': eventId,
         'manager_id': user.id,
+        'volunteer_id': user.id, // Bypass NOT NULL constraint on volunteer_id
         'status': 'pending',
       });
+      
+      // Update manager_ids array on events table directly so organizers can see it immediately
+      final currentEvent = await client.from('events').select('manager_ids').eq('id', eventId).maybeSingle();
+      if (currentEvent != null) {
+        List<dynamic> currentManagers = List<dynamic>.from(currentEvent['manager_ids'] ?? []);
+        if (!currentManagers.contains(user.id)) {
+          currentManagers.add(user.id);
+          await client.from('events').update({'manager_ids': currentManagers}).eq('id', eventId);
+        }
+      }
       
       if (kDebugMode) print('Manager accepted event: $eventId');
     } catch (e) {
@@ -445,7 +564,7 @@ class EventManagerService {
   }
 
   /// Manager rejects/withdraws application for an event.
-  static Future<void> rejectEvent(String eventId) async {
+  static Future<void> rejectEvent(String eventId, [String? reason]) async {
     try {
       final user = SupabaseService.currentUser;
       if (user == null) throw Exception('User not logged in');
@@ -454,7 +573,26 @@ class EventManagerService {
           .delete()
           .eq('event_id', eventId)
           .eq('manager_id', user.id);
+          
+      if (reason != null && reason.isNotEmpty) {
+        final serializedReason = 'MANAGER_REJECTED::${user.id}::$reason';
+        await client.from('events').update({
+          'assigned_manager_id': null,
+          'status': 'pending',
+          'rejection_reason': serializedReason,
+        }).eq('id', eventId);
+      }
       
+      // Keep manager_ids array on events synchronized
+      final currentEvent = await client.from('events').select('manager_ids').eq('id', eventId).maybeSingle();
+      if (currentEvent != null) {
+        List<dynamic> currentManagers = List<dynamic>.from(currentEvent['manager_ids'] ?? []);
+        if (currentManagers.contains(user.id)) {
+          currentManagers.remove(user.id);
+          await client.from('events').update({'manager_ids': currentManagers}).eq('id', eventId);
+        }
+      }
+
       if (kDebugMode) print('Manager rejected event: $eventId');
     } catch (e) {
       if (kDebugMode) print('Error rejecting event: $e');
@@ -477,6 +615,54 @@ class EventManagerService {
     } catch (e) {
       if (kDebugMode) print('Error fetching accepted events: $e');
       return [];
+    }
+  }
+
+  /// Returns a stream of application statuses for a specific volunteer.
+  static Stream<List<Map<String, dynamic>>> getVolunteerApplicationsStream(String volunteerId) {
+    return client
+        .from('event_applications')
+        .stream(primaryKey: ['event_id', 'volunteer_id'])
+        .eq('volunteer_id', volunteerId)
+        .map((data) => List<Map<String, dynamic>>.from(data));
+  }
+
+  /// Volunteer backs out from an event they joined.
+  static Future<void> backOutFromEvent(String eventId, String volunteerId, String reason) async {
+    try {
+      // 1. Update application status to 'withdrawn'
+      await client
+          .from('event_applications')
+          .update({
+            'status': 'withdrawn',
+          })
+          .eq('event_id', eventId)
+          .eq('volunteer_id', volunteerId);
+
+      // 2. Remove volunteer from the events table volunteer_ids array
+      final currentEvent = await client
+          .from('events')
+          .select('volunteer_ids, current_volunteers_count')
+          .eq('id', eventId)
+          .maybeSingle();
+
+      if (currentEvent != null) {
+        List<dynamic> currentVolunteers = List<dynamic>.from(currentEvent['volunteer_ids'] ?? []);
+        if (currentVolunteers.contains(volunteerId)) {
+          currentVolunteers.remove(volunteerId);
+          final currentCount = (currentEvent['current_volunteers_count'] ?? 0) as int;
+          
+          await client.from('events').update({
+            'volunteer_ids': currentVolunteers,
+            'current_volunteers_count': currentCount > 0 ? currentCount - 1 : 0,
+          }).eq('id', eventId);
+        }
+      }
+
+      if (kDebugMode) print('Volunteer $volunteerId backed out from event: $eventId. Reason: $reason');
+    } catch (e) {
+      if (kDebugMode) print('Error backing out from event: $e');
+      rethrow;
     }
   }
 }

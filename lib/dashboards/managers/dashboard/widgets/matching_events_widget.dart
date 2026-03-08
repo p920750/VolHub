@@ -125,7 +125,11 @@ class _MatchingEventsWidgetState extends State<MatchingEventsWidget> {
               ],
             ),
             onTap: () {
-                // Navigate to event details if needed
+              Navigator.pushNamed(
+                context,
+                '/manager-proposal-details',
+                arguments: event,
+              );
             },
           ),
         );

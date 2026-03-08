@@ -40,6 +40,7 @@ import 'dashboards/managers/profile/profile_screen.dart';
 import 'dashboards/managers/profile/edit_profile_screen.dart';
 import 'dashboards/managers/profile/manager_profile_public_page.dart';
 import 'dashboards/managers/proposals/proposal_details_screen.dart';
+import 'dashboards/volunteers/volunteer_public_profile_page.dart';
 
 // Global navigator key for deep link navigation
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
@@ -312,6 +313,11 @@ class _MyAppState extends State<MyApp> {
           final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
           final managerId = args?['managerId'] as String? ?? '';
           return ManagerProfilePublicPage(managerId: managerId);
+        },
+        '/volunteer-public-profile': (context) {
+          final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+          final volunteerId = args?['volunteerId'] as String? ?? '';
+          return VolunteerPublicProfilePage(volunteerId: volunteerId);
         },
         '/manager-proposal-details': (context) {
           final args = ModalRoute.of(context)?.settings.arguments;

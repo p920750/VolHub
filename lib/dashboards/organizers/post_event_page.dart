@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:typed_data';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
@@ -15,19 +16,23 @@ class PostEventPage extends StatefulWidget {
 
 class _PostEventPageState extends State<PostEventPage> {
   final _formKey = GlobalKey<FormState>();
-  List<XFile> _images = [];
+  List<Map<String, dynamic>> _imageDataList = []; // Each map: {'name': String, 'bytes': Uint8List}
   final _picker = ImagePicker();
   
   final _titleController = TextEditingController();
   final _locationController = TextEditingController();
   final _dateController = TextEditingController();
   final _timeController = TextEditingController();
+  final _deadlineDateController = TextEditingController();
+  final _deadlineTimeController = TextEditingController();
   final _budgetController = TextEditingController();
   final _reqsController = TextEditingController();
   final _detailsController = TextEditingController();
   final _categoryController = TextEditingController();
 
   DateTime? _selectedDate;
+  DateTime? _selectedDeadlineDate;
+  TimeOfDay? _selectedDeadlineTime;
   String _hostName = 'Host';
   bool _isFetchingProfile = true;
 
@@ -151,6 +156,8 @@ class _PostEventPageState extends State<PostEventPage> {
     _locationController.dispose();
     _dateController.dispose();
     _timeController.dispose();
+    _deadlineDateController.dispose();
+    _deadlineTimeController.dispose();
     _budgetController.dispose();
     _reqsController.dispose();
     _detailsController.dispose();
@@ -181,9 +188,40 @@ class _PostEventPageState extends State<PostEventPage> {
     );
 
     if (pickedDate != null) {
+      if (_selectedDeadlineDate != null) {
+        if (pickedDate.isBefore(_selectedDeadlineDate!.add(const Duration(days: 4)))) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Event date must be at least 4 days after the deadline.')));
+          }
+          return;
+        }
+      }
       setState(() {
         _selectedDate = pickedDate;
-        _dateController.text = "${pickedDate.month.toString().padLeft(2, '0')}/${pickedDate.day.toString().padLeft(2, '0')}/${pickedDate.year}";
+        _dateController.text = "${pickedDate.day.toString().padLeft(2, '0')}/${pickedDate.month.toString().padLeft(2, '0')}/${pickedDate.year}";
+      });
+    }
+  }
+
+  Future<void> _pickDeadlineDateInSequence() async {
+    final DateTime? pickedDate = await showDialog<DateTime>(
+      context: context,
+      builder: (context) => const _CustomDatePickerDialog(),
+    );
+
+    if (pickedDate != null) {
+      if (_selectedDate != null) {
+        if (pickedDate.isAfter(_selectedDate!.subtract(const Duration(days: 4)))) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Registration deadline must be at least 4 days before the event.')));
+          }
+          return;
+        }
+      }
+      
+      setState(() {
+        _selectedDeadlineDate = pickedDate;
+        _deadlineDateController.text = "${pickedDate.day.toString().padLeft(2, '0')}/${pickedDate.month.toString().padLeft(2, '0')}/${pickedDate.year}";
       });
     }
   }
@@ -191,9 +229,14 @@ class _PostEventPageState extends State<PostEventPage> {
   Future<void> _pickImage() async {
     final pickedFiles = await _picker.pickMultiImage();
     if (pickedFiles.isNotEmpty) {
-      setState(() {
-        _images.addAll(pickedFiles);
-      });
+      for (final file in pickedFiles) {
+        final bytes = await file.readAsBytes();
+        _imageDataList.add({
+          'name': file.name,
+          'bytes': bytes,
+        });
+      }
+      setState(() {});
       // Trigger form validation to clear any existing errors when images are added
       _formKey.currentState?.validate();
     }
@@ -333,14 +376,16 @@ class _PostEventPageState extends State<PostEventPage> {
                   ),
                   const SizedBox(height: 20),
 
-                  // Date and Time
+                  // Event Date and Time
+                  const Text('Event Date', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                  const SizedBox(height: 8),
                   Row(
                     children: [
                       Expanded(
                         child: _buildTextField(
                           controller: _dateController,
                           label: 'Date',
-                          placeholder: 'mm/dd/yyyy',
+                          placeholder: 'dd/mm/yyyy',
                           icon: Icons.calendar_today_outlined,
                           readOnly: true,
                           onTap: _pickDateInSequence,
@@ -359,8 +404,47 @@ class _PostEventPageState extends State<PostEventPage> {
                               context: context,
                               initialTime: TimeOfDay.now(),
                             );
-                            if (time != null) {
+                            if (time != null && context.mounted) {
                               _timeController.text = time.format(context);
+                            }
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 20),
+
+                  // Deadline Date and Time
+                  const Text('Deadline for Acceptance', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _buildTextField(
+                          controller: _deadlineDateController,
+                          label: 'Date',
+                          placeholder: 'dd/mm/yyyy',
+                          icon: Icons.calendar_today_outlined,
+                          readOnly: true,
+                          onTap: _pickDeadlineDateInSequence,
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: _buildTextField(
+                          controller: _deadlineTimeController,
+                          label: 'Time',
+                          placeholder: '--:-- --',
+                          icon: Icons.access_time,
+                          readOnly: true,
+                          onTap: () async {
+                            final time = await showTimePicker(
+                              context: context,
+                              initialTime: TimeOfDay.now(),
+                            );
+                            if (time != null && context.mounted) {
+                              _selectedDeadlineTime = time;
+                              _deadlineTimeController.text = time.format(context);
                             }
                           },
                         ),
@@ -401,7 +485,7 @@ class _PostEventPageState extends State<PostEventPage> {
                   // Cover Image Upload
                   FormField<List<XFile>>(
                     validator: (value) {
-                      if (_images.isEmpty) {
+                      if (_imageDataList.isEmpty) {
                         return 'This field is required';
                       }
                       return null;
@@ -439,13 +523,13 @@ class _PostEventPageState extends State<PostEventPage> {
                                 borderRadius: BorderRadius.circular(12),
                                 color: Colors.grey.withOpacity(0.02),
                               ),
-                              child: _images.isNotEmpty
+                              child: _imageDataList.isNotEmpty
                                   ? ListView.builder(
                                       scrollDirection: Axis.horizontal,
                                       padding: const EdgeInsets.all(8),
-                                      itemCount: _images.length + 1,
+                                      itemCount: _imageDataList.length + 1,
                                       itemBuilder: (context, index) {
-                                        if (index == _images.length) {
+                                        if (index == _imageDataList.length) {
                                           return GestureDetector(
                                             onTap: _pickImage,
                                             child: Container(
@@ -467,19 +551,17 @@ class _PostEventPageState extends State<PostEventPage> {
                                               Positioned.fill(
                                                 child: ClipRRect(
                                                   borderRadius: BorderRadius.circular(8),
-                                                  child: kIsWeb
-                                                      ? Image.network(_images[index].path, fit: BoxFit.cover)
-                                                      : Image.file(File(_images[index].path), fit: BoxFit.cover),
+                                                  child: Image.memory(_imageDataList[index]['bytes'] as Uint8List, fit: BoxFit.cover),
                                                 ),
                                               ),
                                               Positioned(
                                                 top: 4,
                                                 right: 4,
                                                 child: GestureDetector(
-                                                  onTap: () {
-                                                    setState(() {
-                                                      _images.removeAt(index);
-                                                    });
+                                                    onTap: () {
+                                                      setState(() {
+                                                        _imageDataList.removeAt(index);
+                                                      });
                                                     // Trigger validation to show error if the last image was removed
                                                     _formKey.currentState?.validate();
                                                   },
@@ -537,7 +619,7 @@ class _PostEventPageState extends State<PostEventPage> {
                         if (_formKey.currentState!.validate()) {
                           // The FormField validator will now handle the image check and display the inline error.
                           // However, we still need to prevent submission if it's empty.
-                          if (_images.isEmpty) {
+                          if (_imageDataList.isEmpty) {
                             return;
                           }
 
@@ -549,11 +631,10 @@ class _PostEventPageState extends State<PostEventPage> {
 
                             // 1. Upload images to Supabase Storage
                             final List<String> uploadedUrls = [];
-                            for (final xFile in _images) {
-                              final bytes = await xFile.readAsBytes();
+                            for (final imageData in _imageDataList) {
                               final url = await SupabaseService.uploadEventImageBytes(
-                                bytes,
-                                xFile.name,
+                                imageData['bytes'] as Uint8List,
+                                imageData['name'] as String,
                                 userId,
                               );
                               if (url != null) {
@@ -563,10 +644,22 @@ class _PostEventPageState extends State<PostEventPage> {
                             
                             final String? imagePaths = uploadedUrls.isNotEmpty ? uploadedUrls.join(',') : null;
                             
+                            DateTime? combinedDeadline;
+                            if (_selectedDeadlineDate != null) {
+                              combinedDeadline = DateTime(
+                                _selectedDeadlineDate!.year,
+                                _selectedDeadlineDate!.month,
+                                _selectedDeadlineDate!.day,
+                                _selectedDeadlineTime?.hour ?? 23,
+                                _selectedDeadlineTime?.minute ?? 59,
+                              );
+                            }
+
                             await HostService.addEvent({
                               'title': _titleController.text,
                               'date': _selectedDate?.toIso8601String(),
                               'time': _timeController.text,
+                              'registration_deadline': combinedDeadline?.toIso8601String(),
                               'location': _locationController.text.isEmpty ? 'Online' : _locationController.text,
                               'budget': _budgetController.text,
                               'requirements': _reqsController.text,
