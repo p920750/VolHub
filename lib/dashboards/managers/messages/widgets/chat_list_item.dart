@@ -29,9 +29,9 @@ class ChatListItem extends StatelessWidget {
       onTap: onTap,
       leading: CircleAvatar(
         radius: 28,
-        backgroundColor: AppColors.charcoalBlue,
+        backgroundColor: AppColors.lightGrey,
         backgroundImage: avatarUrl != null ? NetworkImage(avatarUrl!) : null,
-        child: avatarUrl == null ? Icon(isGroup ? Icons.groups : Icons.person, color: Colors.white70) : null,
+        child: avatarUrl == null ? Icon(isGroup ? Icons.groups : Icons.person, color: AppColors.midnightBlue) : null,
       ),
       title: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -39,7 +39,7 @@ class ChatListItem extends StatelessWidget {
           Expanded(
             child: Text(
               name,
-              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white),
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppColors.midnightBlue),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),
@@ -47,7 +47,7 @@ class ChatListItem extends StatelessWidget {
           Text(
             time,
             style: TextStyle(
-              color: unreadCount > 0 ? AppColors.mintIce : Colors.white38,
+              color: unreadCount > 0 ? AppColors.midnightBlue : AppColors.darkGrey,
               fontSize: 12,
             ),
           ),
@@ -60,14 +60,14 @@ class ChatListItem extends StatelessWidget {
               padding: const EdgeInsets.only(right: 8.0),
               child: Text(
                 '$memberCount M.',
-                style: const TextStyle(fontSize: 12, color: AppColors.mintIce, fontWeight: FontWeight.bold),
+                style: const TextStyle(fontSize: 12, color: AppColors.midnightBlue, fontWeight: FontWeight.bold),
               ),
             ),
           Expanded(
             child: Text(
               lastMessage,
               style: TextStyle(
-                color: unreadCount > 0 ? Colors.white : Colors.white60,
+                color: unreadCount > 0 ? AppColors.midnightBlue : AppColors.darkGrey,
                 fontSize: 14,
                 fontWeight: unreadCount > 0 ? FontWeight.bold : FontWeight.normal,
               ),
@@ -79,12 +79,12 @@ class ChatListItem extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(6),
               decoration: const BoxDecoration(
-                color: AppColors.mintIce,
+                color: AppColors.midnightBlue,
                 shape: BoxShape.circle,
               ),
               child: Text(
                 unreadCount.toString(),
-                style: const TextStyle(color: AppColors.midnightBlue, fontSize: 10, fontWeight: FontWeight.bold),
+                style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
               ),
             ),
         ],

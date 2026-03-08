@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
@@ -10,14 +11,16 @@ import 'package:share_plus/share_plus.dart';
 import '../core/theme.dart';
 import 'group_info_screen.dart';
 import '../../../services/supabase_service.dart';
+import '../../../services/event_manager_service.dart';
 import '../../organizers/widgets/enhanced_media_viewer.dart';
 
 class ChatDetailScreen extends StatefulWidget {
   final String chatId;
   final String? chatName;
   final String? avatarUrl;
+  final bool? isGroup;
   
-  const ChatDetailScreen({super.key, required this.chatId, this.chatName, this.avatarUrl});
+  const ChatDetailScreen({super.key, required this.chatId, this.chatName, this.avatarUrl, this.isGroup});
 
   @override
   State<ChatDetailScreen> createState() => _ChatDetailScreenState();
@@ -33,16 +36,21 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   StreamSubscription? _messagesSubscription;
   Map<String, dynamic>? _replyingToMessage;
   String? _touchedMessageId;
+  Map<String, Map<String, dynamic>> _groupMembersProfile = {}; // id -> profile
+  bool _isMembersLoading = false;
+  String? _avatarUrl;
 
   @override
   void initState() {
     super.initState();
-    _isGroup = ['3', '4'].contains(widget.chatId); // Keep group check for mock groups
+    // Assuming 'isGroup' is passed as true or false in the chat screen initialization
+    _isGroup = widget.isGroup ?? false;
     _conversationName = widget.chatName ?? (_isGroup ? 'Group Chat' : 'Chat');
     _currentUserId = SupabaseService.currentUser?.id ?? '';
     
     // Initialize stream here to prevent re-subscriptions on build
     if (!_isGroup) {
+      _avatarUrl = widget.avatarUrl;
       _messagesStream = SupabaseService.getMessagesStream(widget.chatId);
       // Mark messages as read when opening chat
       SupabaseService.markMessagesAsRead(widget.chatId);
@@ -58,7 +66,65 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
         }
       });
     } else {
-      _messagesStream = const Stream.empty();
+      _avatarUrl = widget.avatarUrl;
+      _messagesStream = SupabaseService.getGroupMessagesStream(widget.chatId);
+      
+      // Mark group messages as read when opening
+      SupabaseService.markGroupMessagesAsRead(widget.chatId);
+      
+      // Listen to stream for real-time group unread clearing
+      _messagesSubscription = _messagesStream.listen((messages) {
+        final hasUnread = messages.any((msg) => 
+          msg['sender_id'] != _currentUserId && 
+          msg['is_read'] == false
+        );
+        if (hasUnread) {
+          SupabaseService.markGroupMessagesAsRead(widget.chatId);
+        }
+      });
+
+      _fetchGroupMetadata();
+      _fetchGroupMembers();
+    }
+  }
+
+  Future<void> _fetchGroupMetadata() async {
+    if (!_isGroup) return;
+    try {
+      final event = await SupabaseService.client
+          .from('events')
+          .select('name, image_url')
+          .eq('id', widget.chatId)
+          .maybeSingle();
+
+      if (event != null && mounted) {
+        setState(() {
+          _conversationName = event['name'] ?? _conversationName;
+          _avatarUrl = event['image_url'];
+        });
+      }
+    } catch (e) {
+      if (kDebugMode) print('Error fetching group metadata: $e');
+    }
+  }
+
+  Future<void> _fetchGroupMembers() async {
+    if (!mounted) return;
+    setState(() => _isMembersLoading = true);
+    try {
+      final members = await EventManagerService.getGroupMembers(widget.chatId);
+      final Map<String, Map<String, dynamic>> memberMap = {};
+      for (var member in members) {
+        memberMap[member['id'].toString()] = member;
+      }
+      if (mounted) {
+        setState(() {
+          _groupMembersProfile = memberMap;
+          _isMembersLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) setState(() => _isMembersLoading = false);
     }
   }
 
@@ -73,17 +139,12 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       _replyingToMessage = null;
     });
 
-    if (_isGroup) {
-      // Handle group message sending (mock or future impl)
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Group chat sending not implemented yet')));
-    } else {
-      await SupabaseService.sendMessage(
-        receiverId: widget.chatId,
-        content: content,
-        replyToId: replyToId?.toString(),
-      );
-      _scrollToBottom();
-    }
+    await SupabaseService.sendMessage(
+      receiverId: widget.chatId,
+      content: content,
+      replyToId: replyToId?.toString(),
+    );
+    _scrollToBottom();
   }
 
   Future<void> _sendMedia(String type) async {
@@ -167,10 +228,15 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
             CircleAvatar(
               radius: 18,
               backgroundColor: AppColors.midnightBlue.withOpacity(0.1),
-              child: Text(
-                _conversationName.isNotEmpty ? _conversationName[0].toUpperCase() : 'C',
-                style: const TextStyle(color: AppColors.midnightBlue, fontWeight: FontWeight.bold, fontSize: 16),
-              ),
+              backgroundImage: _avatarUrl != null && _avatarUrl!.isNotEmpty 
+                ? NetworkImage(_avatarUrl!) 
+                : null,
+              child: (_avatarUrl == null || _avatarUrl!.isEmpty) 
+                ? Text(
+                    _conversationName.isNotEmpty ? _conversationName[0].toUpperCase() : 'C',
+                    style: const TextStyle(color: AppColors.midnightBlue, fontWeight: FontWeight.bold, fontSize: 16),
+                  )
+                : null,
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -198,12 +264,15 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.more_vert, color: AppColors.midnightBlue),
-            onPressed: () {
+            onPressed: () async {
               if (_isGroup) {
-                Navigator.push(context, MaterialPageRoute(builder: (_) => GroupInfoScreen(
+                final result = await Navigator.push(context, MaterialPageRoute(builder: (_) => GroupInfoScreen(
                   chatId: widget.chatId,
                   groupName: _conversationName,
                 )));
+                
+                // Refresh if settings might have changed
+                _fetchGroupMetadata();
               }
             },
           ),
@@ -223,9 +292,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
         child: Column(
           children: [
             Expanded(
-              child: _isGroup 
-                ? _buildMockGroupChat() 
-                : StreamBuilder<List<Map<String, dynamic>>>(
+              child: StreamBuilder<List<Map<String, dynamic>>>(
                     stream: _messagesStream,
                     builder: (context, snapshot) {
                       if (snapshot.hasError) {
@@ -608,11 +675,11 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
               CircleAvatar(
                 radius: 14,
                 backgroundColor: AppColors.midnightBlue.withOpacity(0.1),
-                backgroundImage: widget.avatarUrl != null && widget.avatarUrl!.startsWith('http') 
-                    ? NetworkImage(widget.avatarUrl!) 
+                backgroundImage: _getSenderAvatar(msg) != null && _getSenderAvatar(msg)!.startsWith('http') 
+                    ? NetworkImage(_getSenderAvatar(msg)!) 
                     : null,
-                child: (widget.avatarUrl == null || !widget.avatarUrl!.startsWith('http')) 
-                    ? Text(_conversationName[0], style: const TextStyle(fontSize: 10, color: AppColors.midnightBlue)) 
+                child: (_getSenderAvatar(msg) == null || !_getSenderAvatar(msg)!.startsWith('http')) 
+                    ? Text(_getSenderName(msg)[0].toUpperCase(), style: const TextStyle(fontSize: 10, color: AppColors.midnightBlue)) 
                     : null,
               ),
               const SizedBox(width: 8),
@@ -624,7 +691,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                   Padding(
                     padding: const EdgeInsets.only(bottom: 4),
                     child: Text(
-                      _conversationName,
+                      _getSenderName(msg),
                       style: const TextStyle(
                         color: Color(0xFF00AA8D),
                         fontWeight: FontWeight.bold,
@@ -678,11 +745,11 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
             CircleAvatar(
               radius: 14,
               backgroundColor: AppColors.midnightBlue.withOpacity(0.1),
-              backgroundImage: widget.avatarUrl != null && widget.avatarUrl!.startsWith('http') 
-                  ? NetworkImage(widget.avatarUrl!) 
+              backgroundImage: _getSenderAvatar(msg) != null && _getSenderAvatar(msg)!.startsWith('http') 
+                  ? NetworkImage(_getSenderAvatar(msg)!) 
                   : null,
-              child: (widget.avatarUrl == null || !widget.avatarUrl!.startsWith('http')) 
-                  ? Text(_conversationName[0], style: const TextStyle(fontSize: 10, color: AppColors.midnightBlue)) 
+              child: (_getSenderAvatar(msg) == null || !_getSenderAvatar(msg)!.startsWith('http')) 
+                  ? Text(_getSenderName(msg)[0].toUpperCase(), style: const TextStyle(fontSize: 10, color: AppColors.midnightBlue)) 
                   : null,
             ),
             const SizedBox(width: 8),
@@ -694,7 +761,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                 Padding(
                   padding: const EdgeInsets.only(bottom: 4),
                   child: Text(
-                    _conversationName,
+                    _getSenderName(msg),
                     style: const TextStyle(
                       color: Color(0xFF00AA8D),
                       fontWeight: FontWeight.bold,
@@ -1088,5 +1155,51 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
         ],
       ),
     );
+  }
+  String _getSenderName(Map<String, dynamic> msg) {
+    final senderId = msg['sender_id']?.toString() ?? '';
+    if (senderId == _currentUserId) return 'You';
+    
+    if (_isGroup) {
+      final name = _groupMembersProfile[senderId]?['name'];
+      if (name == null) {
+        _fetchMissingProfile(senderId);
+        return 'Loading...';
+      }
+      return name;
+    }
+    return _conversationName;
+  }
+
+  void _fetchMissingProfile(String userId) async {
+    if (_groupMembersProfile.containsKey(userId)) return;
+    
+    // Add a placeholder to prevent duplicate requests
+    _groupMembersProfile[userId] = {'name': 'User', 'role': 'User'};
+    
+    try {
+      final data = await SupabaseService.getUserProfileById(userId);
+      if (data != null && mounted) {
+        setState(() {
+          _groupMembersProfile[userId] = {
+            'id': data['id'],
+            'name': data['full_name'] ?? 'User',
+            'avatar': data['profile_photo'] ?? '',
+            'role': data['user_type'] ?? 'Volunteer',
+          };
+        });
+      }
+    } catch (e) {
+      if (kDebugMode) print('Error fetching missing profile: $e');
+    }
+  }
+
+  String? _getSenderAvatar(Map<String, dynamic> msg) {
+    final senderId = msg['sender_id']?.toString() ?? '';
+    
+    if (_isGroup) {
+      return _groupMembersProfile[senderId]?['avatar'];
+    }
+    return widget.avatarUrl;
   }
 }

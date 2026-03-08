@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import '../../services/supabase_service.dart';
+import '../../services/event_manager_service.dart';
 import 'volunteer_colors.dart';
 import '../organizers/chat_detail_page.dart'; // Reusing existing beautiful chat detail page
+import '../managers/messages/chat_detail_screen.dart'; // Unified group chat page
 
 class VolunteerChatPage extends StatefulWidget {
   const VolunteerChatPage({super.key});
@@ -13,6 +15,7 @@ class VolunteerChatPage extends StatefulWidget {
 
 class _VolunteerChatPageState extends State<VolunteerChatPage> {
   List<Map<String, dynamic>> _managers = [];
+  List<Map<String, dynamic>> _groups = [];
   bool _isLoading = true;
   String _searchQuery = '';
 
@@ -28,6 +31,18 @@ class _VolunteerChatPageState extends State<VolunteerChatPage> {
     final managers = await SupabaseService.getUsersByRole('manager');
     final eventManagers = await SupabaseService.getUsersByRole('event_manager');
     
+    // Fetch group chats (events where limits are met)
+    final activeGroups = await EventManagerService.getActiveGroupChatsForVolunteer();
+    final mappedGroups = activeGroups.map((event) => {
+      'id': event['id']?.toString() ?? '',
+      'full_name': event['name'] ?? 'Event Group',
+      'email': '',
+      'role': 'Group Chat',
+      'profile_photo': event['image_url'],
+      'isGroup': true, // Custom flag to differentiate
+      'memberCount': event['current_volunteers_count'],
+    }).toList();
+
     setState(() {
       _managers = [
         ...managers, 
@@ -41,6 +56,7 @@ class _VolunteerChatPageState extends State<VolunteerChatPage> {
           return list;
         }
       );
+      _groups = mappedGroups;
       _isLoading = false;
     });
   }
@@ -55,32 +71,57 @@ class _VolunteerChatPageState extends State<VolunteerChatPage> {
     }).toList();
   }
 
+  List<Map<String, dynamic>> get _filteredGroups {
+    if (_searchQuery.isEmpty) return _groups;
+    return _groups.where((g) {
+      final name = (g['full_name'] ?? '').toString().toLowerCase();
+      return name.contains(_searchQuery.toLowerCase());
+    }).toList();
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: VolunteerColors.background,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        title: const Text(
-          'Messages',
-          style: TextStyle(
-            color: Colors.black,
-            fontWeight: FontWeight.bold,
-            fontSize: 22,
+    return DefaultTabController(
+      length: 2,
+      child: Scaffold(
+        backgroundColor: VolunteerColors.background,
+        appBar: AppBar(
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          title: const Text(
+            'Messages',
+            style: TextStyle(
+              color: Colors.black,
+              fontWeight: FontWeight.bold,
+              fontSize: 22,
+            ),
+          ),
+          centerTitle: false,
+          bottom: const TabBar(
+            labelColor: VolunteerColors.primaryGreen,
+            unselectedLabelColor: Colors.grey,
+            indicatorColor: VolunteerColors.primaryGreen,
+            tabs: [
+              Tab(text: 'Direct Messages'),
+              Tab(text: 'Groups'),
+            ],
           ),
         ),
-        centerTitle: false,
-      ),
-      body: Column(
-        children: [
-          _buildSearchBar(),
-          Expanded(
-            child: _isLoading
-                ? const Center(child: CircularProgressIndicator())
-                : _buildChatList(),
-          ),
-        ],
+        body: Column(
+          children: [
+            _buildSearchBar(),
+            Expanded(
+              child: _isLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : TabBarView(
+                      children: [
+                        _buildChatList(_filteredManagers),
+                        _buildChatList(_filteredGroups),
+                      ],
+                    ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -113,8 +154,8 @@ class _VolunteerChatPageState extends State<VolunteerChatPage> {
     );
   }
 
-  Widget _buildChatList() {
-    if (_filteredManagers.isEmpty) {
+  Widget _buildChatList(List<Map<String, dynamic>> items) {
+    if (items.isEmpty) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -140,11 +181,11 @@ class _VolunteerChatPageState extends State<VolunteerChatPage> {
         final unreadCounts = unreadSnapshot.data ?? {};
 
         return ListView.separated(
-          itemCount: _filteredManagers.length,
+          itemCount: items.length,
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           separatorBuilder: (context, index) => const SizedBox(height: 12),
           itemBuilder: (context, index) {
-            final user = _filteredManagers[index];
+            final user = items[index];
             final userId = user['id'];
             final name = user['full_name'] ?? 'Unknown User';
             final avatar = user['profile_photo'] ?? '';
@@ -156,6 +197,7 @@ class _VolunteerChatPageState extends State<VolunteerChatPage> {
               avatar: avatar,
               unreadCount: unreadCount,
               role: user['role'] ?? 'Manager',
+              isGroup: user['isGroup'] ?? false,
             );
           },
         );
@@ -169,20 +211,36 @@ class _VolunteerChatPageState extends State<VolunteerChatPage> {
     required String avatar,
     required int unreadCount,
     required String role,
+    bool isGroup = false,
   }) {
     return InkWell(
       onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => ChatDetailPage(
-              chatId: userId,
-              name: name,
-              avatar: avatar,
-              isOnline: false, // Defaulting to offline, Supabase real-time handles status elsewhere
+        if (isGroup) {
+          // Send to the unified ChatDetailScreen for groups
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => ChatDetailScreen(
+                chatId: userId,
+                chatName: name,
+                avatarUrl: avatar,
+                isGroup: true,
+              ),
             ),
-          ),
-        );
+          );
+        } else {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => ChatDetailPage(
+                chatId: userId,
+                name: name,
+                avatar: avatar,
+                isOnline: false,
+              ),
+            ),
+          );
+        }
       },
       child: Container(
         padding: const EdgeInsets.all(12),

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:intl/intl.dart';
 import 'dart:async';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:image_picker/image_picker.dart';
@@ -158,6 +159,37 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
     );
     _scrollToBottom();
     if (mounted) Navigator.pop(context);
+  }
+
+  Future<void> _sendMedia(String type) async {
+    try {
+      if (type == 'Image') {
+        final ImagePicker picker = ImagePicker();
+        final XFile? image = await picker.pickImage(source: ImageSource.gallery);
+        
+        if (image != null) {
+          final imageUrl = await SupabaseService.uploadChatAttachment(file: File(image.path), chatId: widget.chatId);
+          if (imageUrl != null) {
+            await SupabaseService.sendMessage(receiverId: widget.chatId, content: imageUrl, type: 'image');
+          }
+        }
+      } else if (type == 'Document') {
+        FilePickerResult? result = await FilePicker.platform.pickFiles();
+        
+        if (result != null && result.files.single.path != null) {
+          final file = File(result.files.single.path!);
+          final fileUrl = await SupabaseService.uploadChatAttachment(file: file, chatId: widget.chatId);
+          if (fileUrl != null) {
+            final content = '${result.files.single.name}|$fileUrl';
+            await SupabaseService.sendMessage(receiverId: widget.chatId, content: content, type: 'file');
+          }
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error sending $type: $e')));
+      }
+    }
   }
 
   @override
@@ -1039,8 +1071,14 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceAround,
                 children: [
-                  _buildAttachmentItem(Icons.image, 'Photo', Colors.blue, onTap: _pickImage),
-                  _buildAttachmentItem(Icons.description, 'Document', Colors.orange, onTap: _pickFile),
+                  _buildAttachmentItem(Icons.image, 'Photo', Colors.blue, onTap: () {
+                    Navigator.pop(context);
+                    _sendMedia('Image');
+                  }),
+                  _buildAttachmentItem(Icons.description, 'Document', Colors.orange, onTap: () {
+                    Navigator.pop(context);
+                    _sendMedia('Document');
+                  }),
                   _buildAttachmentItem(Icons.sticky_note_2, 'Stickers', Colors.purple, onTap: () {
                     Navigator.pop(context);
                     _showStickerPicker(context);
@@ -1097,50 +1135,7 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
     );
   }
 
-  Future<void> _pickImage() async {
-    final XFile? image = await _picker.pickImage(source: ImageSource.gallery);
-    if (image != null) {
-      final imageUrl = await SupabaseService.uploadChatAttachment(
-        file: File(image.path),
-        chatId: widget.chatId,
-      );
-      
-      if (imageUrl != null) {
-        await SupabaseService.sendMessage(
-          receiverId: widget.chatId,
-          content: imageUrl,
-          type: 'image',
-        );
-      }
-      
-      _scrollToBottom();
-      if (mounted) Navigator.pop(context);
-    }
-  }
 
-  Future<void> _pickFile() async {
-    FilePickerResult? result = await FilePicker.platform.pickFiles();
-    if (result != null) {
-      final file = File(result.files.first.path!);
-      final fileName = result.files.first.name;
-      
-      final fileUrl = await SupabaseService.uploadChatAttachment(
-        file: file,
-        chatId: widget.chatId,
-      );
-      
-      if (fileUrl != null) {
-        await SupabaseService.sendMessage(
-          receiverId: widget.chatId,
-          content: '$fileName|$fileUrl',
-          type: 'file',
-        );
-      }
-      
-      _scrollToBottom();
-      if (mounted) Navigator.pop(context);
-    }
-  }
 
   Widget _buildAttachmentItem(IconData icon, String label, Color color, {VoidCallback? onTap}) {
     return GestureDetector(

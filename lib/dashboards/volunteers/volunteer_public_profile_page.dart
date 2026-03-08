@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../../services/supabase_service.dart';
 import '../../widgets/safe_avatar.dart';
+import '../../services/event_manager_service.dart';
+import '../../services/supabase_service.dart';
+import '../managers/messages/chat_detail_screen.dart';
 
 class VolunteerPublicProfilePage extends StatefulWidget {
   final String volunteerId;
@@ -109,6 +111,32 @@ class _VolunteerPublicProfilePageState extends State<VolunteerPublicProfilePage>
                       Text('$expYears Years Experience', style: TextStyle(fontSize: 14, color: Colors.grey[600])),
                     ],
                   ),
+                  const SizedBox(height: 12),
+                  ElevatedButton.icon(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => ChatDetailScreen(
+                            chatId: widget.volunteerId,
+                            chatName: name,
+                            avatarUrl: photoUrl,
+                            isGroup: false,
+                          ),
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.chat_bubble_outline),
+                    label: const Text('Message'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF00AA8D),
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -161,6 +189,35 @@ class _VolunteerPublicProfilePageState extends State<VolunteerPublicProfilePage>
                 )).toList(),
               ),
             ],
+            const SizedBox(height: 32),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => ChatDetailScreen(
+                        chatId: widget.volunteerId,
+                        chatName: name,
+                        avatarUrl: photoUrl ?? '',
+                        isGroup: false,
+                      ),
+                    ),
+                  );
+                },
+                icon: const Icon(Icons.chat_bubble_outline),
+                label: const Text('Direct Message'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF001529),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+            ),
           ],
         ),
       ),

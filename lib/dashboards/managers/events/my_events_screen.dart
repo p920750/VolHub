@@ -385,6 +385,7 @@ class _MyEventsScreenState extends State<MyEventsScreen> {
     try {
       await EventManagerService.acceptVolunteer(eventId, volunteerId);
       if (mounted) {
+        _fetchMyEvents(); // Refresh UI to update the slots count
         _showSuccessDialog('Volunteer Accepted', 'The volunteer has been successfully joined to the event.');
       }
     } catch (e) {
@@ -439,6 +440,7 @@ class _MyEventsScreenState extends State<MyEventsScreen> {
       try {
         await EventManagerService.rejectVolunteer(eventId, volunteerId);
         if (mounted) {
+          _fetchMyEvents(); // Refresh UI here as well just in case
           ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Volunteer rejected.')));
         }
       } catch (e) {

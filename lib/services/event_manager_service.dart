@@ -446,90 +446,32 @@ class EventManagerService {
   /// Manager accepts a volunteer's application.
   static Future<void> acceptVolunteer(String eventId, String volunteerId) async {
     try {
-      // 1. Update application status
-      await client
-          .from('event_applications')
-          .update({'status': 'accepted'})
-          .eq('event_id', eventId)
-          .eq('volunteer_id', volunteerId);
-
-      // 2. Add to volunteer_ids array and increment count
-      final currentEvent = await client
-          .from('events')
-          .select('volunteer_ids, current_volunteers_count')
-          .eq('id', eventId)
-          .maybeSingle();
-
-      if (currentEvent != null) {
-        List<dynamic> currentVolunteers = List<dynamic>.from(currentEvent['volunteer_ids'] ?? []);
-        if (!currentVolunteers.contains(volunteerId)) {
-          currentVolunteers.add(volunteerId);
-          final currentCount = (currentEvent['current_volunteers_count'] ?? 0) as int;
-          
-          await client.from('events').update({
-            'volunteer_ids': currentVolunteers,
-            'current_volunteers_count': currentCount + 1,
-          }).eq('id', eventId);
-        }
-      }
-
-      // Also call RPC in case there's other logic wrapped in it, but we handled the critical parts above
-      try {
-        await client.rpc('accept_volunteer', params: {
-          'p_event_id': eventId,
-          'p_volunteer_id': volunteerId,
-        });
-      } catch (e) {
-        if (kDebugMode) print('RPC accept_volunteer failed or missing, but manual update succeeded: $e');
-      }
+      // Use SECURITY DEFINER RPC to bypass RLS and increment count
+      await client.rpc('accept_volunteer_safe', params: {
+        'p_event_id': eventId,
+        'p_volunteer_id': volunteerId,
+      });
 
       if (kDebugMode) print('Manager accepted volunteer: $volunteerId for event: $eventId');
     } catch (e) {
       if (kDebugMode) print('Error accepting volunteer: $e');
-      throw Exception('Failed to accept volunteer: $e');
+      throw Exception('Failed to accept volunteer. Please ensure the safe RPCs are created in Supabase: $e');
     }
   }
 
   /// Manager rejects a volunteer's application.
   static Future<void> rejectVolunteer(String eventId, String volunteerId, [String? reason]) async {
     try {
-      final response = await client
-          .from('event_applications')
-          .update({
-            'status': 'rejected',
-          })
-          .eq('event_id', eventId)
-          .eq('volunteer_id', volunteerId)
-          .select();
-
-      if (response == null || response.isEmpty) {
-        throw Exception('Application rejection failed. Row not found or permission denied (RLS error).');
-      }
-
-      // If they were previously accepted, remove them from the array
-      final currentEvent = await client
-          .from('events')
-          .select('volunteer_ids, current_volunteers_count')
-          .eq('id', eventId)
-          .maybeSingle();
-
-      if (currentEvent != null) {
-        List<dynamic> currentVolunteers = List<dynamic>.from(currentEvent['volunteer_ids'] ?? []);
-        if (currentVolunteers.contains(volunteerId)) {
-          currentVolunteers.remove(volunteerId);
-          final currentCount = (currentEvent['current_volunteers_count'] ?? 0) as int;
-          
-          await client.from('events').update({
-            'volunteer_ids': currentVolunteers,
-            'current_volunteers_count': currentCount > 0 ? currentCount - 1 : 0,
-          }).eq('id', eventId);
-        }
-      }
+      // Use SECURITY DEFINER RPC to bypass RLS and decrement count
+      await client.rpc('reject_volunteer_safe', params: {
+        'p_event_id': eventId,
+        'p_volunteer_id': volunteerId,
+      });
 
       if (kDebugMode) print('Manager rejected volunteer: $volunteerId for event: $eventId');
     } catch (e) {
       if (kDebugMode) print('Error rejecting volunteer: $e');
-      rethrow;
+      throw Exception('Failed to reject volunteer: $e');
     }
   }
 
@@ -618,6 +560,60 @@ class EventManagerService {
     }
   }
 
+  /// Fetches events where the current user is a manager (for group chat lists).
+  static Future<List<Map<String, dynamic>>> getActiveGroupChatsForManager() async {
+    try {
+      final user = SupabaseService.currentUser;
+      if (user == null) return [];
+
+      final response = await client
+          .from('events')
+          .select('id, name, current_volunteers_count, volunteers_needed, image_url, created_at')
+          .or('user_id.eq.${user.id},assigned_manager_id.eq.${user.id}')
+          .neq('status', 'cancelled');
+
+      final events = List<Map<String, dynamic>>.from(response);
+      return events.where((e) {
+        final current = (num.tryParse(e['current_volunteers_count']?.toString() ?? '0') ?? 0).toInt();
+        final needed = (num.tryParse(e['volunteers_needed']?.toString() ?? '1') ?? 1).toInt();
+        return current >= needed;
+      }).toList();
+    } catch (e) {
+      if (kDebugMode) print('Error fetching active group chats for manager: $e');
+      return [];
+    }
+  }
+
+  /// Fetches events where the current user is an accepted volunteer (for group chat lists).
+  static Future<List<Map<String, dynamic>>> getActiveGroupChatsForVolunteer() async {
+    try {
+      final user = SupabaseService.currentUser;
+      if (user == null) return [];
+
+      final response = await client
+          .from('event_applications')
+          .select('events(id, name, current_volunteers_count, volunteers_needed, image_url, created_at)')
+          .eq('volunteer_id', user.id)
+          .eq('status', 'accepted');
+
+      final List<Map<String, dynamic>> eventsList = [];
+      for (var row in response) {
+        if (row['events'] != null) {
+          final event = Map<String, dynamic>.from(row['events']);
+          final current = (num.tryParse(event['current_volunteers_count']?.toString() ?? '0') ?? 0).toInt();
+          final needed = (num.tryParse(event['volunteers_needed']?.toString() ?? '1') ?? 1).toInt();
+          if (current >= needed) {
+            eventsList.add(event);
+          }
+        }
+      }
+      return eventsList;
+    } catch (e) {
+      if (kDebugMode) print('Error fetching active group chats for volunteer: $e');
+      return [];
+    }
+  }
+
   /// Returns a stream of application statuses for a specific volunteer.
   static Stream<List<Map<String, dynamic>>> getVolunteerApplicationsStream(String volunteerId) {
     return client
@@ -625,6 +621,88 @@ class EventManagerService {
         .stream(primaryKey: ['event_id', 'volunteer_id'])
         .eq('volunteer_id', volunteerId)
         .map((data) => List<Map<String, dynamic>>.from(data));
+  }
+
+  /// Fetches members for a group chat (specific event).
+  /// Includes the manager(s) and all accepted volunteers.
+  static Future<List<Map<String, dynamic>>> getGroupMembers(String eventId) async {
+    try {
+      // Get the event details to find the manager and volunteers
+      final event = await client
+          .from('events')
+          .select('user_id, assigned_manager_id, manager_ids, volunteer_ids')
+          .eq('id', eventId)
+          .maybeSingle();
+
+      if (event == null) return [];
+
+      List<String> userIds = [];
+
+      // Add single manager (organizer) if present
+      if (event['user_id'] != null) userIds.add(event['user_id'].toString());
+      if (event['assigned_manager_id'] != null) userIds.add(event['assigned_manager_id'].toString());
+      
+      // Add manager array if present
+      if (event['manager_ids'] != null) {
+        userIds.addAll(List<dynamic>.from(event['manager_ids']).map((e) => e.toString()));
+      }
+
+      // Add volunteer array from event record if present
+      if (event['volunteer_ids'] != null) {
+        userIds.addAll(List<dynamic>.from(event['volunteer_ids']).map((e) => e.toString()));
+      }
+
+      // Also fetch accepted volunteers from event_applications table for consistency
+      final applications = await client
+          .from('event_applications')
+          .select('volunteer_id')
+          .eq('event_id', eventId)
+          .eq('status', 'accepted');
+      
+      if (applications != null) {
+        for (var app in applications) {
+          userIds.add(app['volunteer_id'].toString());
+        }
+      }
+
+      // Remove duplicates
+      userIds = userIds.toSet().toList();
+
+      if (userIds.isEmpty) return [];
+
+      // Fetch user profiles for all IDs
+      final usersResponse = await client
+          .from('users')
+          .select('id, full_name, profile_photo, email')
+          .inFilter('id', userIds);
+
+      final List<Map<String, dynamic>> members = [];
+      for (var u in usersResponse) {
+        final isManager = u['id'] == event['user_id'] || 
+                          u['id'] == event['assigned_manager_id'] || 
+                          (event['manager_ids'] != null && List<dynamic>.from(event['manager_ids']).contains(u['id']));
+                          
+        members.add({
+          'id': u['id'],
+          'name': u['full_name'] ?? 'Unknown',
+          'avatar': u['profile_photo'] ?? '',
+          'email': u['email'] ?? '',
+          'role': isManager ? 'Manager' : 'Volunteer',
+        });
+      }
+
+      // Sort managers first
+      members.sort((a, b) {
+        if (a['role'] == 'Manager' && b['role'] != 'Manager') return -1;
+        if (a['role'] != 'Manager' && b['role'] == 'Manager') return 1;
+        return a['name'].compareTo(b['name']);
+      });
+
+      return members;
+    } catch (e) {
+      if (kDebugMode) print('Error fetching group members: $e');
+      return [];
+    }
   }
 
   /// Volunteer backs out from an event they joined.
@@ -662,6 +740,26 @@ class EventManagerService {
       if (kDebugMode) print('Volunteer $volunteerId backed out from event: $eventId. Reason: $reason');
     } catch (e) {
       if (kDebugMode) print('Error backing out from event: $e');
+      rethrow;
+    }
+  }
+
+  /// Updates group information (name, photo) for an event.
+  static Future<void> updateEventGroupInfo({
+    required String eventId,
+    String? name,
+    String? imageUrl,
+  }) async {
+    try {
+      final updates = <String, dynamic>{};
+      if (name != null) updates['name'] = name;
+      if (imageUrl != null) updates['image_url'] = imageUrl;
+
+      if (updates.isEmpty) return;
+
+      await client.from('events').update(updates).eq('id', eventId);
+    } catch (e) {
+      if (kDebugMode) print('Error updating event group info: $e');
       rethrow;
     }
   }

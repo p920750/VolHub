@@ -4,6 +4,7 @@ import '../core/manager_drawer.dart';
 import 'widgets/chat_list_item.dart';
 import 'chat_detail_screen.dart';
 import '../../../services/supabase_service.dart';
+import '../../../services/event_manager_service.dart';
 
 class MessagesScreen extends StatefulWidget {
   const MessagesScreen({super.key});
@@ -21,6 +22,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
 
   List<Map<String, dynamic>> _organizers = [];
   List<Map<String, dynamic>> _volunteers = [];
+  List<Map<String, dynamic>> _groupChats = [];
   bool _isLoading = true;
 
   @override
@@ -33,10 +35,24 @@ class _MessagesScreenState extends State<MessagesScreen> {
     setState(() => _isLoading = true);
     final organizers = await SupabaseService.getUsersByRole('organizer'); // or 'event_organizer' check your DB roles
     final volunteers = await SupabaseService.getUsersByRole('volunteer');
+    final activeGroups = await EventManagerService.getActiveGroupChatsForManager();
+
+    // Map events to the structure expected by the UI for groups
+    final mappedGroups = activeGroups.map((event) => {
+      'id': event['id']?.toString() ?? '',
+      'name': event['name'] ?? 'Event Group',
+      'lastMessage': 'Tap to view messages',
+      'time': '',
+      'unread': 0, // Unread counts for groups can be implemented later
+      'memberCount': event['current_volunteers_count'],
+      'isGroup': true,
+      'avatarUrl': event['image_url'],
+    }).toList();
     
     setState(() {
       _organizers = organizers;
       _volunteers = volunteers;
+      _groupChats = mappedGroups;
       _isLoading = false;
     });
   }
@@ -46,24 +62,23 @@ class _MessagesScreenState extends State<MessagesScreen> {
     return DefaultTabController(
       length: 3,
       child: Scaffold(
-        backgroundColor: AppColors.midnightBlue,
+        backgroundColor: Colors.white,
         appBar: AppBar(
-          backgroundColor: Colors.transparent,
-          elevation: 0,
-          title: const Text('Messages', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+          backgroundColor: Colors.white,
+          elevation: 0.5,
+          title: const Text('Messages', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.midnightBlue)),
           actions: [
             IconButton(
-              icon: const Icon(Icons.search, color: Colors.white70), 
+              icon: const Icon(Icons.search, color: AppColors.midnightBlue), 
               onPressed: () {
                 showSearch(context: context, delegate: UserSearchDelegate(mockGroups));
               }
             ),
-            IconButton(icon: const Icon(Icons.more_vert, color: Colors.white70), onPressed: () {}),
           ],
           bottom: const TabBar(
-            indicatorColor: AppColors.mintIce,
-            labelColor: AppColors.mintIce,
-            unselectedLabelColor: Colors.white54,
+            indicatorColor: AppColors.midnightBlue,
+            labelColor: AppColors.midnightBlue,
+            unselectedLabelColor: Colors.grey,
             tabs: [
               Tab(text: 'Organizers'),
               Tab(text: 'Volunteers'),
@@ -73,35 +88,19 @@ class _MessagesScreenState extends State<MessagesScreen> {
         ),
         drawer: const ManagerDrawer(currentRoute: '/manager-messages'),
         body: Container(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [
-                AppColors.midnightBlue,
-                Colors.black.withOpacity(0.8),
-              ],
-            ),
-          ),
+          color: Colors.white,
           child: _isLoading 
-            ? const Center(child: CircularProgressIndicator(color: AppColors.mintIce))
+            ? const Center(child: CircularProgressIndicator(color: AppColors.midnightBlue))
             : TabBarView(
                 children: [
                   _buildUserList(context, _organizers),
                   _buildUserList(context, _volunteers),
-                  _buildChatList(context, mockGroups),
+                  _buildChatList(context, _groupChats),
                 ],
               ),
-        ),
-        floatingActionButton: FloatingActionButton(
-          onPressed: () {
-             // ... existing FAB logic ...
-          },
-          backgroundColor: AppColors.mintIce,
-          child: const Icon(Icons.message, color: AppColors.midnightBlue),
-        ),
-      ),
-    );
+        ), // Container
+      ), // Scaffold
+    ); // DefaultTabController
   }
 
   Widget _buildUserList(BuildContext context, List<Map<String, dynamic>> users) {
@@ -116,8 +115,8 @@ class _MessagesScreenState extends State<MessagesScreen> {
         return ListView.separated(
           padding: const EdgeInsets.symmetric(vertical: 8),
           itemCount: users.length,
-          separatorBuilder: (context, index) => const Divider(
-            color: Colors.white10,
+          separatorBuilder: (context, index) => Divider(
+            color: Colors.grey[200],
             indent: 80,
             endIndent: 16,
           ),
@@ -156,8 +155,8 @@ class _MessagesScreenState extends State<MessagesScreen> {
     return ListView.separated(
       padding: const EdgeInsets.symmetric(vertical: 8),
       itemCount: chats.length,
-      separatorBuilder: (context, index) => const Divider(
-        color: Colors.white10,
+      separatorBuilder: (context, index) => Divider(
+        color: Colors.grey[200],
         indent: 80,
         endIndent: 16,
       ),
@@ -168,17 +167,18 @@ class _MessagesScreenState extends State<MessagesScreen> {
           lastMessage: chat['lastMessage'],
           time: chat['time'],
           unreadCount: chat['unread'],
-          avatarUrl: chat.containsKey('avatar') ? chat['avatar'] : null,
-          isGroup: chat['isGroup'] ?? false,
+          isGroup: chat['isGroup'],
           memberCount: chat['memberCount'],
+          avatarUrl: chat['avatarUrl'],
           onTap: () {
             Navigator.push(
               context,
               MaterialPageRoute(
                 builder: (context) => ChatDetailScreen(
-                  chatId: chat['id'] as String,
-                  chatName: chat['name'] as String?,
-                  avatarUrl: chat.containsKey('avatar') ? chat['avatar'] as String? : null,
+                  chatId: chat['id'],
+                  chatName: chat['name'],
+                  isGroup: chat['isGroup'], // Important for ChatDetailScreen to know
+                  avatarUrl: chat['avatarUrl'],
                 ),
               ),
             );
@@ -196,16 +196,17 @@ class UserSearchDelegate extends SearchDelegate {
   @override
   ThemeData appBarTheme(BuildContext context) {
     return Theme.of(context).copyWith(
-      scaffoldBackgroundColor: AppColors.midnightBlue,
+      scaffoldBackgroundColor: Colors.white,
       appBarTheme: const AppBarTheme(
-        backgroundColor: AppColors.midnightBlue,
-        iconTheme: IconThemeData(color: Colors.white),
+        backgroundColor: Colors.white,
+        iconTheme: IconThemeData(color: AppColors.midnightBlue),
+        elevation: 0.5,
       ),
       textTheme: const TextTheme(
-        titleLarge: TextStyle(color: Colors.white),
+        titleLarge: TextStyle(color: AppColors.midnightBlue),
       ),
       inputDecorationTheme: const InputDecorationTheme(
-        hintStyle: TextStyle(color: Colors.white54),
+        hintStyle: TextStyle(color: AppColors.darkGrey),
         border: InputBorder.none,
       ),
     );
@@ -245,11 +246,12 @@ class UserSearchDelegate extends SearchDelegate {
             final isGroup = result['isGroup'] == true;
             return ListTile(
               leading: CircleAvatar(
+                backgroundColor: AppColors.lightGrey,
                 backgroundImage: result['profile_photo'] != null ? NetworkImage(result['profile_photo']) : null, 
-                child: result['profile_photo'] == null ? Text(result['full_name'][0]) : null,
+                child: result['profile_photo'] == null ? Text(result['full_name'][0], style: const TextStyle(color: AppColors.midnightBlue)) : null,
               ),
-              title: Text(result['full_name'], style: const TextStyle(color: Colors.white)),
-              subtitle: Text(isGroup ? 'Group' : (result['role'] ?? 'User'), style: const TextStyle(color: Colors.white70)),
+              title: Text(result['full_name'], style: const TextStyle(color: AppColors.midnightBlue)),
+              subtitle: Text(isGroup ? 'Group' : (result['role'] ?? 'User'), style: const TextStyle(color: AppColors.darkGrey)),
               onTap: () {
                 close(context, null);
                 Navigator.push(

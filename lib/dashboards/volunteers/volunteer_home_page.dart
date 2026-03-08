@@ -5,6 +5,7 @@ import 'volunteer_colors.dart';
 import 'volunteer_profile_page.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../services/event_manager_service.dart';
+import 'volunteer_chat_page.dart';
 
 class VolunteerHomePage extends StatefulWidget {
   const VolunteerHomePage({super.key});
@@ -608,7 +609,7 @@ class _VolunteerHomePageState extends State<VolunteerHomePage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: VolunteerColors.background,
-      appBar: AppBar(
+      appBar: _currentIndex == 0 ? AppBar(
         backgroundColor: VolunteerColors.card,
         elevation: 0,
         leadingWidth: 56,
@@ -642,8 +643,11 @@ class _VolunteerHomePageState extends State<VolunteerHomePage> {
             ),
           ),
         ],
-      ),
-      body: Column(
+      ) : null,
+      body: IndexedStack(
+        index: _currentIndex,
+        children: [
+          Column(
         children: [
           const SizedBox(height: 12),
           Padding(
@@ -930,7 +934,12 @@ class _VolunteerHomePageState extends State<VolunteerHomePage> {
                       ),
           ),
         ],
-      ),
+      ), // End of Column
+          const Center(child: Text('Menu Coming Soon...', style: TextStyle(color: Colors.grey))),
+          const VolunteerChatPage(),
+          const Center(child: Text('Board Coming Soon...', style: TextStyle(color: Colors.grey))),
+        ],
+      ), // End of IndexedStack
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _currentIndex,
         type: BottomNavigationBarType.fixed,

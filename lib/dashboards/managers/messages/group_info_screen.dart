@@ -1,5 +1,10 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import '../core/theme.dart';
+import '../../../services/event_manager_service.dart';
+import '../../../services/supabase_service.dart';
+import 'chat_detail_screen.dart';
 
 class GroupInfoScreen extends StatefulWidget {
   final String chatId;
@@ -17,20 +22,101 @@ class GroupInfoScreen extends StatefulWidget {
 
 class _GroupInfoScreenState extends State<GroupInfoScreen> {
   late TextEditingController _nameController;
-  late List<Map<String, String>> _members;
+  List<Map<String, dynamic>> _members = [];
+  bool _isLoading = true;
+  bool _isSaving = false;
+  String _currentUserRole = 'Volunteer';
+  File? _selectedImage;
+  String? _currentImageUrl;
 
   @override
   void initState() {
     super.initState();
     _nameController = TextEditingController(text: widget.groupName);
-    // Mock members list
-    _members = [
-      {'name': 'Alex (You)', 'role': 'Host', 'id': 'me'},
-      {'name': 'Alice', 'role': 'Member', 'id': '1'},
-      {'name': 'Bob', 'role': 'Member', 'id': '2'},
-      {'name': 'Charlie', 'role': 'Member', 'id': '3'},
-      {'name': 'David', 'role': 'Member', 'id': '4'},
-    ];
+    _fetchMembers();
+  }
+  
+  Future<void> _fetchMembers() async {
+    setState(() => _isLoading = true);
+    try {
+      final members = await EventManagerService.getGroupMembers(widget.chatId);
+      final currentUserId = SupabaseService.currentUser?.id;
+      
+      // Determine current user's role in this group and fetch existing image
+      if (currentUserId != null) {
+        final myMember = members.firstWhere((m) => m['id'] == currentUserId, orElse: () => {});
+        if (myMember.isNotEmpty) {
+          _currentUserRole = myMember['role'];
+        }
+      }
+
+      // We need to get the event's current image_url
+      final event = await SupabaseService.client
+          .from('events')
+          .select('image_url')
+          .eq('id', widget.chatId)
+          .maybeSingle();
+
+      if (mounted) {
+        setState(() {
+          _members = members;
+          _currentImageUrl = event?['image_url'];
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _pickImage() async {
+    if (_currentUserRole != 'Manager') return;
+
+    final picker = ImagePicker();
+    final pickedFile = await picker.pickImage(source: ImageSource.gallery);
+    
+    if (pickedFile != null) {
+      setState(() {
+        _selectedImage = File(pickedFile.path);
+      });
+    }
+  }
+
+  Future<void> _handleSave() async {
+    if (_currentUserRole != 'Manager') {
+      Navigator.pop(context);
+      return;
+    }
+
+    setState(() => _isSaving = true);
+    try {
+      String? imageUrl = _currentImageUrl;
+      
+      if (_selectedImage != null) {
+        imageUrl = await SupabaseService.uploadChatAttachment(
+          file: _selectedImage!,
+          chatId: widget.chatId,
+        );
+      }
+
+      await EventManagerService.updateEventGroupInfo(
+        eventId: widget.chatId,
+        name: _nameController.text.trim(),
+        imageUrl: imageUrl,
+      );
+
+      if (mounted) {
+        Navigator.pop(context, _nameController.text.trim());
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error saving changes: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
+    }
   }
 
   @override
@@ -40,86 +126,39 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
   }
 
   void _removeMember(int index) {
-    setState(() {
-      _members.removeAt(index);
-    });
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Member removed')),
+      const SnackBar(content: Text('Removing members is not yet implemented.')),
     );
   }
 
   void _showAddMemberDialog() {
-    final List<Map<String, String>> potentialMembers = [
-      {'name': 'Emma Watson', 'role': 'Event Coordinator', 'id': '5'},
-      {'name': 'John Doe', 'role': 'Volunteer', 'id': '6'},
-      {'name': 'Sarah Smith', 'role': 'Marketing', 'id': '7'},
-      {'name': 'Mike Brown', 'role': 'Security', 'id': '8'},
-    ];
-
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: AppColors.midnightBlue,
-        title: const Text('Add Member', style: TextStyle(color: Colors.white)),
-        content: SizedBox(
-          width: double.maxFinite,
-          child: ListView.builder(
-            shrinkWrap: true,
-            itemCount: potentialMembers.length,
-            itemBuilder: (context, index) {
-              final user = potentialMembers[index];
-              final isAlreadyMember = _members.any((m) => m['id'] == user['id']);
-
-              return ListTile(
-                leading: CircleAvatar(
-                  backgroundColor: AppColors.charcoalBlue,
-                  child: Text(user['name']![0], style: const TextStyle(color: AppColors.mintIce)),
-                ),
-                title: Text(user['name']!, style: const TextStyle(color: Colors.white)),
-                subtitle: Text(user['role']!, style: TextStyle(color: Colors.white.withOpacity(0.5))),
-                trailing: isAlreadyMember
-                    ? const Icon(Icons.check_circle, color: AppColors.mintIce)
-                    : const Icon(Icons.add_circle_outline, color: Colors.white24),
-                onTap: isAlreadyMember
-                    ? null
-                    : () {
-                        setState(() {
-                          _members.add(user);
-                        });
-                        Navigator.pop(context);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('${user['name']} added to group')),
-                        );
-                      },
-              );
-            },
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Close', style: TextStyle(color: AppColors.mintIce)),
-          ),
-        ],
-      ),
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Adding members manually is disabled for events.')),
     );
   }
+
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.midnightBlue,
+      backgroundColor: Colors.white,
       appBar: AppBar(
-        backgroundColor: Colors.transparent,
+        backgroundColor: Colors.white,
         elevation: 0,
-        title: const Text('Group Settings', style: TextStyle(fontWeight: FontWeight.bold)),
+        foregroundColor: Colors.black,
+        iconTheme: const IconThemeData(color: Colors.black),
+        title: const Text('Group Settings', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black)),
         actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context, _nameController.text);
-            },
-            child: const Text('Save', style: TextStyle(color: AppColors.mintIce, fontWeight: FontWeight.bold)),
-          ),
+          if (_currentUserRole == 'Manager')
+            _isSaving 
+              ? const Center(child: Padding(
+                  padding: EdgeInsets.only(right: 16),
+                  child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF00AA8D))),
+                ))
+              : TextButton(
+                  onPressed: _handleSave,
+                  child: const Text('Save', style: TextStyle(color: Color(0xFF00AA8D), fontWeight: FontWeight.bold)),
+                ),
         ],
       ),
       body: SingleChildScrollView(
@@ -127,33 +166,44 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
           children: [
             const SizedBox(height: 30),
             Center(
-              child: Stack(
-                children: [
-                  Container(
-                    width: 120,
-                    height: 120,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      border: Border.all(color: AppColors.mintIce, width: 2),
-                      boxShadow: [
-                        BoxShadow(color: AppColors.mintIce.withOpacity(0.2), blurRadius: 20, spreadRadius: 5),
-                      ],
+              child: GestureDetector(
+                onTap: _pickImage,
+                child: Stack(
+                  children: [
+                    Container(
+                      width: 120,
+                      height: 120,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(color: const Color(0xFF00AA8D).withOpacity(0.5), width: 2),
+                        boxShadow: [
+                          BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, spreadRadius: 2),
+                        ],
+                      ),
+                      child: CircleAvatar(
+                        backgroundColor: Colors.grey[200],
+                        backgroundImage: _selectedImage != null 
+                            ? FileImage(_selectedImage!) 
+                            : _currentImageUrl != null 
+                                ? NetworkImage(_currentImageUrl!) as ImageProvider
+                                : null,
+                        child: (_selectedImage == null && _currentImageUrl == null)
+                            ? Icon(Icons.group, size: 60, color: Colors.grey[400])
+                            : null,
+                      ),
                     ),
-                    child: const CircleAvatar(
-                      backgroundColor: AppColors.charcoalBlue,
-                      child: Icon(Icons.group, size: 60, color: Colors.white),
-                    ),
-                  ),
-                  Positioned(
-                    bottom: 0,
-                    right: 0,
-                    child: Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: const BoxDecoration(color: AppColors.mintIce, shape: BoxShape.circle),
-                      child: const Icon(Icons.camera_alt, color: AppColors.midnightBlue, size: 20),
-                    ),
-                  ),
-                ],
+                    if (_currentUserRole == 'Manager')
+                      Positioned(
+                        bottom: 0,
+                        right: 0,
+                        child: Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: const BoxDecoration(color: Color(0xFF00AA8D), shape: BoxShape.circle),
+                          child: const Icon(Icons.camera_alt, color: Colors.white, size: 20),
+                        ),
+                      ),
+                  ],
+                ),
               ),
             ),
             const SizedBox(height: 30),
@@ -162,21 +212,23 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
               child: Container(
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
-                  color: AppColors.charcoalBlue.withOpacity(0.5),
+                  color: Colors.grey[50],
                   borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: Colors.white10),
+                  border: Border.all(color: Colors.grey[200]!),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('GROUP NAME', style: TextStyle(color: Colors.white54, fontSize: 12, letterSpacing: 1.2)),
+                    Text('GROUP NAME', style: TextStyle(color: Colors.grey[500], fontSize: 12, letterSpacing: 1.2)),
                     TextField(
                       controller: _nameController,
-                      style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white),
-                      decoration: const InputDecoration(
+                      enabled: _currentUserRole == 'Manager',
+                      style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.black),
+                      decoration: InputDecoration(
                         hintText: 'Group Name',
-                        hintStyle: TextStyle(color: Colors.white24),
+                        hintStyle: TextStyle(color: Colors.grey[300]),
                         border: InputBorder.none,
+                        suffixIcon: _currentUserRole == 'Manager' ? Icon(Icons.edit, color: Colors.grey[400], size: 16) : null,
                       ),
                     ),
                   ],
@@ -189,16 +241,17 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text('${_members.length} MEMBERS', style: const TextStyle(color: Colors.white54, fontSize: 12, letterSpacing: 1.2)),
+                  Text('${_members.length} MEMBERS', style: TextStyle(color: Colors.grey[600], fontSize: 12, letterSpacing: 1.2)),
                   TextButton.icon(
                     onPressed: _showAddMemberDialog,
-                    icon: const Icon(Icons.add, size: 16, color: AppColors.mintIce),
-                    label: const Text('Add', style: TextStyle(color: AppColors.mintIce)),
+                    icon: const Icon(Icons.add, size: 16, color: Color(0xFF00AA8D)),
+                    label: const Text('Add', style: TextStyle(color: Color(0xFF00AA8D))),
                   ),
                 ],
               ),
             ),
             const SizedBox(height: 10),
+            _isLoading ? const Center(child: CircularProgressIndicator(color: AppColors.mintIce)) :
             ListView.separated(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
@@ -207,26 +260,46 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
               separatorBuilder: (context, index) => const SizedBox(height: 12),
               itemBuilder: (context, index) {
                 final member = _members[index];
+                final isMe = member['id'] == SupabaseService.currentUser?.id;
+                
+                // Volunteers can only chat with Managers. Managers can chat with anyone.
+                final bool canChat = !isMe && (_currentUserRole == 'Manager' || member['role'] == 'Manager');
+
                 return Container(
-                  padding: const EdgeInsets.all(12),
+                  padding: const EdgeInsets.all(4),
                   decoration: BoxDecoration(
-                    color: AppColors.charcoalBlue.withOpacity(0.3),
+                    color: Colors.grey[50],
                     borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: Colors.grey[100]!),
                   ),
                   child: ListTile(
-                    contentPadding: EdgeInsets.zero,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 12),
                     leading: CircleAvatar(
-                      backgroundColor: AppColors.midnightBlue,
-                      child: Text(member['name']![0], style: const TextStyle(color: AppColors.mintIce)),
+                      backgroundColor: Colors.grey[200],
+                      backgroundImage: member['avatar'] != null && member['avatar'].toString().isNotEmpty
+                          ? NetworkImage(member['avatar'])
+                          : null,
+                      child: member['avatar'] == null || member['avatar'].toString().isEmpty
+                          ? Text(member['name'][0], style: const TextStyle(color: Color(0xFF00AA8D)))
+                          : null,
                     ),
-                    title: Text(member['name']!, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
-                    subtitle: Text(member['role']!, style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 12)),
-                    trailing: member['id'] == 'me'
-                        ? const Text('HOST', style: TextStyle(color: AppColors.mintIce, fontSize: 10, fontWeight: FontWeight.bold))
-                        : IconButton(
-                            icon: const Icon(Icons.remove_circle_outline, color: Colors.redAccent, size: 20),
-                            onPressed: () => _removeMember(index),
+                    title: Text(isMe ? '${member['name']} (You)' : member['name'], style: const TextStyle(color: Colors.black, fontWeight: FontWeight.w600)),
+                    subtitle: Text(member['role'], style: TextStyle(color: Colors.grey[600], fontSize: 12)),
+                    trailing: canChat ? const Icon(Icons.chat_bubble_outline, color: Color(0xFF00AA8D), size: 20) : null,
+                    onTap: canChat ? () {
+                      // Navigate to 1-on-1 chat
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => ChatDetailScreen(
+                            chatId: member['id'],
+                            chatName: member['name'],
+                            avatarUrl: member['avatar'],
+                            isGroup: false,
                           ),
+                        ),
+                      );
+                    } : null,
                   ),
                 );
               },

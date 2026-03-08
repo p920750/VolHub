@@ -850,6 +850,29 @@ class SupabaseService {
         });
   }
 
+  // Get stream of messages for a group chat (event ID as receiver)
+  static Stream<List<Map<String, dynamic>>> getGroupMessagesStream(String groupId) {
+    if (currentUser == null) return const Stream.empty();
+
+    return client
+        .from('messages')
+        .stream(primaryKey: ['id'])
+        .order('created_at', ascending: false) // Newest first for reverse List
+        .map((data) {
+          final myId = currentUser!.id;
+          return data.where((msg) {
+            final receiver = msg['receiver_id'];
+            final deletedBy = List<String>.from(msg['deleted_by_users'] ?? []);
+            
+            // For groups, the receiver_id IS the event/group UUID.
+            final isRelevant = (receiver == groupId);
+            final isNotDeleted = !deletedBy.contains(myId);
+            
+            return isRelevant && isNotDeleted;
+          }).toList();
+        });
+  }
+
   // Delete message
   static Future<bool> deleteMessage({
     required String messageId,
@@ -916,6 +939,18 @@ class SupabaseService {
         .update({'is_read': true})
         .eq('sender_id', senderId)
         .eq('receiver_id', currentUser!.id)
+        .eq('is_read', false);
+  }
+
+  // Mark group messages as read (seen by anyone other than sender)
+  static Future<void> markGroupMessagesAsRead(String groupId) async {
+    if (currentUser == null) return;
+
+    await client
+        .from('messages')
+        .update({'is_read': true})
+        .eq('receiver_id', groupId)
+        .neq('sender_id', currentUser!.id)
         .eq('is_read', false);
   }
 
