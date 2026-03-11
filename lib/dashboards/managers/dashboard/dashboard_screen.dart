@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'widgets/recent_activity_widget.dart';
 import 'widgets/stats_grid.dart';
-import 'widgets/dashboard_charts.dart';
 import 'widgets/your_teams_widget.dart';
 import '../profile/profile_provider.dart';
 import '../core/manager_drawer.dart';
@@ -66,8 +65,6 @@ class DashboardScreen extends ConsumerWidget {
             ),
             const SizedBox(height: 24),
             const StatsGrid(),
-            const SizedBox(height: 24),
-            const DashboardCharts(),
             const SizedBox(height: 24),
             const YourTeamsWidget(),
             const SizedBox(height: 24),

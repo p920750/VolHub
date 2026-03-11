@@ -1,42 +1,55 @@
 import 'package:flutter/material.dart';
 import 'package:main_volhub/widgets/safe_avatar.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
-import '../../core/theme.dart';
-import '../../messages/group_info_screen.dart';
-import '../../messages/chat_detail_screen.dart';
+import 'package:main_volhub/dashboards/managers/core/theme.dart';
+import 'package:main_volhub/dashboards/managers/messages/group_info_screen.dart';
+import 'package:main_volhub/dashboards/managers/messages/chat_detail_screen.dart';
 
-class YourTeamsWidget extends StatelessWidget {
+import 'package:main_volhub/services/event_manager_service.dart';
+
+class YourTeamsWidget extends StatefulWidget {
   const YourTeamsWidget({super.key});
 
   @override
+  State<YourTeamsWidget> createState() => _YourTeamsWidgetState();
+}
+
+class _YourTeamsWidgetState extends State<YourTeamsWidget> {
+  List<Map<String, dynamic>> _teams = [];
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadTeams();
+  }
+
+  Future<void> _loadTeams() async {
+    try {
+      final teams = await EventManagerService.getTeams();
+      if (mounted) {
+        setState(() {
+          _teams = teams;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final teams = [
-      {
-        'id': '3', // Matches mock group ID
-        'name': 'Professional Photography Team',
-        'members': 14,
-        'events': 8,
-        'rating': 4.8,
-        'image': 'https://images.unsplash.com/photo-1516035069371-29a1b244cc32?ixlib=rb-1.2.1&auto=format&fit=crop&w=500&q=60',
-        'avatars': [
-          'https://i.pravatar.cc/150?img=1',
-          'https://i.pravatar.cc/150?img=2',
-          'https://i.pravatar.cc/150?img=3',
-        ]
-      },
-      {
-        'id': '4',
-        'name': 'Gourmet Catering Crew',
-        'members': 22,
-        'events': 12,
-        'rating': 4.9,
-        'image': 'https://images.unsplash.com/photo-1555244162-803834f70033?ixlib=rb-1.2.1&auto=format&fit=crop&w=500&q=60',
-        'avatars': [
-          'https://i.pravatar.cc/150?img=4',
-          'https://i.pravatar.cc/150?img=5',
-        ]
-      },
-    ];
+    if (_isLoading) {
+      return const SizedBox(
+        height: 220,
+        child: Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    if (_teams.isEmpty) {
+      return const SizedBox.shrink(); // Hide if no teams
+    }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -51,7 +64,7 @@ class YourTeamsWidget extends StatelessWidget {
                 style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
               ),
               TextButton(
-                onPressed: () {}, 
+                onPressed: () => Navigator.pushNamed(context, '/manager-teams'), 
                 child: const Text('View All', style: TextStyle(color: AppColors.midnightBlue)),
               ),
             ],
@@ -64,10 +77,10 @@ class YourTeamsWidget extends StatelessWidget {
               height: 220,
               child: ListView.separated(
                 scrollDirection: Axis.horizontal,
-                itemCount: teams.length,
+                itemCount: _teams.length > 5 ? 5 : _teams.length,
                 separatorBuilder: (context, index) => const SizedBox(width: 16),
                 itemBuilder: (context, index) {
-                  final team = teams[index];
+                  final team = _teams[index];
                   return Container(
                     width: cardWidth,
                     padding: const EdgeInsets.all(20),
@@ -98,9 +111,9 @@ class YourTeamsWidget extends StatelessWidget {
                                 overflow: TextOverflow.ellipsis,
                               ),
                               const SizedBox(height: 4),
-                              Text(
-                                'Photography', // Simplified category
-                                style: const TextStyle(color: Colors.white, fontSize: 12),
+                              const Text(
+                                'Active Team',
+                                style: TextStyle(color: Colors.white, fontSize: 12),
                               ),
                             ],
                           ),
@@ -111,13 +124,13 @@ class YourTeamsWidget extends StatelessWidget {
                              color: Colors.white.withOpacity(0.1),
                              borderRadius: BorderRadius.circular(8),
                            ),
-                           child: Row(
+                           child: const Row(
                              children: [
-                               const Icon(Icons.star, color: Colors.amber, size: 14),
-                               const SizedBox(width: 4),
+                               Icon(Icons.star, color: Colors.amber, size: 14),
+                               SizedBox(width: 4),
                                Text(
-                                 team['rating'].toString(),
-                                 style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
+                                 'New',
+                                 style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
                                ),
                              ],
                            ),
@@ -131,25 +144,17 @@ class YourTeamsWidget extends StatelessWidget {
                         Row(
                           children: [
                             SizedBox(
-                              width: 60,
+                              width: 30,
                               height: 30,
-                              child: Stack(
-                                children: [
-                                  for (var i = 0; i < (team['avatars'] as List).length && i < 3; i++)
-                                    Positioned(
-                                      left: i * 15.0,
-                                      child: SafeAvatar(
-                                        radius: 14,
-                                        imageUrl: (team['avatars'] as List)[i] as String,
-                                        name: 'Team Member',
-                                      ),
-                                    ),
-                                ],
+                              child: SafeAvatar(
+                                radius: 14,
+                                imageUrl: (team['avatars'] as List).isNotEmpty ? team['avatars'][0] : '',
+                                name: 'Team',
                               ),
                             ),
-                            const SizedBox(width: 4),
+                            const SizedBox(width: 8),
                             Text(
-                              '+${(team['members'] as int) - (team['avatars'] as List).length}',
+                              '${team['members']} Members',
                               style: const TextStyle(color: Colors.white, fontSize: 12),
                             ),
                           ],
@@ -162,11 +167,11 @@ class YourTeamsWidget extends StatelessWidget {
                                   context,
                                   MaterialPageRoute(
                                     builder: (context) => GroupInfoScreen(
-                                      chatId: team['id'] as String,
+                                      chatId: team['event_id'] ?? team['id'],
                                       groupName: team['name'] as String,
                                     ),
                                   ),
-                                );
+                                ).then((_) => _loadTeams());
                               },
                               icon: const Icon(Icons.settings, color: AppColors.mintIce, size: 20),
                               tooltip: 'Manage Team',
@@ -177,12 +182,17 @@ class YourTeamsWidget extends StatelessWidget {
                                 Navigator.push(
                                   context,
                                   MaterialPageRoute(
-                                    builder: (context) => ChatDetailScreen(chatId: team['id'] as String),
+                                    builder: (context) => ChatDetailScreen(
+                                      chatId: team['event_id'] ?? team['id'],
+                                      chatName: team['name'] as String,
+                                      isGroup: true,
+                                      avatarUrl: (team['avatars'] as List).isNotEmpty ? team['avatars'][0] : null,
+                                    ),
                                   ),
                                 );
                               },
                               icon: const Icon(FontAwesomeIcons.solidMessage, size: 14, color: AppColors.midnightBlue),
-                              label: const Text('Message', style: TextStyle(color: AppColors.midnightBlue, fontWeight: FontWeight.bold)),
+                              label: const Text('Chat', style: TextStyle(color: AppColors.midnightBlue, fontWeight: FontWeight.bold)),
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: AppColors.mintIce,
                                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -193,28 +203,15 @@ class YourTeamsWidget extends StatelessWidget {
                         ),
                       ],
                     ),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                         Text(
-                          '${team['members']} Members',
-                          style: const TextStyle(color: Colors.white, fontSize: 12),
-                        ),
-                         Text(
-                          '${team['events']} Events',
-                          style: const TextStyle(color: Colors.white, fontSize: 12),
-                        ),
-                      ],
-                    )
                   ],
                 ),
-              );
-            },
-          ),
-        );
-      },
-    ),
-  ],
-);
+                  );
+                },
+              ),
+            );
+          },
+        ),
+      ],
+    );
   }
 }

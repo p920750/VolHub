@@ -17,12 +17,9 @@ class _HostSettingsPageState extends State<HostSettingsPage> {
 
   // Settings State
   bool emailNotifications = true;
-  bool pushNotifications = true;
-  bool smsAlerts = false;
   bool publicProfile = true;
   bool darkPreview = false;
   String selectedLanguage = 'English (US)';
-  String selectedTimeZone = '(GMT-05:00) Eastern Time';
 
   @override
   void initState() {
@@ -37,12 +34,9 @@ class _HostSettingsPageState extends State<HostSettingsPage> {
         final settings = userData['settings'] as Map<String, dynamic>;
         setState(() {
           emailNotifications = settings['email_notifications'] ?? true;
-          pushNotifications = settings['push_notifications'] ?? true;
-          smsAlerts = settings['sms_alerts'] ?? false;
           publicProfile = settings['public_profile'] ?? true;
           darkPreview = settings['dark_preview'] ?? false;
           selectedLanguage = settings['language'] ?? 'English (US)';
-          selectedTimeZone = settings['time_zone'] ?? '(GMT-05:00) Eastern Time';
         });
       }
     } catch (e) {
@@ -52,7 +46,7 @@ class _HostSettingsPageState extends State<HostSettingsPage> {
     }
   }
 
-  bool get _anyNotificationsEnabled => emailNotifications || pushNotifications || smsAlerts;
+  bool get _anyNotificationsEnabled => emailNotifications;
 
   void _showPasswordChangeDialog() {
     final currentPasswordController = TextEditingController();
@@ -202,12 +196,9 @@ class _HostSettingsPageState extends State<HostSettingsPage> {
                 try {
                   final settings = {
                     'email_notifications': emailNotifications,
-                    'push_notifications': pushNotifications,
-                    'sms_alerts': smsAlerts,
                     'public_profile': publicProfile,
                     'dark_preview': darkPreview,
                     'language': selectedLanguage,
-                    'time_zone': selectedTimeZone,
                   };
                   await SupabaseService.updateUserProfile({'settings': settings});
                   if (mounted) {
@@ -262,7 +253,6 @@ class _HostSettingsPageState extends State<HostSettingsPage> {
                       const SizedBox(height: 24),
                       _buildPreferencesCard(),
                       const SizedBox(height: 24),
-                      _buildDangerZoneCard(),
                     ],
                   );
                 }
@@ -291,7 +281,6 @@ class _HostSettingsPageState extends State<HostSettingsPage> {
                             children: [
                               _buildSecurityCard(),
                               const SizedBox(height: 24),
-                              _buildDangerZoneCard(),
                             ],
                           ),
                         ),
@@ -318,18 +307,6 @@ class _HostSettingsPageState extends State<HostSettingsPage> {
           emailNotifications, 
           (v) => setState(() => emailNotifications = v)
         ),
-        _buildToggleTile(
-          'Push Notifications', 
-          'Alerts on your browser/desktop.', 
-          pushNotifications, 
-          (v) => setState(() => pushNotifications = v)
-        ),
-        _buildToggleTile(
-          'SMS Alerts', 
-          'Urgent updates to your phone.', 
-          smsAlerts, 
-          (v) => setState(() => smsAlerts = v)
-        ),
       ],
     );
   }
@@ -352,12 +329,6 @@ class _HostSettingsPageState extends State<HostSettingsPage> {
           _anyNotificationsEnabled ? 'ENABLED' : 'DISABLED',
           color: _anyNotificationsEnabled ? Colors.green : Colors.red,
         ),
-        _buildStatusTile(
-          'Two-Factor Authentication', 
-          'Add an extra layer of security.', 
-          Icons.smartphone_outlined,
-          'ACTIVE',
-        ),
         _buildToggleTile(
           'Public Profile', 
           'Allow others to see your events.', 
@@ -377,10 +348,6 @@ class _HostSettingsPageState extends State<HostSettingsPage> {
         const SizedBox(height: 8),
         _buildDropdown(['English (US)', 'Spanish', 'French'], selectedLanguage, (v) => setState(() => selectedLanguage = v!)),
         const SizedBox(height: 24),
-        const Text('TIME ZONE', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.grey)),
-        const SizedBox(height: 8),
-        _buildDropdown(['(GMT-05:00) Eastern Time', '(GMT-08:00) Pacific Time', '(GMT+00:00) UTC'], selectedTimeZone, (v) => setState(() => selectedTimeZone = v!)),
-        const SizedBox(height: 24),
         _buildToggleTile(
           'Dark Mode (Preview)', 
           '', 
@@ -389,41 +356,6 @@ class _HostSettingsPageState extends State<HostSettingsPage> {
           icon: Icons.dark_mode_outlined,
         ),
       ],
-    );
-  }
-
-  Widget _buildDangerZoneCard() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: const Color(0xFFFFEBEE).withOpacity(0.5),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.red.withOpacity(0.1)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: const [
-              Icon(Icons.lock_reset_outlined, color: Colors.red, size: 20),
-              SizedBox(width: 12),
-              Text('Danger Zone', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.red)),
-            ],
-          ),
-          const SizedBox(height: 16),
-          const Text('These actions are permanent and cannot be undone.', style: TextStyle(color: Colors.red, fontSize: 11, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 24),
-          _buildDangerButton('Delete Account'),
-          const SizedBox(height: 16),
-          Center(
-            child: TextButton(
-              onPressed: () {},
-              child: const Text('Archive All Event Data', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold, fontSize: 13)),
-            ),
-          ),
-        ],
-      ),
     );
   }
 

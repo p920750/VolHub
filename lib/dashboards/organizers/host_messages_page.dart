@@ -21,12 +21,11 @@ class _HostMessagesPageState extends State<HostMessagesPage> {
 
   Future<void> _fetchManagers() async {
     setState(() => _isLoading = true);
-    // Fetch users with 'manager' or 'event_manager' role
-    final managers = await SupabaseService.getUsersByRole('manager');
-    final eventManagers = await SupabaseService.getUsersByRole('event_manager');
+    // Fetch only managers assigned to this host's events
+    final managers = await SupabaseService.getAssignedManagersForHost();
     
     setState(() {
-      _managers = [...managers, ...eventManagers];
+      _managers = managers;
       _isLoading = false;
     });
   }

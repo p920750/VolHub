@@ -21,6 +21,7 @@ class _ManagerProposalCardState extends State<ManagerProposalCard> {
   bool _isAccepting = false;
   bool _isApplied = false;
   bool _isOrganizerRejected = false;
+  bool _isManagerWithdrawn = false;
   String? _actualReason;
 
   @override
@@ -50,20 +51,26 @@ class _ManagerProposalCardState extends State<ManagerProposalCard> {
     }
 
     bool isRejected = false;
+    bool isWithdrawn = false;
     String? reason;
     final rejectionStr = widget.event['rejection_reason'] as String?;
     if (rejectionStr != null && userId != null) {
       final parts = rejectionStr.split('::');
-      if (parts.length >= 3 && parts[1] == userId && parts[0] == 'ORGANIZER_REJECTED') {
-        isRejected = true;
+      if (parts.length >= 3 && parts[1] == userId) {
+        if (parts[0] == 'ORGANIZER_REJECTED') {
+          isRejected = true;
+        } else if (parts[0] == 'MANAGER_REJECTED') {
+          isWithdrawn = true;
+        }
         reason = parts.sublist(2).join('::');
       }
     }
     
-    if (_isApplied != applied || _isOrganizerRejected != isRejected) {
+    if (_isApplied != applied || _isOrganizerRejected != isRejected || _isManagerWithdrawn != isWithdrawn) {
       setState(() {
         _isApplied = applied;
         _isOrganizerRejected = isRejected;
+        _isManagerWithdrawn = isWithdrawn;
         _actualReason = reason;
       });
     }
@@ -228,6 +235,21 @@ class _ManagerProposalCardState extends State<ManagerProposalCard> {
         ),
         child: const Text(
           'Rejected',
+          style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
+        ),
+      );
+    }
+
+    if (_isManagerWithdrawn) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          color: Colors.red.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: Colors.red),
+        ),
+        child: const Text(
+          'Withdrawn',
           style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
         ),
       );

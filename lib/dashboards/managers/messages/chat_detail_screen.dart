@@ -13,6 +13,7 @@ import 'group_info_screen.dart';
 import '../../../services/supabase_service.dart';
 import '../../../services/event_manager_service.dart';
 import '../../organizers/widgets/enhanced_media_viewer.dart';
+import '../../../utils/date_formatter.dart';
 
 class ChatDetailScreen extends StatefulWidget {
   final String chatId;
@@ -335,21 +336,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                           final timestamp = DateTime.parse(msg['created_at']).toLocal();
                           final timeStr = "${timestamp.hour}:${timestamp.minute.toString().padLeft(2, '0')}";
 
-                          return Dismissible(
-                            key: Key(msg['id'].toString()),
-                            direction: DismissDirection.startToEnd,
-                            confirmDismiss: (direction) async {
-                              setState(() {
-                                _replyingToMessage = msg;
-                              });
-                              return false;
-                            },
-                            background: Container(
-                              alignment: Alignment.centerLeft,
-                              padding: const EdgeInsets.only(left: 20),
-                              child: const Icon(Icons.reply, color: AppColors.midnightBlue),
-                            ),
-                            child: Row(
+                          final item = Row(
                               mainAxisAlignment: isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
                               children: [
                                 Flexible(
@@ -384,7 +371,59 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                                   ),
                                 ),
                               ],
+                            );
+
+                          // Logic for date separator
+                          bool showDate = false;
+                          if (index == messages.length - 1) {
+                            showDate = true;
+                          } else {
+                            final date = DateTime.parse(msg['created_at']).toLocal();
+                            final prevDate = DateTime.parse(messages[index + 1]['created_at']).toLocal();
+                            if (!DateFormatter.isSameDay(date, prevDate)) {
+                              showDate = true;
+                            }
+                          }
+
+                          if (showDate) {
+                            return Column(
+                              children: [
+                                _buildDateSeparator(timestamp),
+                                Dismissible(
+                                  key: Key(msg['id'].toString()),
+                                  direction: DismissDirection.startToEnd,
+                                  confirmDismiss: (direction) async {
+                                    setState(() {
+                                      _replyingToMessage = msg;
+                                    });
+                                    return false;
+                                  },
+                                  background: Container(
+                                    alignment: Alignment.centerLeft,
+                                    padding: const EdgeInsets.only(left: 20),
+                                    child: const Icon(Icons.reply, color: AppColors.midnightBlue),
+                                  ),
+                                  child: item,
+                                ),
+                              ],
+                            );
+                          }
+
+                          return Dismissible(
+                            key: Key(msg['id'].toString()),
+                            direction: DismissDirection.startToEnd,
+                            confirmDismiss: (direction) async {
+                              setState(() {
+                                _replyingToMessage = msg;
+                              });
+                              return false;
+                            },
+                            background: Container(
+                              alignment: Alignment.centerLeft,
+                              padding: const EdgeInsets.only(left: 20),
+                              child: const Icon(Icons.reply, color: AppColors.midnightBlue),
                             ),
+                            child: item,
                           );
                         },
                       );
@@ -1201,5 +1240,36 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       return _groupMembersProfile[senderId]?['avatar'];
     }
     return widget.avatarUrl;
+  }
+
+  Widget _buildDateSeparator(DateTime date) {
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 20),
+      child: Center(
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.05),
+                blurRadius: 5,
+                offset: const Offset(0, 2),
+              ),
+            ],
+            border: Border.all(color: Colors.black.withOpacity(0.05)),
+          ),
+          child: Text(
+            DateFormatter.formatChatDate(date),
+            style: const TextStyle(
+              color: AppColors.midnightBlue,
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }

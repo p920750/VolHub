@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'dart:async';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -14,6 +14,7 @@ import '../../../services/supabase_service.dart';
 import '../../screens/chat_profile_page.dart';
 import '../managers/core/theme.dart';
 import 'widgets/enhanced_media_viewer.dart';
+import '../../../utils/date_formatter.dart';
 
 class ChatDetailPage extends StatefulWidget {
   final String chatId;
@@ -107,58 +108,19 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
   }
 
   Future<void> _sendLocation() async {
-    bool serviceEnabled;
-    LocationPermission permission;
-
-    serviceEnabled = await Geolocator.isLocationServiceEnabled();
-    if (!serviceEnabled) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Location services are disabled.')));
-      return;
-    }
-
-    permission = await Geolocator.checkPermission();
+    // Request permissions
+    LocationPermission permission = await Geolocator.checkPermission();
     if (permission == LocationPermission.denied) {
       permission = await Geolocator.requestPermission();
-      if (permission == LocationPermission.denied) {
-        if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Location permissions are denied')));
-        return;
-      }
+      if (permission == LocationPermission.denied) return;
     }
     
-    if (permission == LocationPermission.deniedForever) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Location permissions are permanently denied.')));
-      return;
-    } 
+    if (permission == LocationPermission.deniedForever) return;
 
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Fetching location...')));
-    }
-
-    try {
-      Position position = await Geolocator.getCurrentPosition();
-      final content = '${position.latitude},${position.longitude}';
-      
-      await SupabaseService.sendMessage(
-        receiverId: widget.chatId,
-        content: content,
-        type: 'location',
-      );
-      
-      _scrollToBottom();
-      if (mounted) Navigator.pop(context);
-    } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Could not fetch location.')));
-    }
-  }
-
-  void _sendSticker(String stickerUrl) async {
-    await SupabaseService.sendMessage(
-      receiverId: widget.chatId,
-      content: stickerUrl,
-      type: 'sticker',
-    );
+    final position = await Geolocator.getCurrentPosition();
+    final content = '${position.latitude},${position.longitude}';
+    await SupabaseService.sendMessage(receiverId: widget.chatId, content: content, type: 'location');
     _scrollToBottom();
-    if (mounted) Navigator.pop(context);
   }
 
   Future<void> _sendMedia(String type) async {
@@ -304,31 +266,7 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
                   itemBuilder: (context, index) {
                     final message = messages[index];
                     final isMe = message['sender_id'] == SupabaseService.currentUser?.id;
-                    return Dismissible(
-                      key: Key(message['id'].toString()),
-                      direction: DismissDirection.startToEnd,
-                      confirmDismiss: (direction) async {
-                        setState(() {
-                          _replyingToMessage = message;
-                        });
-                        return false; // Don't actually dismiss
-                      },
-                      background: Container(
-                        alignment: Alignment.centerLeft,
-                        padding: const EdgeInsets.only(left: 20),
-                        child: const Icon(Icons.reply, color: Color(0xFF001529)),
-                      ),
-                        child: GestureDetector(
-                          onTap: () {
-                            setState(() {
-                              if (_touchedMessageId == message['id']?.toString()) {
-                                _touchedMessageId = null;
-                              } else {
-                                _touchedMessageId = message['id']?.toString();
-                              }
-                            });
-                          },
-                          child: Row(
+                        final item = Row(
                             mainAxisAlignment: isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
                             children: [
                               Flexible(child: _buildMessageBubble(
@@ -338,9 +276,61 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
                                 _touchedMessageId == message['id']?.toString(),
                               )),
                             ],
+                          );
+
+                        // Logic for date separator
+                        bool showDate = false;
+                        if (index == messages.length - 1) {
+                          showDate = true;
+                        } else {
+                          final date = DateTime.parse(message['created_at']).toLocal();
+                          final prevDate = DateTime.parse(messages[index + 1]['created_at']).toLocal();
+                          if (!DateFormatter.isSameDay(date, prevDate)) {
+                            showDate = true;
+                          }
+                        }
+
+                        if (showDate) {
+                          final timestamp = DateTime.parse(message['created_at']).toLocal();
+                          return Column(
+                            children: [
+                              _buildDateSeparator(timestamp),
+                              Dismissible(
+                                key: Key(message['id'].toString()),
+                                direction: DismissDirection.startToEnd,
+                                confirmDismiss: (direction) async {
+                                  setState(() {
+                                    _replyingToMessage = message;
+                                  });
+                                  return false; // Don't actually dismiss
+                                },
+                                background: Container(
+                                  alignment: Alignment.centerLeft,
+                                  padding: const EdgeInsets.only(left: 20),
+                                  child: const Icon(Icons.reply, color: Color(0xFF001529)),
+                                ),
+                                child: item,
+                              ),
+                            ],
+                          );
+                        }
+
+                        return Dismissible(
+                          key: Key(message['id'].toString()),
+                          direction: DismissDirection.startToEnd,
+                          confirmDismiss: (direction) async {
+                            setState(() {
+                              _replyingToMessage = message;
+                            });
+                            return false; // Don't actually dismiss
+                          },
+                          background: Container(
+                            alignment: Alignment.centerLeft,
+                            padding: const EdgeInsets.only(left: 20),
+                            child: const Icon(Icons.reply, color: Color(0xFF001529)),
                           ),
-                        ),
-                    );
+                          child: item,
+                        );
                   },
                 );
               },
@@ -1079,10 +1069,6 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
                     Navigator.pop(context);
                     _sendMedia('Document');
                   }),
-                  _buildAttachmentItem(Icons.sticky_note_2, 'Stickers', Colors.purple, onTap: () {
-                    Navigator.pop(context);
-                    _showStickerPicker(context);
-                  }),
                   _buildAttachmentItem(Icons.location_on, 'Location', Colors.green, onTap: _sendLocation),
                 ],
               ),
@@ -1094,46 +1080,6 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
     );
   }
 
-  void _showStickerPicker(BuildContext context) {
-    // Curated funny/useful stickers
-    final stickers = [
-      'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/25.png', // Pikachu
-      'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/1.png',  // Bulbasaur
-      'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/4.png',  // Charmander
-      'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/7.png',  // Squirtle
-      'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/94.png', // Gengar
-      'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/133.png', // Eevee
-    ];
-
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
-      builder: (context) => Container(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text('Choose a Sticker', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 20),
-            GridView.builder(
-              shrinkWrap: true,
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 3,
-                crossAxisSpacing: 16,
-                mainAxisSpacing: 16,
-              ),
-              itemCount: stickers.length,
-              itemBuilder: (context, index) => GestureDetector(
-                onTap: () => _sendSticker(stickers[index]),
-                child: Image.network(stickers[index]),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 
 
 
@@ -1201,6 +1147,37 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
                 },
               );
             },
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDateSeparator(DateTime date) {
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 20),
+      child: Center(
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.05),
+                blurRadius: 5,
+                offset: const Offset(0, 2),
+              ),
+            ],
+            border: Border.all(color: Colors.black.withOpacity(0.05)),
+          ),
+          child: Text(
+            DateFormatter.formatChatDate(date),
+            style: const TextStyle(
+              color: Color(0xFF001529),
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+            ),
           ),
         ),
       ),

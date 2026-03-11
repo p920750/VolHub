@@ -1,10 +1,10 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import '../core/theme.dart';
-import '../../../services/event_manager_service.dart';
-import '../../../services/supabase_service.dart';
-import 'chat_detail_screen.dart';
+import 'package:main_volhub/dashboards/managers/core/theme.dart';
+import 'package:main_volhub/services/event_manager_service.dart';
+import 'package:main_volhub/services/supabase_service.dart';
+import 'package:main_volhub/dashboards/managers/messages/chat_detail_screen.dart';
 
 class GroupInfoScreen extends StatefulWidget {
   final String chatId;
@@ -125,10 +125,56 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
     super.dispose();
   }
 
-  void _removeMember(int index) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Removing members is not yet implemented.')),
+  void _removeMember(int index) async {
+    final member = _members[index];
+    if (member['role'] == 'Manager') {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Managers cannot be removed from the group.')),
+      );
+      return;
+    }
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Remove Member'),
+        content: Text('Are you sure you want to remove ${member['name']} from the team?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Remove', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
     );
+
+    if (confirmed == true) {
+      setState(() => _isLoading = true);
+      // Capture the messenger before the async call
+      final messenger = ScaffoldMessenger.of(context);
+      
+      try {
+        await EventManagerService.removeTeamMember(widget.chatId, member['id']);
+        await _fetchMembers();
+        if (mounted) {
+          messenger.showSnackBar(
+            SnackBar(content: Text('${member['name']} removed from team.')),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          setState(() => _isLoading = false);
+          messenger.showSnackBar(
+            SnackBar(content: Text('Error removing member: $e')),
+          );
+        }
+      } finally {
+        if (mounted) {
+          setState(() => _isLoading = false);
+        }
+      }
+    }
   }
 
   void _showAddMemberDialog() {
@@ -285,21 +331,33 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
                     ),
                     title: Text(isMe ? '${member['name']} (You)' : member['name'], style: const TextStyle(color: Colors.black, fontWeight: FontWeight.w600)),
                     subtitle: Text(member['role'], style: TextStyle(color: Colors.grey[600], fontSize: 12)),
-                    trailing: canChat ? const Icon(Icons.chat_bubble_outline, color: Color(0xFF00AA8D), size: 20) : null,
-                    onTap: canChat ? () {
-                      // Navigate to 1-on-1 chat
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => ChatDetailScreen(
-                            chatId: member['id'],
-                            chatName: member['name'],
-                            avatarUrl: member['avatar'],
-                            isGroup: false,
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (canChat)
+                          IconButton(
+                            icon: const Icon(Icons.chat_bubble_outline, color: Color(0xFF00AA8D), size: 20),
+                            onPressed: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => ChatDetailScreen(
+                                    chatId: member['id'],
+                                    chatName: member['name'],
+                                    avatarUrl: member['avatar'],
+                                    isGroup: false,
+                                  ),
+                                ),
+                              );
+                            },
                           ),
-                        ),
-                      );
-                    } : null,
+                        if (_currentUserRole == 'Manager' && !isMe)
+                          IconButton(
+                            icon: const Icon(Icons.person_remove_outlined, color: Colors.red, size: 20),
+                            onPressed: () => _removeMember(index),
+                          ),
+                      ],
+                    ),
                   ),
                 );
               },

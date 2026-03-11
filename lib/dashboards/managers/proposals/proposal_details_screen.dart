@@ -209,30 +209,16 @@ class _ProposalDetailsScreenState extends State<ProposalDetailsScreen> {
                       ),
                       const SizedBox(height: 4),
                       // 2) Event location
-                      Row(
-                        children: [
-                          const Icon(Icons.location_on, size: 16, color: Colors.grey),
-                          const SizedBox(width: 4),
-                          Text('Event Location: $location', style: const TextStyle(fontSize: 16, color: Colors.grey)),
-                        ],
-                      ),
+                      _buildInfoRow(Icons.location_on, 'Event Location: $location', fontSize: 16),
                       const SizedBox(height: 4),
                       // 3) Date and time
-                      Row(
-                        children: [
-                          const Icon(Icons.calendar_today, size: 14, color: Colors.grey),
-                          const SizedBox(width: 4),
-                          Text('Event Date: $dateTime', style: const TextStyle(fontSize: 14, color: Colors.grey)),
-                        ],
-                      ),
+                      _buildInfoRow(Icons.calendar_today, 'Event Date: $dateTime', fontSize: 14),
                       const SizedBox(height: 4),
                       // 3b) Deadline for Acceptance
-                      Row(
-                        children: [
-                          const Icon(Icons.timer_outlined, size: 14, color: Colors.grey),
-                          const SizedBox(width: 4),
-                          Text('Deadline for Acceptance: ${widget.event['registration_deadline_formatted'] ?? 'Not set'}', style: const TextStyle(fontSize: 14, color: Colors.grey)),
-                        ],
+                      _buildInfoRow(
+                        Icons.timer_outlined, 
+                        'Deadline for Acceptance: ${widget.event['registration_deadline_formatted'] ?? 'Not set'}',
+                        fontSize: 14,
                       ),
                     ],
                   ),
@@ -250,10 +236,18 @@ class _ProposalDetailsScreenState extends State<ProposalDetailsScreen> {
             // 5) Posted by who + profile link
             Row(
               children: [
-                const CircleAvatar(radius: 12, child: Icon(Icons.person, size: 14)),
+                CircleAvatar(
+                  radius: 12, 
+                  backgroundImage: (host?['avatar_url'] != null && host!['avatar_url'].toString().isNotEmpty)
+                      ? NetworkImage(host['avatar_url'])
+                      : null,
+                  child: (host?['avatar_url'] == null || host!['avatar_url'].toString().isEmpty)
+                      ? const Icon(Icons.person, size: 14)
+                      : null,
+                ),
                 const SizedBox(width: 8),
                 Text(
-                  'Posted by: ${host?['full_name'] ?? 'Organizer'}',
+                  'Posted by: ${host?['full_name'] ?? widget.event['host_name'] ?? 'Organizer'}',
                   style: TextStyle(color: Colors.grey[700], fontSize: 14),
                 ),
               ],
@@ -334,11 +328,68 @@ class _ProposalDetailsScreenState extends State<ProposalDetailsScreen> {
               ),
             ],
             const SizedBox(height: 32),
-            // 7.5) Rejection Reason (if applicable)
-            if (_isApplied && widget.event['assigned_manager_id'] == null && widget.event['rejection_reason'] != null) ...[
-              const SizedBox(height: 12),
+
+            // 7.75) Organizer Details
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF1F7F5),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Colors.grey.shade200),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      CircleAvatar(
+                        radius: 16,
+                        backgroundImage: (host?['profile_photo'] != null && host!['profile_photo'].toString().isNotEmpty)
+                            ? NetworkImage(host['profile_photo'])
+                            : null,
+                        child: (host?['profile_photo'] == null || host!['profile_photo'].toString().isEmpty)
+                            ? const Icon(Icons.person, size: 18)
+                            : null,
+                      ),
+                      const SizedBox(width: 12),
+                      const Text(
+                        'Organizer Details',
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                      ),
+                      const Spacer(),
+                      if (host?['id'] != null)
+                        TextButton(
+                          onPressed: () {
+                            Navigator.pushNamed(
+                              context,
+                              '/host-profile-public',
+                              arguments: {'hostId': host!['id']},
+                            );
+                          },
+                          style: TextButton.styleFrom(
+                            padding: EdgeInsets.zero,
+                            minimumSize: Size.zero,
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          ),
+                          child: const Text('View Profile', style: TextStyle(color: Color(0xFF1E4D40), fontSize: 13, fontWeight: FontWeight.bold)),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  _buildContactRow(Icons.email_outlined, host?['email'] ?? 'No email provided'),
+                  const SizedBox(height: 8),
+                  _buildContactRow(Icons.phone_outlined, host?['phone_number'] ?? 'No phone number provided'),
+                  if (host?['company_location'] != null && host!['company_location'].toString().isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    _buildContactRow(Icons.location_on_outlined, host['company_location']),
+                  ],
+                ],
+              ),
+            ),
+            if ((_isOrganizerRejected || _isManagerRejected) && widget.event['assigned_manager_id'] == null && _actualReason != null) ...[
+              const SizedBox(height: 24),
               Container(
-                width: double.infinity,
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
                   color: Colors.red.withOpacity(0.05),
@@ -348,106 +399,92 @@ class _ProposalDetailsScreenState extends State<ProposalDetailsScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Row(
+                    Row(
                       children: [
-                        Icon(Icons.info_outline, color: Colors.red, size: 20),
-                        SizedBox(width: 8),
-                        Text('Application Update', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold, fontSize: 16)),
+                        const Icon(Icons.info_outline, color: Colors.red, size: 20),
+                        const SizedBox(width: 8),
+                        Text(
+                          _isOrganizerRejected ? 'Organizer Rejected Application' : 'You Withdrew/Rejected', 
+                          style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold, fontSize: 14)
+                        ),
                       ],
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      'Reason: ${_actualReason ?? widget.event['rejection_reason']}',
+                      'Reason: $_actualReason',
                       style: TextStyle(color: Colors.red[800], fontSize: 14),
                     ),
                   ],
                 ),
               ),
-              const SizedBox(height: 32),
             ],
-
-            // 7.75) Organizer Details
-            if (widget.event['assigned_manager_id'] == EventManagerService.client.auth.currentUser?.id) ...[
+            if (widget.event['status'] == 'finished' || widget.event['status'] == 'completed') ...[
+              const SizedBox(height: 32),
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFF1F7F5),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: Colors.grey.shade200),
+                  color: Colors.green.withOpacity(0.05),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.green.withOpacity(0.3)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Row(
+                      children: [
+                        Icon(Icons.check_circle_outline, color: Colors.green, size: 20),
+                        const SizedBox(width: 8),
+                        Text('Your Completion Report', style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold, fontSize: 16)),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      widget.event['manager_completion_notes'] ?? 'No notes provided.',
+                      style: TextStyle(color: Colors.green[800], fontSize: 14),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+
+            if (widget.event['status'] == 'rejected' && widget.event['organizer_feedback'] != null) ...[
+              const SizedBox(height: 24),
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.red.withOpacity(0.05),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.red.withOpacity(0.3)),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Row(
                       children: [
-                        const Icon(Icons.info_outline, color: Color(0xFF1E4D40), size: 18),
+                        const Icon(Icons.warning_amber_rounded, color: Colors.red, size: 20),
                         const SizedBox(width: 8),
                         const Text(
-                          'Organizer Details',
-                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                        ),
-                        const Spacer(),
-                        TextButton(
-                          onPressed: () {
-                            final host = widget.event['host'] as Map<String, dynamic>?;
-                            if (host != null && host['id'] != null) {
-                              Navigator.pushNamed(
-                                context,
-                                '/host-profile-public',
-                                arguments: {'hostId': host['id']},
-                              );
-                            }
-                          },
-                          style: TextButton.styleFrom(
-                            padding: EdgeInsets.zero,
-                            minimumSize: Size.zero,
-                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                          ),
-                          child: const Text('View Profile', style: TextStyle(color: Color(0xFF1E4D40), fontSize: 13, fontWeight: FontWeight.bold)),
+                          'Completion Rejected by Organizer', 
+                          style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold, fontSize: 16)
                         ),
                       ],
                     ),
-                    const SizedBox(height: 16),
-                    _buildContactRow(Icons.email_outlined, widget.event['host']?['email'] ?? 'No email provided'),
                     const SizedBox(height: 8),
-                    _buildContactRow(Icons.location_on_outlined, widget.event['host']?['company_location'] ?? 'No location provided'),
+                    Text(
+                      'Feedback: ${widget.event['organizer_feedback']}',
+                      style: TextStyle(color: Colors.red[800], fontSize: 14, fontWeight: FontWeight.w500),
+                    ),
+                    const SizedBox(height: 12),
+                    const Text(
+                      'Please review the feedback and resubmit your completion report.',
+                      style: TextStyle(color: Colors.black87, fontSize: 13),
+                    ),
                   ],
                 ),
               ),
-              if ((_isOrganizerRejected || _isManagerRejected) && widget.event['assigned_manager_id'] == null && _actualReason != null) ...[
-                const SizedBox(height: 24),
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Colors.red.withOpacity(0.05),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.red.withOpacity(0.3)),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          const Icon(Icons.info_outline, color: Colors.red, size: 20),
-                          const SizedBox(width: 8),
-                          Text(
-                            _isOrganizerRejected ? 'Organizer Rejected Application' : 'You Withdrew/Rejected', 
-                            style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold, fontSize: 14)
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Reason: $_actualReason',
-                        style: TextStyle(color: Colors.red[800], fontSize: 14),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-              const SizedBox(height: 32),
             ],
+            const SizedBox(height: 32),
 
             // 8) "Ready to accept" button centrally aligned
             Center(
@@ -502,6 +539,21 @@ class _ProposalDetailsScreenState extends State<ProposalDetailsScreen> {
     }
   }
 
+  bool get _isEventDatePassed {
+    final dateStr = widget.event['date_raw'] ?? widget.event['date'];
+    if (dateStr == null) return false;
+    try {
+      final eventDate = DateTime.parse(dateStr.toString());
+      final now = DateTime.now();
+      // If today or past
+      final today = DateTime(now.year, now.month, now.day);
+      final evDate = DateTime(eventDate.year, eventDate.month, eventDate.day);
+      return now.isAfter(eventDate) || today.isAtSameMomentAs(evDate);
+    } catch (_) {
+      return false;
+    }
+  }
+
   bool get _canRejectManager {
     final deadlineStr = widget.event['registration_deadline'];
     if (deadlineStr == null) return true;
@@ -516,8 +568,83 @@ class _ProposalDetailsScreenState extends State<ProposalDetailsScreen> {
   Widget _buildAcceptButton() {
     final String? assignedManagerId = widget.event['assigned_manager_id'];
     final userId = EventManagerService.client.auth.currentUser?.id;
+    final String status = widget.event['status']?.toString().toLowerCase() ?? 'pending';
+    final hasOrganizerFeedback = widget.event['organizer_feedback'] != null;
 
     if (assignedManagerId == userId && userId != null) {
+      if (status == 'finished') {
+        return Container(
+          width: double.infinity,
+          height: 56,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: Colors.orange.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.orange),
+          ),
+          child: const Text(
+            'Sent for Confirmation',
+            style: TextStyle(color: Colors.orange, fontSize: 16, fontWeight: FontWeight.bold),
+          ),
+        );
+      }
+
+      if (status == 'completed') {
+        return Container(
+          width: double.infinity,
+          height: 56,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: Colors.green.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.green),
+          ),
+          child: const Text(
+            'Event Completed',
+            style: TextStyle(color: Colors.green, fontSize: 16, fontWeight: FontWeight.bold),
+          ),
+        );
+      }
+
+      if (_isEventDatePassed || (status == 'rejected' && hasOrganizerFeedback)) {
+        return Column(
+          children: [
+            SizedBox(
+              width: double.infinity,
+              height: 56,
+              child: ElevatedButton(
+                onPressed: _isAccepting ? null : _showCompletionDialog,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF1E4D40),
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  elevation: 0,
+                ),
+                child: _isAccepting
+                    ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                    : const Text('Mark as Completed', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+              ),
+            ),
+            if (!_isPastDeadline && _canRejectManager && !(status == 'rejected' && hasOrganizerFeedback)) ...[
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                height: 56,
+                child: ElevatedButton(
+                  onPressed: _isAccepting ? null : _showRejectDialog,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.red[50],
+                    foregroundColor: Colors.red,
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  child: const Text('Reject', style: TextStyle(fontWeight: FontWeight.bold)),
+                ),
+              ),
+            ],
+          ],
+        );
+      }
       if (_isPastDeadline) {
         return Column(
           children: [
@@ -663,6 +790,79 @@ class _ProposalDetailsScreenState extends State<ProposalDetailsScreen> {
     );
   }
 
+  Future<void> _showCompletionDialog() async {
+    final notesController = TextEditingController();
+    
+    final bool? confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Mark as Completed'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Please provide a brief summary of the completed tasks and any important notes for the organizer.'),
+            const SizedBox(height: 16),
+            TextField(
+              controller: notesController,
+              decoration: const InputDecoration(
+                hintText: 'Completion notes...',
+                border: OutlineInputBorder(),
+              ),
+              maxLines: 4,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              if (notesController.text.trim().isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Please enter completion notes.')),
+                );
+                return;
+              }
+              Navigator.pop(context, true);
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1E4D40)),
+            child: const Text('Submit', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      setState(() => _isAccepting = true);
+      try {
+        await EventManagerService.markEventAsFinished(
+          widget.event['id'].toString(), 
+          notesController.text.trim(),
+        );
+        if (mounted) {
+          setState(() {
+            _isAccepting = false;
+            widget.event['status'] = 'finished';
+            widget.event['manager_completion_notes'] = notesController.text.trim();
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Completion report sent to organizer.')),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          setState(() => _isAccepting = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Failed to submit: $e')),
+          );
+        }
+      }
+    }
+  }
+
   Widget _buildContactRow(IconData icon, String text) {
     return Row(
       children: [
@@ -673,6 +873,25 @@ class _ProposalDetailsScreenState extends State<ProposalDetailsScreen> {
             text,
             style: TextStyle(fontSize: 14, color: Colors.grey[800]),
             overflow: TextOverflow.ellipsis,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildInfoRow(IconData icon, String text, {double fontSize = 14, Color? color}) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(top: 2),
+          child: Icon(icon, size: fontSize, color: color ?? Colors.grey),
+        ),
+        const SizedBox(width: 4),
+        Expanded(
+          child: Text(
+            text,
+            style: TextStyle(fontSize: fontSize, color: color ?? Colors.grey),
           ),
         ),
       ],

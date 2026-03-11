@@ -188,14 +188,6 @@ class _PostEventPageState extends State<PostEventPage> {
     );
 
     if (pickedDate != null) {
-      if (_selectedDeadlineDate != null) {
-        if (pickedDate.isBefore(_selectedDeadlineDate!.add(const Duration(days: 4)))) {
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Event date must be at least 4 days after the deadline.')));
-          }
-          return;
-        }
-      }
       setState(() {
         _selectedDate = pickedDate;
         _dateController.text = "${pickedDate.day.toString().padLeft(2, '0')}/${pickedDate.month.toString().padLeft(2, '0')}/${pickedDate.year}";
@@ -210,15 +202,6 @@ class _PostEventPageState extends State<PostEventPage> {
     );
 
     if (pickedDate != null) {
-      if (_selectedDate != null) {
-        if (pickedDate.isAfter(_selectedDate!.subtract(const Duration(days: 4)))) {
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Registration deadline must be at least 4 days before the event.')));
-          }
-          return;
-        }
-      }
-      
       setState(() {
         _selectedDeadlineDate = pickedDate;
         _deadlineDateController.text = "${pickedDate.day.toString().padLeft(2, '0')}/${pickedDate.month.toString().padLeft(2, '0')}/${pickedDate.year}";

@@ -3,6 +3,7 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import '../../core/theme.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../services/event_manager_service.dart';
+import '../dashboard_stats_provider.dart';
 
 class StatsGrid extends ConsumerStatefulWidget {
   const StatsGrid({super.key});
@@ -12,123 +13,85 @@ class StatsGrid extends ConsumerStatefulWidget {
 }
 
 class _StatsGridState extends ConsumerState<StatsGrid> {
-  Map<String, String> _stats = {
-    'Active Teams': '0',
-    'Total Members': '0',
-    'Open Job Postings': '0',
-    'Pending Applications': '0',
-    'Accepted Proposals': '0',
-    'Pending Proposals': '0',
-  };
-  bool _isLoading = true;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadStats();
-  }
-
-  Future<void> _loadStats() async {
-    final stats = await EventManagerService.getDashboardStats();
-    if (mounted) {
-      setState(() {
-        _stats = stats;
-        _isLoading = false;
-      });
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
-    if (_isLoading) {
-      return const Center(child: Padding(
-        padding: EdgeInsets.all(32.0),
-        child: CircularProgressIndicator(color: AppColors.mintIce),
-      ));
-    }
+    final statsAsync = ref.watch(dashboardStatsProvider);
 
-    final statsItems = [
-      {
-        'title': 'Active Teams',
-        'count': _stats['Active Teams'] ?? '0',
-        'icon': FontAwesomeIcons.peopleGroup,
-        'bgColor': AppColors.hunterGreen,
-        'textColor': Colors.white,
-        'subTextColor': Colors.white,
-        'hasGraph': false,
-      },
-      {
-        'title': 'Total Members',
-        'count': _stats['Total Members'] ?? '0',
-        'icon': FontAwesomeIcons.userGroup,
-        'bgColor': AppColors.hunterGreen,
-        'textColor': Colors.white,
-        'subTextColor': Colors.white,
-        'hasGraph': false,
-      },
-      {
-        'title': 'Open Job Postings',
-        'count': _stats['Open Job Postings'] ?? '0',
-        'icon': FontAwesomeIcons.suitcase,
-        'bgColor': AppColors.hunterGreen,
-        'textColor': Colors.white,
-        'subTextColor': Colors.white,
-        'hasGraph': false,
-      },
-      {
-        'title': 'Pending Applications',
-        'count': _stats['Pending Applications'] ?? '0',
-        'icon': FontAwesomeIcons.paperPlane,
-        'bgColor': AppColors.hunterGreen,
-        'textColor': Colors.white,
-        'subTextColor': Colors.white,
-        'hasGraph': false,
-      },
-      {
-        'title': 'Accepted Proposals',
-        'count': _stats['Accepted Proposals'] ?? '0',
-        'icon': FontAwesomeIcons.dollarSign,
-        'bgColor': AppColors.hunterGreen,
-        'textColor': Colors.white,
-        'subTextColor': Colors.white,
-        'hasGraph': false,
-      },
-      {
-        'title': 'Pending Proposals',
-        'count': _stats['Pending Proposals'] ?? '0',
-        'icon': FontAwesomeIcons.chartLine,
-        'bgColor': AppColors.hunterGreen,
-        'textColor': Colors.white,
-        'subTextColor': Colors.white.withOpacity(0.9),
-        'hasGraph': true,
-      },
-    ];
+    return statsAsync.when(
+      loading: () => const Center(
+        child: Padding(
+          padding: EdgeInsets.all(32.0),
+          child: CircularProgressIndicator(color: AppColors.mintIce),
+        ),
+      ),
+      error: (err, stack) => Center(child: Text('Error loading stats: $err')),
+      data: (stats) {
+        final statsItems = [
+          {
+            'title': 'Active Teams',
+            'count': stats['Active Teams'] ?? '0',
+            'icon': FontAwesomeIcons.peopleGroup,
+            'bgColor': AppColors.hunterGreen,
+            'textColor': Colors.white,
+            'subTextColor': Colors.white,
+            'hasGraph': false,
+          },
+          {
+            'title': 'Active Members',
+            'count': stats['Active Members'] ?? '0',
+            'icon': FontAwesomeIcons.userGroup,
+            'bgColor': AppColors.hunterGreen,
+            'textColor': Colors.white,
+            'subTextColor': Colors.white,
+            'hasGraph': false,
+          },
+          {
+            'title': 'Accepted Proposals',
+            'count': stats['Accepted Proposals'] ?? '0',
+            'icon': FontAwesomeIcons.dollarSign,
+            'bgColor': AppColors.hunterGreen,
+            'textColor': Colors.white,
+            'subTextColor': Colors.white,
+            'hasGraph': false,
+          },
+          {
+            'title': 'Pending Proposals',
+            'count': stats['Pending Proposals'] ?? '0',
+            'icon': FontAwesomeIcons.chartLine,
+            'bgColor': AppColors.hunterGreen,
+            'textColor': Colors.white,
+            'subTextColor': Colors.white.withOpacity(0.9),
+            'hasGraph': true,
+          },
+        ];
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final crossAxisCount = constraints.maxWidth < 600 ? 2 : 3;
-        final aspectRatio = constraints.maxWidth < 600 ? 1.4 : 1.1;
+        return LayoutBuilder(
+          builder: (context, constraints) {
+            final crossAxisCount = constraints.maxWidth < 600 ? 2 : 4;
+            final aspectRatio = constraints.maxWidth < 600 ? 1.4 : 1.1;
 
-        return GridView.builder(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: crossAxisCount,
-            childAspectRatio: aspectRatio,
-            crossAxisSpacing: 16,
-            mainAxisSpacing: 16,
-          ),
-          itemCount: statsItems.length,
-          itemBuilder: (context, index) {
-            final item = statsItems[index];
-            return StatCard(
-              title: item['title'] as String,
-              count: item['count'] as String,
-              icon: item['icon'] as IconData,
-              bgColor: item['bgColor'] as Color,
-              textColor: item['textColor'] as Color,
-              subTextColor: item['subTextColor'] as Color,
-              hasGraph: item['hasGraph'] as bool,
+            return GridView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: crossAxisCount,
+                childAspectRatio: aspectRatio,
+                crossAxisSpacing: 16,
+                mainAxisSpacing: 16,
+              ),
+              itemCount: statsItems.length,
+              itemBuilder: (context, index) {
+                final item = statsItems[index];
+                return StatCard(
+                  title: item['title'] as String,
+                  count: item['count'] as String,
+                  icon: item['icon'] as IconData,
+                  bgColor: item['bgColor'] as Color,
+                  textColor: item['textColor'] as Color,
+                  subTextColor: item['subTextColor'] as Color,
+                  hasGraph: item['hasGraph'] as bool,
+                );
+              },
             );
           },
         );

@@ -133,71 +133,22 @@ class _HostDashboardPageState extends ConsumerState<HostDashboardPage> {
                     mainAxisSpacing: 12,
                     childAspectRatio: 1.5,
                     children: [
-                      _buildStatCard('Active Requests', _events.where((e) => e['status']?.toString().toLowerCase() == 'active').length.toString(), Icons.calendar_today, Colors.green),
-                      _buildStatCard('Pending Applications', '48', Icons.people_outline, Colors.blue),
-                      GestureDetector(
-                        onTap: () {
-                          Navigator.pushNamed(context, '/organizer-messages');
-                        },
-                        child: _buildStatCard('New Messages', '5', Icons.mail_outline, Colors.orange),
+                      _buildStatCard('Active Requests', _events.where((e) => HostService.getEventDynamicStatus(e).toLowerCase().contains('assigned manager') || e['status']?.toString().toLowerCase() == 'active').length.toString(), Icons.calendar_today, Colors.green),
+                      StreamBuilder<Map<String, int>>(
+                        stream: SupabaseService.getUnreadCountsStream(),
+                        builder: (context, snapshot) {
+                          final unreadCount = snapshot.hasData 
+                              ? snapshot.data!.values.fold(0, (sum, count) => sum + count) 
+                              : 0;
+                          return GestureDetector(
+                            onTap: () {
+                              Navigator.pushNamed(context, '/organizer-messages');
+                            },
+                            child: _buildStatCard('New Messages', unreadCount.toString(), Icons.mail_outline, Colors.orange),
+                          );
+                        }
                       ),
-                      _buildStatCard('Monthly Reach', '+24%', Icons.trending_up, Colors.teal),
                     ],
-                  ),
-                  const SizedBox(height: 24),
-                  
-                  // Engagement Overview Chart
-                  const Text(
-                    'Engagement Overview',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF1A1A1A),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  Container(
-                    height: 220,
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(16),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.05),
-                          blurRadius: 10,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
-                    ),
-                    child: LineChart(
-                      LineChartData(
-                        gridData: const FlGridData(show: false),
-                        titlesData: const FlTitlesData(show: false),
-                        borderData: FlBorderData(show: false),
-                        lineBarsData: [
-                          LineChartBarData(
-                            spots: const [
-                              FlSpot(0, 3),
-                              FlSpot(1, 2),
-                              FlSpot(2, 5),
-                              FlSpot(3, 3),
-                              FlSpot(4, 4),
-                              FlSpot(5, 6),
-                            ],
-                            isCurved: true,
-                            color: const Color(0xFF1E4D40),
-                            barWidth: 4,
-                            isStrokeCapRound: true,
-                            dotData: const FlDotData(show: false),
-                            belowBarData: BarAreaData(
-                              show: true,
-                              color: const Color(0xFF1E4D40).withOpacity(0.1),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
                   ),
                   const SizedBox(height: 24),
                   
@@ -372,8 +323,9 @@ class _HostDashboardPageState extends ConsumerState<HostDashboardPage> {
     final String title = event['title'] ?? 'Untitled Event';
     final String date = event['date'] ?? 'TBD';
     final String location = event['location'] ?? 'No location';
-    final String stats = event['stats'] ?? 'No stats';
-    final String status = event['status'] ?? 'pending';
+    final String stats = event['stats'] ?? '0 Managers Applied';
+    final String status = HostService.getEventDynamicStatus(event);
+    final Color statusColor = HostService.getStatusColor(status);
 
     return Container(
       decoration: BoxDecoration(
@@ -406,13 +358,13 @@ class _HostDashboardPageState extends ConsumerState<HostDashboardPage> {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
-                    color: status.toLowerCase() == 'active' ? Colors.green.withOpacity(0.1) : Colors.orange.withOpacity(0.1),
+                    color: statusColor.withOpacity(0.1),
                     borderRadius: BorderRadius.circular(6),
                   ),
                   child: Text(
                     status.toUpperCase(),
                     style: TextStyle(
-                      color: status.toLowerCase() == 'active' ? Colors.green[700] : Colors.orange[700],
+                      color: statusColor,
                       fontSize: 10, 
                       fontWeight: FontWeight.bold,
                     ),

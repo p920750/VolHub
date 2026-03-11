@@ -10,6 +10,8 @@ class HostProfile {
   final String bio;
   final String profilePhoto;
 
+  final int eventCount;
+
   HostProfile({
     required this.name,
     required this.email,
@@ -17,9 +19,10 @@ class HostProfile {
     required this.address,
     required this.bio,
     required this.profilePhoto,
+    required this.eventCount,
   });
 
-  factory HostProfile.fromMap(Map<String, dynamic> map) {
+  factory HostProfile.fromMap(Map<String, dynamic> map, int eventCount) {
     return HostProfile(
       name: map['full_name'] ?? '',
       email: map['email'] ?? '',
@@ -27,6 +30,7 @@ class HostProfile {
       address: map['address'] ?? '',
       bio: map['bio'] ?? '',
       profilePhoto: map['profile_photo'] ?? '',
+      eventCount: eventCount,
     );
   }
 }
@@ -41,7 +45,17 @@ class HostProfileNotifier extends AsyncNotifier<HostProfile> {
 
   Future<HostProfile> _fetchProfile() async {
     final userData = await SupabaseService.getUserProfile();
-    return HostProfile.fromMap(userData ?? {});
+    final userId = SupabaseService.currentUser?.id;
+    int eventCount = 0;
+    if (userId != null) {
+      // Import HostService or just use the same logic here
+      final response = await SupabaseService.client
+          .from('events')
+          .select('id')
+          .eq('user_id', userId);
+      eventCount = (response as List).length;
+    }
+    return HostProfile.fromMap(userData ?? {}, eventCount);
   }
 
   Future<void> updateProfile(Map<String, dynamic> updates) async {

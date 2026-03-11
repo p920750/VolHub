@@ -76,7 +76,7 @@ class _MyEventsPageState extends State<MyEventsPage> {
 
   List<Map<String, dynamic>> _getFilteredEvents() {
     return _events.where((event) {
-      final status = _getDynamicStatus(event);
+      final status = HostService.getEventDynamicStatus(event);
       if (status == 'Acceptance started & Deadline over') return false;
       return true;
     }).toList();
@@ -203,7 +203,7 @@ class _MyEventsPageState extends State<MyEventsPage> {
                   Expanded(
                     child: Builder(
                       builder: (context) {
-                        if (_getDynamicStatus(event) == 'Acceptance started') {
+                        if (HostService.getEventDynamicStatus(event) == 'Acceptance started') {
                           int daysLeft = 999;
                           if (event['registration_deadline'] != null) {
                             try {
@@ -227,13 +227,13 @@ class _MyEventsPageState extends State<MyEventsPage> {
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                     decoration: BoxDecoration(
-                      color: _getStatusColor(_getDynamicStatus(event)).withOpacity(0.1),
+                      color: HostService.getStatusColor(HostService.getEventDynamicStatus(event)).withOpacity(0.1),
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: Text(
-                      _getDynamicStatus(event),
+                      HostService.getEventDynamicStatus(event),
                       style: TextStyle(
-                        color: _getStatusColor(_getDynamicStatus(event)),
+                        color: HostService.getStatusColor(HostService.getEventDynamicStatus(event)),
                         fontSize: 12,
                         fontWeight: FontWeight.bold,
                       ),
@@ -277,39 +277,6 @@ class _MyEventsPageState extends State<MyEventsPage> {
     );
   }
 
-  String _getDynamicStatus(Map<String, dynamic> event) {
-    final String? deadlineStr = event['registration_deadline'];
-    bool isPastDeadline = false;
-    if (deadlineStr != null) {
-      try {
-        final deadline = DateTime.parse(deadlineStr);
-        isPastDeadline = DateTime.now().isAfter(deadline);
-      } catch (_) {}
-    }
-
-    if (event['assigned_manager_id'] != null) {
-      return isPastDeadline ? 'Assigned manager & Deadline over' : 'Assigned manager';
-    }
-
-    final List<dynamic> managerIds = event['manager_ids'] ?? [];
-    if (managerIds.isNotEmpty || event['rejection_reason'] != null) {
-      return isPastDeadline ? 'Acceptance started & Deadline over' : 'Acceptance started';
-    }
-
-    if (isPastDeadline) {
-      return 'Deadline over'; 
-    }
-
-    return 'Pending';
-  }
-
-  Color _getStatusColor(String status) {
-    status = status.toLowerCase();
-    if (status.contains('deadline over')) return Colors.red;
-    if (status.contains('acceptance started')) return Colors.blue;
-    if (status.contains('assigned manager')) return Colors.green;
-    return Colors.orange;
-  }
 }
 
 class _MyEventsExpandableText extends StatelessWidget {

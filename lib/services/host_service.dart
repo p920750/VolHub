@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'supabase_service.dart';
@@ -12,7 +13,7 @@ class HostService {
       final String role = userData?['role'] ?? 'host';
 
       PostgrestFilterBuilder<List<Map<String, dynamic>>> query = 
-          SupabaseService.client.from('events').select();
+          SupabaseService.client.from('events').select('*, host:users!user_id(id, full_name, email, phone_number, company_location, profile_photo, settings)');
 
       // If host/organizer, only see their own events
       if (role == 'host' || role == 'organizer' || role == 'manager') {
@@ -48,7 +49,7 @@ class HostService {
         'time': (e['time'] == null || e['time'].toString().trim().isEmpty || e['time'] == 'TBD') ? 'TBD' : e['time'],
         'posted_at': e['posted_at'] ?? (e['created_at'] != null ? _formatDateTimeDetailed(e['created_at']) : 'N/A'),
         'date_time_formatted': _formatDateTimeForMyEvents(e['date'], e['time']),
-        'registration_deadline_formatted': _formatDeadlineForMyEvents(e['registration_deadline']),
+        'registration_deadline_formatted': formatDeadlineForMyEvents(e['registration_deadline']),
         'registration_deadline': e['registration_deadline'],
         'created_at': e['created_at'],
         'created_at_formatted': e['created_at'] != null ? _formatDateTimeDetailed(e['created_at']) : 'N/A',
@@ -147,6 +148,27 @@ class HostService {
       if (kDebugMode) print('Error confirming manager: $e');
       rethrow;
     }
+  }
+
+  static Stream<List<Map<String, dynamic>>> getManagerDetailsStream(String managerId) {
+    return SupabaseService.client
+        .from('users')
+        .stream(primaryKey: ['id'])
+        .eq('id', managerId);
+  }
+
+  static Stream<List<Map<String, dynamic>>> getEventApplicationsStream(String eventId) {
+    return SupabaseService.client
+        .from('event_applications')
+        .stream(primaryKey: ['id'])
+        .eq('event_id', eventId);
+  }
+
+  static Stream<List<Map<String, dynamic>>> getEventStream(String eventId) {
+    return SupabaseService.client
+        .from('events')
+        .stream(primaryKey: ['id'])
+        .eq('id', eventId);
   }
 
   static Future<Map<String, dynamic>?> getManagerDetails(String managerId) async {
@@ -248,7 +270,7 @@ class HostService {
       // 2. Fetch events that match manager's categories and are pending
       final response = await SupabaseService.client
           .from('events')
-          .select()
+          .select('*, host:users!user_id(id, full_name, email, phone_number, company_location, profile_photo, settings)')
           .eq('status', 'pending')
           .inFilter('category', managerCategories)
           .not('user_id', 'eq', user.id) // Exclude events created by this user
@@ -262,27 +284,36 @@ class HostService {
       
       final appliedIds = (appliedResponse as List).map((e) => e['event_id']).toSet();
 
-      return (response as List).map((e) => {
-        'id': e['id'],
-        'title': e['name'],
-        'description': e['description'],
-        'requirements': e['requirements'],
-        'date': e['date'] != null ? _formatDate(e['date']) : 'TBD',
-        'time': e['time'],
-        'date_time_formatted': _formatDateTimeForMyEvents(e['date'], e['time']),
-        'registration_deadline': e['registration_deadline'],
-        'registration_deadline_formatted': _formatDeadlineForMyEvents(e['registration_deadline']),
-        'location': e['location'] ?? 'Online',
-        'status': e['status'] == 'upcoming' ? 'Pending' : (e['status'] == 'active' ? 'Active' : 'Completed'),
-        'imageUrl': e['image_url'] ?? 'https://images.unsplash.com/photo-1501281668745-f7f57925c3b4?w=800',
-        'budget': e['budget'] ?? 'Not specified',
-        'category': e['category'] ?? 'Other',
-        'host_name': e['host_name'] ?? 'Organizer',
-        'host': {'full_name': e['host_name'] ?? 'Organizer'},
-        'manager_has_applied': appliedIds.contains(e['id']),
-        'assigned_manager_id': e['assigned_manager_id'],
-        'rejection_reason': e['rejection_reason'],
-        'manager_ids': e['manager_ids'],
+      // Filter by Public Profile
+      final List<Map<String, dynamic>> filteredResponse = (response as List).where((e) {
+        final settings = e['host']?['settings'] as Map<String, dynamic>?;
+        return settings?['public_profile'] ?? true;
+      }).map((e) => Map<String, dynamic>.from(e)).toList();
+
+      return filteredResponse.map((e) {
+        final hostData = e['host'] as Map<String, dynamic>?;
+        return {
+          'id': e['id'],
+          'title': e['name'],
+          'description': e['description'],
+          'requirements': e['requirements'],
+          'date': e['date'] != null ? _formatDate(e['date']) : 'TBD',
+          'time': e['time'],
+          'date_time_formatted': _formatDateTimeForMyEvents(e['date'], e['time']),
+          'registration_deadline': e['registration_deadline'],
+          'registration_deadline_formatted': formatDeadlineForMyEvents(e['registration_deadline']),
+          'location': e['location'] ?? 'Online',
+          'status': e['status'] == 'upcoming' ? 'Pending' : (e['status'] == 'active' ? 'Active' : 'Completed'),
+          'imageUrl': e['image_url'] ?? 'https://images.unsplash.com/photo-1501281668745-f7f57925c3b4?w=800',
+          'budget': e['budget'] ?? 'Not specified',
+          'category': e['category'] ?? 'Other',
+          'host_name': hostData?['full_name'] ?? e['host_name'] ?? 'Organizer',
+          'host': hostData,
+          'manager_has_applied': appliedIds.contains(e['id']),
+          'assigned_manager_id': e['assigned_manager_id'],
+          'rejection_reason': e['rejection_reason'],
+          'manager_ids': e['manager_ids'],
+        };
       }).toList();
     } catch (e) {
       if (kDebugMode) print('Error fetching matching events: $e');
@@ -321,6 +352,20 @@ class HostService {
     } catch (e) {
       if (kDebugMode) print('Error rejecting manager: $e');
       rethrow;
+    }
+  }
+
+  static Future<int> getEventCountForHost(String hostId) async {
+    try {
+      final response = await SupabaseService.client
+          .from('events')
+          .select('id')
+          .eq('user_id', hostId);
+      
+      return (response as List).length;
+    } catch (e) {
+      if (kDebugMode) print('Error fetching event count: $e');
+      return 0;
     }
   }
 
@@ -365,7 +410,7 @@ class HostService {
     }
   }
 
-  static String _formatDeadlineForMyEvents(dynamic dateInput) {
+  static String formatDeadlineForMyEvents(dynamic dateInput) {
     if (dateInput == null) return 'Not set';
     try {
       final DateTime date = dateInput is DateTime ? dateInput : DateTime.parse(dateInput.toString());
@@ -383,5 +428,88 @@ class HostService {
     } catch (e) {
       return dateInput.toString();
     }
+  }
+
+  static String getEventDynamicStatus(Map<String, dynamic> event) {
+    // 1. Check explicit statuses first
+    final String status = event['status']?.toString().toLowerCase() ?? 'pending';
+    if (status == 'finished') return 'Completed by Manager';
+    if (status == 'completed') return 'Event Finished';
+    if (status == 'rejected' && event['organizer_feedback'] != null) return 'Completion Rejected';
+
+    // 2. Check for "In Progress" (Event is happening today)
+    final dynamic eventDateRaw = event['date'];
+    if (eventDateRaw != null) {
+      try {
+        final eventDate = DateTime.parse(eventDateRaw.toString());
+        final now = DateTime.now();
+        if (eventDate.year == now.year && eventDate.month == now.month && eventDate.day == now.day) {
+          return 'In Progress';
+        }
+      } catch (_) {}
+    }
+
+    // 3. Check deadlines and assignment statuses
+    final String? deadlineStr = event['registration_deadline'];
+    bool isPastDeadline = false;
+    if (deadlineStr != null && deadlineStr.isNotEmpty) {
+      try {
+        final deadline = DateTime.parse(deadlineStr);
+        isPastDeadline = DateTime.now().isAfter(deadline);
+      } catch (_) {}
+    }
+
+    if (event['assigned_manager_id'] != null) {
+      return 'Assigned manager';
+    }
+
+    final dynamic managerIdsRaw = event['manager_ids'];
+    final List<dynamic> managerIds = managerIdsRaw is List ? managerIdsRaw : [];
+    if (managerIds.isNotEmpty || (event['rejection_reason'] != null && event['rejection_reason'].toString().isNotEmpty)) {
+      return isPastDeadline ? 'Acceptance started & Deadline over' : 'Acceptance started';
+    }
+
+    if (isPastDeadline) {
+      return 'Deadline over'; 
+    }
+
+    return 'Pending';
+  }
+
+  /// Organizer confirms that the event is completed.
+  static Future<void> confirmEventCompletion(String eventId) async {
+    try {
+      await Supabase.instance.client.from('events').update({
+        'status': 'completed',
+      }).eq('id', eventId);
+    } catch (e) {
+      if (kDebugMode) print('Error confirming completion: $e');
+      throw Exception('Failed to confirm completion: $e');
+    }
+  }
+
+  /// Organizer rejects the event completion reported by the manager.
+  static Future<void> rejectEventCompletion(String eventId, String feedback) async {
+    try {
+      await Supabase.instance.client.from('events').update({
+        'status': 'rejected',
+        'organizer_feedback': feedback,
+      }).eq('id', eventId);
+    } catch (e) {
+      if (kDebugMode) print('Error rejecting completion: $e');
+      throw Exception('Failed to reject completion: $e');
+    }
+  }
+
+  static Color getStatusColor(String status) {
+    status = status.toLowerCase();
+    if (status.contains('deadline over')) return const Color(0xFFF44336); // Colors.red
+    if (status.contains('acceptance started')) return const Color(0xFF2196F3); // Colors.blue
+    if (status.contains('assigned manager')) return const Color(0xFF4CAF50); // Colors.green
+    if (status == 'in progress') return const Color(0xFF9C27B0); // Colors.purple
+    if (status == 'completed by manager') return const Color(0xFFFF9800); // Colors.orange
+    if (status == 'event finished') return const Color(0xFF4CAF50); // Colors.green
+    if (status == 'completion rejected') return const Color(0xFFF44336); // Colors.red
+    return const Color(0xFFFF9800); // Colors.orange
   }
 }

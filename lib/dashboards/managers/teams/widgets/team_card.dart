@@ -2,12 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 import 'package:main_volhub/widgets/safe_avatar.dart';
-import '../../messages/group_info_screen.dart';
+import 'package:main_volhub/dashboards/managers/messages/group_info_screen.dart';
 
 class TeamCard extends StatelessWidget {
   final Map<String, dynamic> team;
+  final VoidCallback? onDelete;
+  final VoidCallback? onRefresh;
 
-  const TeamCard({super.key, required this.team});
+  const TeamCard({super.key, required this.team, this.onDelete, this.onRefresh});
 
   @override
   Widget build(BuildContext context) {
@@ -52,11 +54,25 @@ class TeamCard extends StatelessWidget {
                     ],
                   ),
                 ),
-                PopupMenuButton(
+                PopupMenuButton<String>(
                   icon: const Icon(Icons.more_vert),
+                  onSelected: (value) {
+                    if (value == 'delete') {
+                      onDelete?.call();
+                    } else if (value == 'edit') {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => GroupInfoScreen(
+                            chatId: team['event_id'] ?? team['id'],
+                            groupName: team['name'],
+                          ),
+                        ),
+                      ).then((_) => onRefresh?.call());
+                    }
+                  },
                   itemBuilder: (context) => [
                     const PopupMenuItem(value: 'edit', child: Text('Edit Team')),
-                    const PopupMenuItem(value: 'add', child: Text('Add Member')),
                     const PopupMenuItem(value: 'delete', child: Text('Delete Team', style: TextStyle(color: Colors.red))),
                   ],
                 ),
@@ -131,11 +147,11 @@ class TeamCard extends StatelessWidget {
                       context,
                       MaterialPageRoute(
                         builder: (context) => GroupInfoScreen(
-                          chatId: team['id'] ?? 'unknown',
+                          chatId: team['event_id'] ?? team['id'] ?? 'unknown',
                           groupName: team['name'],
                         ),
                       ),
-                    );
+                    ).then((_) => onRefresh?.call());
                   },
                   child: const Text('Manage'),
                 ),

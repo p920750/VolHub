@@ -205,7 +205,7 @@ class _HostProfilePageState extends ConsumerState<HostProfilePage> {
                                   const SizedBox(height: 24),
                                   _buildAboutMeSection(profile.bio),
                                   const SizedBox(height: 24),
-                                  _buildStatsRow(isMobile),
+                                  _buildStatsRow(profile, isMobile),
                                   const SizedBox(height: 24),
                                   _buildRightSideActions(profile),
                                 ],
@@ -223,7 +223,7 @@ class _HostProfilePageState extends ConsumerState<HostProfilePage> {
                                         const SizedBox(height: 32),
                                         _buildAboutMeSection(profile.bio),
                                         const SizedBox(height: 32),
-                                        _buildStatsRow(isMobile),
+                                        _buildStatsRow(profile, isMobile),
                                       ],
                                     ),
                                   ),
@@ -266,10 +266,7 @@ class _HostProfilePageState extends ConsumerState<HostProfilePage> {
                     profile.name,
                     style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
                   ),
-                  const Text(
-                    'Lead Event Organizer @ VolHub',
-                    style: TextStyle(color: Colors.grey, fontSize: 13),
-                  ),
+                  const SizedBox(height: 8),
                 ],
               ),
             ),
@@ -339,14 +336,10 @@ class _HostProfilePageState extends ConsumerState<HostProfilePage> {
     );
   }
 
-  Widget _buildStatsRow(bool isMobile) {
+  Widget _buildStatsRow(HostProfile profile, bool isMobile) {
     return Row(
       children: [
-        _buildStatCard('Total Requests', '124'),
-        const SizedBox(width: 8),
-        _buildStatCard('Active Now', '12'),
-        const SizedBox(width: 8),
-        _buildStatCard('Managers Found', '450+'),
+        _buildStatCard('Total Requests', profile.eventCount.toString()),
       ],
     );
   }
@@ -357,7 +350,6 @@ class _HostProfilePageState extends ConsumerState<HostProfilePage> {
         _buildSectionCard(
           'Account Security',
           [
-            _buildSecurityItem('Two-Factor Auth', 'ON'),
             _buildSecurityItem('Notifications', 'Enabled'),
           ],
         ),
@@ -371,8 +363,6 @@ class _HostProfilePageState extends ConsumerState<HostProfilePage> {
                 MaterialPageRoute(builder: (context) => const HostSettingsPage()),
               );
             }),
-            _buildQuickAction('Update Billing'),
-            _buildQuickAction('Deactivate Account', isDestructive: true),
           ],
         ),
         const SizedBox(height: 24),

@@ -763,11 +763,75 @@ class SupabaseService {
     try {
       final response = await client
           .from('users')
-          .select('id, full_name, role, profile_photo, email')
-          .or('full_name.ilike.%$query%,email.ilike.%$query%');
+          .select()
+          .or('full_name.ilike.%$query%,email.ilike.%$query%')
+          .limit(20);
       return List<Map<String, dynamic>>.from(response);
     } catch (e) {
       if (kDebugMode) print('Error searching users: $e');
+      return [];
+    }
+  }
+
+  /// Fetches managers who are assigned to any event owned by the current host.
+  static Future<List<Map<String, dynamic>>> getAssignedManagersForHost() async {
+    try {
+      final user = currentUser;
+      if (user == null) return [];
+
+      final eventsResponse = await client
+          .from('events')
+          .select('assigned_manager_id')
+          .eq('user_id', user.id)
+          .not('assigned_manager_id', 'is', null);
+
+      final List<dynamic> managerIds = (eventsResponse as List)
+          .map((e) => e['assigned_manager_id'])
+          .where((id) => id != null)
+          .toSet()
+          .toList();
+
+      if (managerIds.isEmpty) return [];
+
+      final usersResponse = await client
+          .from('users')
+          .select()
+          .inFilter('id', managerIds);
+          
+      return List<Map<String, dynamic>>.from(usersResponse);
+    } catch (e) {
+      if (kDebugMode) print('Error fetching assigned managers: $e');
+      return [];
+    }
+  }
+
+  /// Fetches hosts who have assigned the current manager to at least one event.
+  static Future<List<Map<String, dynamic>>> getAssignedHostsForManager() async {
+    try {
+      final user = currentUser;
+      if (user == null) return [];
+
+      final eventsResponse = await client
+          .from('events')
+          .select('user_id')
+          .eq('assigned_manager_id', user.id);
+
+      final List<dynamic> hostIds = (eventsResponse as List)
+          .map((e) => e['user_id'])
+          .where((id) => id != null)
+          .toSet()
+          .toList();
+
+      if (hostIds.isEmpty) return [];
+
+      final usersResponse = await client
+          .from('users')
+          .select()
+          .inFilter('id', hostIds);
+          
+      return List<Map<String, dynamic>>.from(usersResponse);
+    } catch (e) {
+      if (kDebugMode) print('Error fetching assigned hosts: $e');
       return [];
     }
   }

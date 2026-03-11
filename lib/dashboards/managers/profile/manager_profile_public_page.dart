@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:async';
 import '../../../services/host_service.dart';
 import '../../../../widgets/safe_avatar.dart';
 
@@ -14,11 +15,30 @@ class ManagerProfilePublicPage extends StatefulWidget {
 class _ManagerProfilePublicPageState extends State<ManagerProfilePublicPage> {
   bool _isLoading = true;
   Map<String, dynamic>? _managerData;
+  StreamSubscription? _profileSubscription;
 
   @override
   void initState() {
     super.initState();
     _loadManagerData();
+    _setupLiveListener();
+  }
+
+  @override
+  void dispose() {
+    _profileSubscription?.cancel();
+    super.dispose();
+  }
+
+  void _setupLiveListener() {
+    _profileSubscription = HostService.getManagerDetailsStream(widget.managerId).listen((data) {
+      if (data.isNotEmpty && mounted) {
+        setState(() {
+          _managerData = data.first;
+          _isLoading = false;
+        });
+      }
+    });
   }
 
   Future<void> _loadManagerData() async {
@@ -53,6 +73,7 @@ class _ManagerProfilePublicPageState extends State<ManagerProfilePublicPage> {
 
     final String name = _managerData!['full_name'] ?? 'Manager';
     final String email = _managerData!['email'] ?? 'Not specified';
+    final String phone = _managerData!['phone_number'] ?? 'Not specified';
     final String company = _managerData!['company_name'] ?? 'Independent';
     final String location = _managerData!['company_location'] ?? 'Location N/A';
     final String bio = _managerData!['bio'] ?? 'No bio provided.';
@@ -102,10 +123,12 @@ class _ManagerProfilePublicPageState extends State<ManagerProfilePublicPage> {
             const SizedBox(height: 16),
             _buildInfoRow(Icons.email_outlined, 'Email', email),
             const SizedBox(height: 12),
+            _buildInfoRow(Icons.phone_outlined, 'Phone Number', phone),
+            const SizedBox(height: 12),
             _buildInfoRow(Icons.location_on_outlined, 'Base Location', location),
             const Divider(height: 48),
             const Text(
-              'About',
+              'About Us',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 12),

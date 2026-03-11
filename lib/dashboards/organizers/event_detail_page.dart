@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'dart:io';
+import 'dart:async';
 import '../../services/host_service.dart';
+import 'chat_detail_page.dart';
 import 'edit_event_page.dart';
 import '../../../widgets/safe_avatar.dart';
 
@@ -23,6 +25,8 @@ class _EventDetailPageState extends State<EventDetailPage> {
   bool _isLoadingManagerInfo = false;
   bool _isEditMode = false; // Added this line
   String? _expandedFieldId;
+  StreamSubscription? _applicationsSubscription;
+  StreamSubscription? _eventSubscription;
 
   @override
   void initState() {
@@ -31,6 +35,24 @@ class _EventDetailPageState extends State<EventDetailPage> {
     _loadEventData();
     _loadApplicants();
     _checkAndLoadManagerInfo();
+    
+    // Set up live listeners
+    if (_currentEvent['id'] != null) {
+      final eventId = _currentEvent['id'].toString();
+      _applicationsSubscription = HostService.getEventApplicationsStream(eventId).listen((_) {
+        _loadApplicants();
+      });
+      _eventSubscription = HostService.getEventStream(eventId).listen((_) {
+        _loadEventData();
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _applicationsSubscription?.cancel();
+    _eventSubscription?.cancel();
+    super.dispose();
   }
 
   void _checkAndLoadManagerInfo() {
@@ -215,7 +237,7 @@ class _EventDetailPageState extends State<EventDetailPage> {
     final String requirements = _currentEvent['requirements'] ?? 'No specific requirements listed.';
     final String description = _currentEvent['description'] ?? 'No description provided.';
     final String imageUrls = _currentEvent['image_url'] ?? '';
-    final String status = _getDynamicStatus(_currentEvent);
+    final String status = HostService.getEventDynamicStatus(_currentEvent);
     final String eventId = _currentEvent['id']?.toString() ?? 'unknown';
 
     return Scaffold(
@@ -240,13 +262,13 @@ class _EventDetailPageState extends State<EventDetailPage> {
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                     decoration: BoxDecoration(
-                      color: _getStatusColor(status).withOpacity(0.1),
+                      color: HostService.getStatusColor(status).withOpacity(0.1),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Text(
                       status.toUpperCase(),
                       style: TextStyle(
-                        color: _getStatusColor(status),
+                        color: HostService.getStatusColor(status),
                         fontWeight: FontWeight.bold,
                         fontSize: 12,
                       ),
@@ -392,10 +414,10 @@ class _EventDetailPageState extends State<EventDetailPage> {
                       ),
                     ),
                   ],
-                  if (status == 'accepted' || status == 'active') ...[
+                  if (status == 'Completed by Manager') ...[
                     const SizedBox(height: 32),
                     const Text(
-                      'Assigned Manager',
+                      'Manager\'s Completion Report',
                       style: TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.bold,
@@ -403,55 +425,95 @@ class _EventDetailPageState extends State<EventDetailPage> {
                       ),
                     ),
                     const SizedBox(height: 16),
-                    _isLoadingManagerInfo 
-                      ? const Center(child: CircularProgressIndicator())
-                      : _managerInfo == null
-                        ? const Text('Loading manager info...')
-                        : Card(
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                            elevation: 0,
-                            color: Colors.grey[50],
-                            child: Padding(
-                              padding: const EdgeInsets.all(16.0),
-                              child: Column(
-                                children: [
-                                  ListTile(
-                                    contentPadding: EdgeInsets.zero,
-                                    leading: SafeAvatar(
-                                      radius: 30,
-                                      imageUrl: _managerInfo!['profile_photo'] ?? 'https://i.pravatar.cc/150?u=manager',
-                                      name: _managerInfo!['full_name'] ?? 'Manager',
-                                    ),
-                                    title: Text(
-                                      _managerInfo!['full_name'] ?? 'Manager',
-                                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
-                                    ),
-                                    subtitle: Text(
-                                      '${_managerInfo!['company_name'] ?? 'Independent'} • ${_managerInfo!['company_location'] ?? 'Location N/A'}',
-                                    ),
-                                  ),
-                                  if (_managerInfo!['bio'] != null) ...[
-                                    const SizedBox(height: 8),
-                                    Text(
-                                      _managerInfo!['bio'],
-                                      style: TextStyle(color: Colors.grey[600], fontSize: 14),
-                                      maxLines: 2,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  ],
-                                  const Divider(height: 32),
-                                  Row(
-                                    mainAxisAlignment: MainAxisAlignment.spaceAround,
-                                    children: [
-                                      _buildManagerContactItem(Icons.email_outlined, 'Email'),
-                                      _buildManagerContactItem(Icons.phone_outlined, 'Call'),
-                                      _buildManagerContactItem(Icons.person_pin_outlined, 'Profile'),
-                                    ],
-                                  ),
-                                ],
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.green[50],
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.green[100]!),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Row(
+                            children: [
+                              Icon(Icons.assignment_turned_in, color: Colors.green),
+                              SizedBox(width: 8),
+                              Text(
+                                'Completed Tasks:',
+                                style: TextStyle(fontWeight: FontWeight.bold, color: Colors.green),
                               ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            _currentEvent['manager_completion_notes'] ?? 'No notes provided.',
+                            style: TextStyle(color: Colors.green[900]),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: _showRejectCompletionDialog,
+                            icon: const Icon(Icons.report_problem_outlined, size: 18),
+                            label: const Text('Reject & Report'),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: Colors.red,
+                              side: const BorderSide(color: Colors.red),
+                              padding: const EdgeInsets.symmetric(vertical: 12),
                             ),
                           ),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            onPressed: _handleConfirmCompletion,
+                            icon: const Icon(Icons.check_circle_outline, size: 18),
+                            label: const Text('Confirm Completion'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.green,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                  if (status == 'Completion Rejected' && _currentEvent['organizer_feedback'] != null) ...[
+                    const SizedBox(height: 32),
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.red[50],
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.red[100]!),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Row(
+                            children: [
+                              Icon(Icons.cancel_outlined, color: Colors.red),
+                              SizedBox(width: 8),
+                              Text(
+                                'Completion Rejected by You',
+                                style: TextStyle(fontWeight: FontWeight.bold, color: Colors.red),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            _currentEvent['organizer_feedback'],
+                            style: TextStyle(color: Colors.red[900]),
+                          ),
+                        ],
+                      ),
+                    ),
                   ],
                   if (imageUrls.isNotEmpty && imageUrls != 'null' && !imageUrls.contains('blob:')) ...[
                     const SizedBox(height: 32),
@@ -515,7 +577,7 @@ class _EventDetailPageState extends State<EventDetailPage> {
                                             children: [
                                               const Icon(Icons.email_outlined, size: 12, color: Colors.grey),
                                               const SizedBox(width: 4),
-                                              Text(managerEmail, style: const TextStyle(fontSize: 12)),
+                                              Expanded(child: Text(managerEmail, style: const TextStyle(fontSize: 12), overflow: TextOverflow.ellipsis)),
                                             ],
                                           ),
                                         ],
@@ -834,48 +896,17 @@ class _EventDetailPageState extends State<EventDetailPage> {
     );
   }
 
-  Widget _buildManagerContactItem(IconData icon, String label) {
-    return Column(
-      children: [
-        Icon(icon, color: const Color(0xFF1E4D40), size: 24),
-        const SizedBox(height: 4),
-        Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500)),
-      ],
+  Widget _buildManagerContactItem(IconData icon, String label, VoidCallback onTap) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Column(
+        children: [
+          Icon(icon, color: const Color(0xFF1E4D40), size: 24),
+          const SizedBox(height: 4),
+          Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500)),
+        ],
+      ),
     );
-  }
-
-  Color _getStatusColor(String status) {
-    status = status.toLowerCase();
-    if (status.contains('deadline over')) return Colors.red;
-    if (status.contains('acceptance started')) return Colors.blue;
-    if (status.contains('assigned manager')) return Colors.green;
-    return Colors.orange;
-  }
-
-  String _getDynamicStatus(Map<String, dynamic> event) {
-    final String? deadlineStr = event['registration_deadline'];
-    bool isPastDeadline = false;
-    if (deadlineStr != null) {
-      try {
-        final deadline = DateTime.parse(deadlineStr);
-        isPastDeadline = DateTime.now().isAfter(deadline);
-      } catch (_) {}
-    }
-
-    if (event['assigned_manager_id'] != null) {
-      return isPastDeadline ? 'Assigned manager & Deadline over' : 'Assigned manager';
-    }
-
-    final List<dynamic> managerIds = event['manager_ids'] ?? [];
-    if (managerIds.isNotEmpty || event['rejection_reason'] != null) {
-      return isPastDeadline ? 'Acceptance started & Deadline over' : 'Acceptance started';
-    }
-
-    if (isPastDeadline) {
-      return 'Deadline over'; 
-    }
-
-    return 'Pending';
   }
 
   Widget _buildInfoRow(IconData icon, String label, String value) {
@@ -890,18 +921,20 @@ class _EventDetailPageState extends State<EventDetailPage> {
           child: Icon(icon, size: 20, color: Colors.grey[600]),
         ),
         const SizedBox(width: 16),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              label,
-              style: TextStyle(fontSize: 12, color: Colors.grey[500]),
-            ),
-            Text(
-              value,
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
-            ),
-          ],
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: TextStyle(fontSize: 12, color: Colors.grey[500]),
+              ),
+              Text(
+                value,
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+              ),
+            ],
+          ),
         ),
       ],
     );
@@ -1044,6 +1077,100 @@ class _EventDetailPageState extends State<EventDetailPage> {
   Widget _buildSingleImageWidget(String url) {
     return Container(); // No longer used
   }
+
+  Future<void> _handleConfirmCompletion() async {
+    final bool? confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Confirm Completion'),
+        content: const Text('Are you sure you want to mark this event as fully completed? This will finalize the event record.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+            child: const Text('Confirm', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    setState(() => _isLoading = true);
+    try {
+      await HostService.confirmEventCompletion(_currentEvent['id'].toString());
+      _loadEventData();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Event marked as completed!')));
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+      }
+    }
+  }
+
+  void _showRejectCompletionDialog() {
+    final TextEditingController feedbackController = TextEditingController();
+    
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Reject Completion'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Please explain why you are rejecting the completion of this event:'),
+            const SizedBox(height: 16),
+            TextField(
+              controller: feedbackController,
+              maxLines: 3,
+              decoration: const InputDecoration(
+                hintText: 'Enter your feedback or report details...',
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          ElevatedButton(
+            onPressed: () async {
+              if (feedbackController.text.trim().isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Please enter rejection feedback')),
+                );
+                return;
+              }
+              Navigator.pop(context);
+              _handleRejectCompletion(feedbackController.text.trim());
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Reject & Submit', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _handleRejectCompletion(String feedback) async {
+    setState(() => _isLoading = true);
+    try {
+      await HostService.rejectEventCompletion(_currentEvent['id'].toString(), feedback);
+      _loadEventData();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Completion report rejected.')));
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+      }
+    }
+  }
 }
 
 class _ExpandableText extends StatelessWidget {
@@ -1052,11 +1179,11 @@ class _ExpandableText extends StatelessWidget {
   final VoidCallback onToggle;
 
   const _ExpandableText({
-    super.key,
+    Key? key,
     required this.text,
     required this.isExpanded,
     required this.onToggle,
-  });
+  }) : super(key: key);
 
   @override
   Widget build(BuildContext context) {

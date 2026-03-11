@@ -54,8 +54,7 @@ class _HostProfilePublicPageState extends State<HostProfilePublicPage> {
 
     final String name = _hostData!['full_name'] ?? 'Event Organizer';
     final String email = _hostData!['email'] ?? 'Not specified';
-    final String company = _hostData!['company_name'] ?? 'Independent Organizer';
-    final String location = _hostData!['company_location'] ?? 'Location N/A';
+    final String phoneNumber = _hostData!['phone_number'] ?? 'Not specified';
     final String bio = _hostData!['bio'] ?? 'No bio provided.';
     final String? photoUrl = _hostData!['profile_photo'];
 
@@ -87,11 +86,6 @@ class _HostProfilePublicPageState extends State<HostProfilePublicPage> {
                     name,
                     style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    company,
-                    style: TextStyle(fontSize: 16, color: Colors.grey[600]),
-                  ),
                 ],
               ),
             ),
@@ -103,7 +97,7 @@ class _HostProfilePublicPageState extends State<HostProfilePublicPage> {
             const SizedBox(height: 16),
             _buildInfoRow(Icons.email_outlined, 'Email', email),
             const SizedBox(height: 12),
-            _buildInfoRow(Icons.location_on_outlined, 'Base Location', location),
+            _buildInfoRow(Icons.phone_outlined, 'Phone Number', phoneNumber),
             const Divider(height: 48),
             const Text(
               'About the Organizer',

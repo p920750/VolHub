@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
-import 'widgets/team_card.dart';
-import '../core/manager_drawer.dart';
+import 'package:main_volhub/dashboards/managers/teams/widgets/team_card.dart';
+import 'package:main_volhub/dashboards/managers/core/manager_drawer.dart';
+import 'package:main_volhub/services/event_manager_service.dart';
+
 
 class MyTeamsScreen extends StatefulWidget {
   const MyTeamsScreen({super.key});
@@ -10,112 +12,68 @@ class MyTeamsScreen extends StatefulWidget {
 }
 
 class _MyTeamsScreenState extends State<MyTeamsScreen> {
-  final List<Map<String, dynamic>> _teams = [
-    {
-      'id': '3',
-      'name': 'Photography Team',
-      'members': 14,
-      'events': 8,
-      'applications': 0,
-      'avatars': [
-        'https://i.pravatar.cc/150?img=1',
-        'https://i.pravatar.cc/150?img=2',
-        'https://i.pravatar.cc/150?img=3',
-      ],
-    },
-    {
-      'id': '4',
-      'name': 'Logistics Crew',
-      'members': 22,
-      'events': 12,
-      'applications': 6,
-      'avatars': [
-        'https://i.pravatar.cc/150?img=4',
-        'https://i.pravatar.cc/150?img=5',
-        'https://i.pravatar.cc/150?img=6',
-      ],
-    },
-    {
-      'id': '5',
-      'name': 'Social Media Squad',
-      'members': 5,
-      'events': 3,
-      'applications': 2,
-      'avatars': [
-        'https://i.pravatar.cc/150?img=7',
-        'https://i.pravatar.cc/150?img=8',
-      ],
-    },
-    {
-      'id': '6',
-      'name': 'Medical Support',
-      'members': 8,
-      'events': 5,
-      'applications': 1,
-      'avatars': [
-        'https://i.pravatar.cc/150?img=10',
-        'https://i.pravatar.cc/150?img=11',
-        'https://i.pravatar.cc/150?img=12',
-      ],
-    },
-  ];
+  List<Map<String, dynamic>> _teams = [];
+  bool _isLoading = true;
 
-  void _showCreateTeamDialog() {
-    final nameController = TextEditingController();
-    final eventsController = TextEditingController(text: '0');
+  @override
+  void initState() {
+    super.initState();
+    _loadTeams();
+  }
 
-    showDialog(
+  Future<void> _loadTeams() async {
+    setState(() => _isLoading = true);
+    try {
+      final teams = await EventManagerService.getTeams();
+      if (mounted) {
+        setState(() {
+          _teams = teams;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  void _handleDeleteTeam(Map<String, dynamic> team) async {
+    final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Create New Team'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: nameController,
-              decoration: const InputDecoration(
-                labelText: 'Team Name',
-                hintText: 'e.g. Media Production Team',
-              ),
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: eventsController,
-              decoration: const InputDecoration(
-                labelText: 'Initial Events Completed',
-              ),
-              keyboardType: TextInputType.number,
-            ),
-          ],
-        ),
+        title: const Text('Delete Team'),
+        content: Text('Are you sure you want to delete "${team['name']}"? This will also clear the group chat history.'),
         actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
           TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () {
-              if (nameController.text.isNotEmpty) {
-                setState(() {
-                  _teams.insert(0, {
-                    'id': DateTime.now().millisecondsSinceEpoch.toString(),
-                    'name': nameController.text,
-                    'members': 1,
-                    'events': int.tryParse(eventsController.text) ?? 0,
-                    'applications': 0,
-                    'avatars': ['https://i.pravatar.cc/150?u=${DateTime.now().millisecondsSinceEpoch}'],
-                  });
-                });
-                Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Team "${nameController.text}" created!')),
-                );
-              }
-            },
-            child: const Text('Create'),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Delete', style: TextStyle(color: Colors.red)),
           ),
         ],
       ),
+    );
+
+    if (confirmed == true) {
+      try {
+        await EventManagerService.deleteTeam(team['id'], team['event_id']);
+        _loadTeams();
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Team deleted successfully')),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error deleting team: $e')),
+          );
+        }
+      }
+    }
+  }
+
+  void _showCreateTeamDialog() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Teams are automatically created when you accept volunteers for an event.')),
     );
   }
 
@@ -126,24 +84,27 @@ class _MyTeamsScreenState extends State<MyTeamsScreen> {
         title: const Text('My Teams'),
         actions: [
           IconButton(
-            icon: const Icon(Icons.search),
-            onPressed: () {},
+            icon: const Icon(Icons.refresh),
+            onPressed: _loadTeams,
           ),
         ],
       ),
       drawer: const ManagerDrawer(currentRoute: '/manager-teams'),
-      body: ListView.builder(
-        padding: const EdgeInsets.all(16),
-        itemCount: _teams.length,
-        itemBuilder: (context, index) {
-          return TeamCard(team: _teams[index]);
-        },
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _showCreateTeamDialog,
-        icon: const Icon(Icons.add),
-        label: const Text('New Team'),
-      ),
+      body: _isLoading 
+        ? const Center(child: CircularProgressIndicator())
+        : _teams.isEmpty
+          ? const Center(child: Text('No teams formed yet.\nAccept volunteers for an event to create a team.', textAlign: TextAlign.center))
+          : ListView.builder(
+              padding: const EdgeInsets.all(16),
+              itemCount: _teams.length,
+              itemBuilder: (context, index) {
+                return TeamCard(
+                  team: _teams[index],
+                  onDelete: () => _handleDeleteTeam(_teams[index]),
+                  onRefresh: _loadTeams,
+                );
+              },
+            ),
     );
   }
 }

@@ -4,6 +4,7 @@ import '../core/manager_drawer.dart';
 import '../core/theme.dart';
 import '../post_events/post_events_screen.dart';
 import '../../../services/event_manager_service.dart';
+import '../../../services/host_service.dart';
 import '../../../../widgets/safe_avatar.dart';
 
 class MyEventsScreen extends StatefulWidget {
@@ -165,6 +166,8 @@ class _MyEventsScreenState extends State<MyEventsScreen> {
                                       ),
                                     ],
                                   ),
+                                  const SizedBox(height: 8),
+                                  _buildEventStatusBadge(event),
                                 ],
                               ),
                               trailing: PopupMenuButton<String>(
@@ -202,15 +205,27 @@ class _MyEventsScreenState extends State<MyEventsScreen> {
                                     )
                                   ),
                                 ),
-                                const Spacer(),
-                                TextButton(
-                                  onPressed: () {
-                                    _showApplicants(event);
-                                  },
-                                  child: const Text('View Applicants'),
-                                ),
-                              ],
-                            ),
+                                  const Spacer(),
+                                  if (_canMarkAsFinished(event))
+                                    ElevatedButton(
+                                      onPressed: () => _showCompletionDialog(event),
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: Colors.green,
+                                        foregroundColor: Colors.white,
+                                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
+                                        minimumSize: const Size(0, 32),
+                                      ),
+                                      child: const Text('Mark as Finished', style: TextStyle(fontSize: 12)),
+                                    )
+                                  else
+                                    TextButton(
+                                      onPressed: () {
+                                        _showApplicants(event);
+                                      },
+                                      child: const Text('View Applicants'),
+                                    ),
+                                ],
+                              ),
                           ),
                         ],
                       ),
@@ -485,27 +500,99 @@ class _MyEventsScreenState extends State<MyEventsScreen> {
       ),
     );
   }
-}
 
-class StatusBadge extends StatelessWidget {
-  final String label;
-  final Color color;
+  Widget _buildEventStatusBadge(Map<String, dynamic> event) {
+    final status = HostService.getEventDynamicStatus(event);
+    final color = HostService.getStatusColor(status);
 
-  const StatusBadge({super.key, required this.label, required this.color});
-
-  @override
-  Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
         color: color.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(6),
         border: Border.all(color: color.withOpacity(0.5)),
       ),
       child: Text(
-        label,
-        style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.bold),
+        status.toUpperCase(),
+        style: TextStyle(
+          color: color,
+          fontSize: 10,
+          fontWeight: FontWeight.bold,
+        ),
       ),
     );
+  }
+
+  bool _canMarkAsFinished(Map<String, dynamic> event) {
+    final status = event['status']?.toString().toLowerCase() ?? 'pending';
+    if (status == 'finished' || status == 'completed') return false;
+
+    final dynamicStatus = HostService.getEventDynamicStatus(event);
+    // Allow if "In Progress" or if assigned
+    return dynamicStatus == 'In Progress' || dynamicStatus == 'Assigned manager';
+  }
+
+  void _showCompletionDialog(Map<String, dynamic> event) {
+    final TextEditingController notesController = TextEditingController();
+    
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Mark Event as Finished'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Please list the tasks or milestones completed during this event:'),
+            const SizedBox(height: 16),
+            TextField(
+              controller: notesController,
+              maxLines: 4,
+              decoration: const InputDecoration(
+                hintText: 'Enter completion notes...',
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              if (notesController.text.trim().isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Please enter completion notes')),
+                );
+                return;
+              }
+              
+              Navigator.pop(context);
+              _handleMarkAsFinished(event['id'].toString(), notesController.text.trim());
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+            child: const Text('Submit & Finish'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _handleMarkAsFinished(String eventId, String notes) async {
+    setState(() => _isLoading = true);
+    try {
+      await EventManagerService.markEventAsFinished(eventId, notes);
+      await _fetchMyEvents();
+      if (mounted) {
+        _showSuccessDialog('Event Finished', 'Your completion report has been sent to the organizer for verification.');
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+      }
+    }
   }
 }

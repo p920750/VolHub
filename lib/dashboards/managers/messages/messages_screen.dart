@@ -33,7 +33,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
 
   Future<void> _fetchUsers() async {
     setState(() => _isLoading = true);
-    final organizers = await SupabaseService.getUsersByRole('organizer'); // or 'event_organizer' check your DB roles
+    final organizers = await SupabaseService.getAssignedHostsForManager();
     final volunteers = await SupabaseService.getUsersByRole('volunteer');
     final activeGroups = await EventManagerService.getActiveGroupChatsForManager();
 
@@ -71,7 +71,14 @@ class _MessagesScreenState extends State<MessagesScreen> {
             IconButton(
               icon: const Icon(Icons.search, color: AppColors.midnightBlue), 
               onPressed: () {
-                showSearch(context: context, delegate: UserSearchDelegate(mockGroups));
+                showSearch(
+                  context: context, 
+                  delegate: UserSearchDelegate(
+                    groups: _groupChats,
+                    organizers: _organizers,
+                    volunteers: _volunteers,
+                  ),
+                );
               }
             ),
           ],
@@ -191,7 +198,14 @@ class _MessagesScreenState extends State<MessagesScreen> {
 
 class UserSearchDelegate extends SearchDelegate {
   final List<Map<String, dynamic>> groups;
-  UserSearchDelegate(this.groups);
+  final List<Map<String, dynamic>> organizers;
+  final List<Map<String, dynamic>> volunteers;
+  
+  UserSearchDelegate({
+    required this.groups,
+    required this.organizers,
+    required this.volunteers,
+  });
 
   @override
   ThemeData appBarTheme(BuildContext context) {
@@ -280,8 +294,18 @@ class UserSearchDelegate extends SearchDelegate {
   Future<List<Map<String, dynamic>>> _search(String query) async {
     if (query.isEmpty) return [];
 
-    // 1. Search Users from Supabase
-    final users = await SupabaseService.searchUsers(query);
+    final lowercaseQuery = query.toLowerCase();
+
+    // Filter local lists for restricted search
+    final matchedOrganizers = organizers.where((u) => 
+      (u['full_name']?.toString().toLowerCase().contains(lowercaseQuery) ?? false) ||
+      (u['email']?.toString().toLowerCase().contains(lowercaseQuery) ?? false)
+    ).toList();
+
+    final matchedVolunteers = volunteers.where((u) => 
+      (u['full_name']?.toString().toLowerCase().contains(lowercaseQuery) ?? false) ||
+      (u['email']?.toString().toLowerCase().contains(lowercaseQuery) ?? false)
+    ).toList();
     
     // 2. Search Groups (Local Mock)
     final matchedGroups = groups.where((g) => 
@@ -306,6 +330,6 @@ class UserSearchDelegate extends SearchDelegate {
        // usersInGroup.add({'id': 'mock_1', 'full_name': 'Sarah (Photo Lead)', 'role': 'volunteer'});
     }
 
-    return [...users, ...matchedGroups, ...usersInGroup];
+    return [...matchedOrganizers, ...matchedVolunteers, ...matchedGroups, ...usersInGroup];
   }
 }
