@@ -112,7 +112,9 @@ class _AppOpeningPageState extends State<AppOpeningPage>
     _logoController.forward();
 
     Future.delayed(const Duration(milliseconds: 3000), () {
-      _iconController.forward();
+      if (mounted) {
+        _iconController.forward();
+      }
     });
 
     Future<void> _navigateToHome() async {

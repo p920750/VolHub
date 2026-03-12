@@ -114,6 +114,12 @@ class ManagerDrawer extends ConsumerWidget {
                 ),
                 _buildDrawerItem(
                   context,
+                  icon: Icons.star_outline,
+                  label: 'My Performance',
+                  route: '/manager-performance',
+                ),
+                _buildDrawerItem(
+                  context,
                   icon: Icons.person_outline,
                   label: 'Profile',
                   route: '/manager-profile',

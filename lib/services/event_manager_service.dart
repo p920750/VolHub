@@ -111,7 +111,10 @@ class EventManagerService {
       // 3. Synchronize: Create teams for filled events that are missing them
       for (var group in activeGroups) {
         final eventId = group['id'].toString();
-        if (!existingTeamEventIds.contains(eventId)) {
+        final currentCount = (num.tryParse(group['current_volunteers_count']?.toString() ?? '0') ?? 0).toInt();
+        
+        // Only create a team if there's at least one member (volunteer)
+        if (!existingTeamEventIds.contains(eventId) && currentCount > 0) {
           await client.from('teams').insert({
             'event_id': eventId,
             'manager_id': user.id,
@@ -128,7 +131,11 @@ class EventManagerService {
           .eq('manager_id', user.id)
           .order('created_at', ascending: false);
 
-      return List<Map<String, dynamic>>.from(response).map((team) {
+      return List<Map<String, dynamic>>.from(response).where((team) {
+        final event = team['events'] as Map<String, dynamic>?;
+        final currentCount = (num.tryParse(event?['current_volunteers_count']?.toString() ?? '0') ?? 0).toInt();
+        return currentCount > 0; // Only return teams that have members
+      }).map((team) {
         final event = team['events'] as Map<String, dynamic>?;
         return {
           'id': team['id'].toString(),
@@ -514,7 +521,8 @@ class EventManagerService {
       if (eventResponse != null) {
         final needed = int.tryParse(eventResponse['volunteers_needed']?.toString() ?? '0') ?? 0;
         final current = int.tryParse(eventResponse['current_volunteers_count']?.toString() ?? '0') ?? 0;
-        final managerId = eventResponse['user_id'];
+        final organizerId = eventResponse['user_id'];
+        final assignedManagerId = eventResponse['assigned_manager_id'];
 
         if (current >= needed && needed > 0) {
           // Check if a team already exists for this event
@@ -524,11 +532,12 @@ class EventManagerService {
               .eq('event_id', eventId)
               .maybeSingle();
 
-          if (existingTeam == null && managerId != null) {
+          if (existingTeam == null) {
             // Create a new team record automatically as slots are now completely filled
+            // Ensure the manager_id is the assigned manager if present
             await client.from('teams').insert({
               'event_id': eventId,
-              'manager_id': managerId,
+              'manager_id': assignedManagerId ?? organizerId,
               'name': eventResponse['name'] ?? 'New Team',
             });
             if (kDebugMode) print('Team automatically created for event $eventId as slots are filled.');
@@ -659,8 +668,8 @@ class EventManagerService {
       final events = List<Map<String, dynamic>>.from(response);
       return events.where((e) {
         final current = (num.tryParse(e['current_volunteers_count']?.toString() ?? '0') ?? 0).toInt();
-        final needed = (num.tryParse(e['volunteers_needed']?.toString() ?? '1') ?? 1).toInt();
-        return current >= needed;
+        // A group chat only exists if there are volunteers (members)
+        return current > 0;
       }).toList();
     } catch (e) {
       if (kDebugMode) print('Error fetching active group chats for manager: $e');
@@ -685,8 +694,8 @@ class EventManagerService {
         if (row['events'] != null) {
           final event = Map<String, dynamic>.from(row['events']);
           final current = (num.tryParse(event['current_volunteers_count']?.toString() ?? '0') ?? 0).toInt();
-          final needed = (num.tryParse(event['volunteers_needed']?.toString() ?? '1') ?? 1).toInt();
-          if (current >= needed) {
+          // A group chat only exists if there are volunteers (members)
+          if (current > 0) {
             eventsList.add(event);
           }
         }
@@ -722,9 +731,13 @@ class EventManagerService {
 
       List<String> userIds = [];
 
-      // Add single manager (organizer) if present
-      if (event['user_id'] != null) userIds.add(event['user_id'].toString());
-      if (event['assigned_manager_id'] != null) userIds.add(event['assigned_manager_id'].toString());
+      // Add assigned manager if present
+      if (event['assigned_manager_id'] != null) {
+        userIds.add(event['assigned_manager_id'].toString());
+      } else if (event['user_id'] != null) {
+        // If no manager is assigned, then the owner (organizer) acts as the manager
+        userIds.add(event['user_id'].toString());
+      }
       
       // Add manager array if present
       if (event['manager_ids'] != null) {
@@ -762,8 +775,7 @@ class EventManagerService {
 
       final List<Map<String, dynamic>> members = [];
       for (var u in usersResponse) {
-        final isManager = u['id'] == event['user_id'] || 
-                          u['id'] == event['assigned_manager_id'] || 
+        final isManager = u['id'] == (event['assigned_manager_id'] ?? event['user_id']) || 
                           (event['manager_ids'] != null && List<dynamic>.from(event['manager_ids']).contains(u['id']));
                           
         members.add({

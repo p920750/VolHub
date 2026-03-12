@@ -53,6 +53,8 @@ class HostService {
         'registration_deadline': e['registration_deadline'],
         'created_at': e['created_at'],
         'created_at_formatted': e['created_at'] != null ? _formatDateTimeDetailed(e['created_at']) : 'N/A',
+        'manager_completion_notes': e['manager_completion_notes'],
+        'organizer_feedback': e['organizer_feedback'],
       }).toList();
     } catch (e) {
       if (kDebugMode) print('Error fetching events: $e');
@@ -303,7 +305,7 @@ class HostService {
           'registration_deadline': e['registration_deadline'],
           'registration_deadline_formatted': formatDeadlineForMyEvents(e['registration_deadline']),
           'location': e['location'] ?? 'Online',
-          'status': e['status'] == 'upcoming' ? 'Pending' : (e['status'] == 'active' ? 'Active' : 'Completed'),
+          'status': (e['status'] ?? 'pending').toString().toLowerCase(),
           'imageUrl': e['image_url'] ?? 'https://images.unsplash.com/photo-1501281668745-f7f57925c3b4?w=800',
           'budget': e['budget'] ?? 'Not specified',
           'category': e['category'] ?? 'Other',
@@ -313,6 +315,8 @@ class HostService {
           'assigned_manager_id': e['assigned_manager_id'],
           'rejection_reason': e['rejection_reason'],
           'manager_ids': e['manager_ids'],
+          'manager_completion_notes': e['manager_completion_notes'],
+          'organizer_feedback': e['organizer_feedback'],
         };
       }).toList();
     } catch (e) {

@@ -41,6 +41,8 @@ import 'dashboards/managers/profile/edit_profile_screen.dart';
 import 'dashboards/managers/profile/manager_profile_public_page.dart';
 import 'dashboards/managers/proposals/proposal_details_screen.dart';
 import 'dashboards/volunteers/volunteer_public_profile_page.dart';
+import 'dashboards/organizers/manager_review_page.dart';
+import 'dashboards/managers/performance/my_performance_page.dart';
 
 // Global navigator key for deep link navigation
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
@@ -326,6 +328,13 @@ class _MyAppState extends State<MyApp> {
           }
           return ProposalDetailsScreen(event: args);
         },
+        '/manager-review': (context) {
+          final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+          final event = args?['event'] as Map<String, dynamic>? ?? {};
+          final manager = args?['manager'] as Map<String, dynamic>? ?? {};
+          return ManagerReviewPage(event: event, manager: manager);
+        },
+        '/manager-performance': (context) => const MyPerformancePage(),
       },
       onGenerateRoute: (settings) {
         if (settings.name == '/email-confirm' ||

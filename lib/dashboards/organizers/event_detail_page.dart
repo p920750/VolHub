@@ -6,6 +6,8 @@ import '../../services/host_service.dart';
 import 'chat_detail_page.dart';
 import 'edit_event_page.dart';
 import '../../../widgets/safe_avatar.dart';
+import '../../services/review_service.dart';
+import '../../services/supabase_service.dart';
 
 class EventDetailPage extends StatefulWidget {
   final Map<String, dynamic> event;
@@ -27,6 +29,7 @@ class _EventDetailPageState extends State<EventDetailPage> {
   String? _expandedFieldId;
   StreamSubscription? _applicationsSubscription;
   StreamSubscription? _eventSubscription;
+  Map<String, dynamic>? _managerReview;
 
   @override
   void initState() {
@@ -113,9 +116,27 @@ class _EventDetailPageState extends State<EventDetailPage> {
           _isLoading = false;
         });
         _checkAndLoadManagerInfo();
+        _checkIfReviewed();
       }
     } catch (e) {
       if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _checkIfReviewed() async {
+    final assignedManagerId = _currentEvent['assigned_manager_id'];
+    if (assignedManagerId != null && _currentEvent['status'] == 'completed') {
+      try {
+        final review = await ReviewService.getReviewForEvent(
+          _currentEvent['id'].toString(),
+          assignedManagerId.toString(),
+        );
+        if (mounted) {
+          setState(() => _managerReview = review);
+        }
+      } catch (e) {
+        debugPrint('Error checking review: $e');
+      }
     }
   }
 
@@ -621,7 +642,48 @@ class _EventDetailPageState extends State<EventDetailPage> {
                                                   return const SizedBox.shrink();
                                                 }
                                               ),
-                                            ] else ...[
+                                                if (_currentEvent['assigned_manager_id'] == manager['id'] && _currentEvent['status']?.toString().toLowerCase() == 'completed' && _managerReview == null) ...[
+                                                  const SizedBox(width: 8),
+                                                  TextButton.icon(
+                                                    onPressed: () async {
+                                                      final result = await Navigator.pushNamed(
+                                                        context,
+                                                        '/manager-review',
+                                                        arguments: {
+                                                          'event': _currentEvent,
+                                                          'manager': manager,
+                                                        },
+                                                      );
+                                                      if (result == true) {
+                                                        _checkIfReviewed();
+                                                      }
+                                                    },
+                                                    icon: const Icon(Icons.star_outline, size: 16, color: Colors.amber),
+                                                    label: const Text('Review', style: TextStyle(color: Colors.amber, fontWeight: FontWeight.bold, fontSize: 12)),
+                                                    style: TextButton.styleFrom(
+                                                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                                                      backgroundColor: Colors.amber.withOpacity(0.1),
+                                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                                                    ),
+                                                  ),
+                                                ] else if (_currentEvent['assigned_manager_id'] == manager['id'] && _managerReview != null) ...[
+                                                   const SizedBox(width: 8),
+                                                   Container(
+                                                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                                     decoration: BoxDecoration(
+                                                       color: Colors.amber.withOpacity(0.1),
+                                                       borderRadius: BorderRadius.circular(12),
+                                                     ),
+                                                     child: const Row(
+                                                       children: [
+                                                         Icon(Icons.star, color: Colors.amber, size: 14),
+                                                         SizedBox(width: 4),
+                                                         Text('Reviewed', style: TextStyle(color: Colors.amber, fontSize: 12, fontWeight: FontWeight.bold)),
+                                                       ],
+                                                     ),
+                                                   ),
+                                                ],
+                                              ] else ...[
                                             Builder(
                                               builder: (context) {
                                                 final rejectionReasonStr = _currentEvent['rejection_reason'] as String?;

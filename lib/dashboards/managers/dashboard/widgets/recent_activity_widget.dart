@@ -11,7 +11,7 @@ class RecentActivityWidget extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return DefaultTabController(
-      length: 3,
+      length: 4,
       child: Column(
         children: [
           Wrap(
@@ -31,6 +31,7 @@ class RecentActivityWidget extends ConsumerWidget {
                     Tab(text: 'Matches'),
                     Tab(text: 'Apps'),
                     Tab(text: 'Proposals'),
+                    Tab(text: 'Reviews'),
                   ],
                   labelPadding: EdgeInsets.zero,
                   dividerColor: Colors.transparent,
@@ -46,6 +47,7 @@ class RecentActivityWidget extends ConsumerWidget {
                 const SingleChildScrollView(child: MatchingEventsWidget()),
                 _buildApplicationsList(context, ref),
                 _buildProposalsList(context, ref),
+                _buildReviewsList(context, ref),
               ],
             ),
           ),
@@ -142,6 +144,59 @@ class RecentActivityWidget extends ConsumerWidget {
               onTap: () {
                 if (kDebugMode) print('Tapped activity proposal: ${prop['event']}');
               },
+            );
+          },
+        );
+      },
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (err, stack) => Center(child: Text('Error: $err')),
+    );
+  }
+
+  Widget _buildReviewsList(BuildContext context, WidgetRef ref) {
+    final reviewsAsync = ref.watch(recentReviewsProvider);
+
+    return reviewsAsync.when(
+      data: (reviews) {
+        if (reviews.isEmpty) {
+          return const Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.star_outline, size: 48, color: Colors.grey),
+                SizedBox(height: 16),
+                Text('No reviews yet', style: TextStyle(color: Colors.grey)),
+              ],
+            ),
+          );
+        }
+        return ListView.builder(
+          physics: const AlwaysScrollableScrollPhysics(),
+          itemCount: reviews.length,
+          itemBuilder: (context, index) {
+            final review = reviews[index];
+            final organizer = review['organizer'] as Map<String, dynamic>?;
+            final event = review['event'] as Map<String, dynamic>?;
+            
+            return ListTile(
+              leading: CircleAvatar(
+                backgroundImage: organizer?['profile_photo'] != null ? NetworkImage(organizer?['profile_photo']) : null,
+                child: organizer?['profile_photo'] == null ? const Icon(Icons.person) : null,
+              ),
+              title: Text(event?['title'] ?? 'Event Review', style: const TextStyle(fontWeight: FontWeight.bold)),
+              subtitle: Text('by ${organizer?['full_name'] ?? 'Organizer'}'),
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.star, color: Colors.amber, size: 16),
+                  const SizedBox(width: 4),
+                  Text(
+                    review['overall_rating'].toString(),
+                    style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.amber),
+                  ),
+                ],
+              ),
+              onTap: () => Navigator.pushNamed(context, '/manager-performance'),
             );
           },
         );
