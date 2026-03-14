@@ -5,6 +5,8 @@ import 'widgets/stats_grid.dart';
 import 'widgets/your_teams_widget.dart';
 import '../profile/profile_provider.dart';
 import '../core/manager_drawer.dart';
+import '../../shared/notifications_screen.dart';
+import '../../../services/notification_service.dart';
 
 class DashboardScreen extends ConsumerWidget {
   const DashboardScreen({super.key});
@@ -18,9 +20,48 @@ class DashboardScreen extends ConsumerWidget {
       appBar: AppBar(
         title: const Text('Dashboard'),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.notifications_outlined),
-            onPressed: () {},
+          StreamBuilder<List<Map<String, dynamic>>>(
+            stream: NotificationService.getNotificationsStream(),
+            builder: (context, snapshot) {
+              final notifications = snapshot.data ?? [];
+              final unreadCount = notifications.where((n) => !(n['is_read'] ?? false)).length;
+              
+              return Stack(
+                alignment: Alignment.center,
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.notifications_outlined),
+                    onPressed: () {
+                      Navigator.push(context, MaterialPageRoute(builder: (_) => const NotificationsScreen()));
+                    },
+                  ),
+                  if (unreadCount > 0)
+                    Positioned(
+                      right: 8,
+                      top: 8,
+                      child: Container(
+                        padding: const EdgeInsets.all(2),
+                        decoration: BoxDecoration(
+                          color: Colors.red,
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        constraints: const BoxConstraints(
+                          minWidth: 16,
+                          minHeight: 16,
+                        ),
+                        child: Text(
+                          unreadCount > 99 ? '99+' : unreadCount.toString(),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 10,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                    ),
+                ],
+              );
+            },
           ),
           Padding(
             padding: const EdgeInsets.only(right: 16.0),

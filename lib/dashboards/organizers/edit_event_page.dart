@@ -298,7 +298,7 @@ class _EditEventPageState extends State<EditEventPage> {
               _buildTextField(
                 controller: _titleController,
                 label: 'Event Title',
-                placeholder: 'e.g. Summer Music Festival 2026',
+                placeholder: '',
               ),
               const SizedBox(height: 20),
 
@@ -360,7 +360,7 @@ class _EditEventPageState extends State<EditEventPage> {
                 _buildTextField(
                   controller: _categoryController,
                   label: 'Custom Category',
-                  placeholder: 'Type your custom category...',
+                  placeholder: '',
                 ),
               ],
               const SizedBox(height: 20),
@@ -368,7 +368,7 @@ class _EditEventPageState extends State<EditEventPage> {
               _buildTextField(
                 controller: _locationController,
                 label: 'Location',
-                placeholder: 'e.g. Central Park, NY',
+                placeholder: '',
                 icon: Icons.location_on_outlined,
               ),
               const SizedBox(height: 20),
@@ -380,7 +380,7 @@ class _EditEventPageState extends State<EditEventPage> {
                     child: _buildTextField(
                       controller: _dateController,
                       label: 'Event Date',
-                      placeholder: 'dd/mm/yyyy',
+                      placeholder: '',
                       icon: Icons.calendar_today_outlined,
                       readOnly: true,
                       onTap: _pickDateInSequence,
@@ -391,7 +391,7 @@ class _EditEventPageState extends State<EditEventPage> {
                     child: _buildTextField(
                       controller: _timeController,
                       label: 'Event Time',
-                      placeholder: 'hh:mm am/pm',
+                      placeholder: '',
                       icon: Icons.access_time,
                       readOnly: true,
                       onTap: () async {
@@ -416,7 +416,7 @@ class _EditEventPageState extends State<EditEventPage> {
                     child: _buildTextField(
                       controller: _deadlineDateController,
                       label: 'Deadline Date',
-                      placeholder: 'dd/mm/yyyy',
+                      placeholder: '',
                       icon: Icons.event_available_outlined,
                       readOnly: true,
                       onTap: _pickDeadlineDateInSequence,
@@ -427,7 +427,7 @@ class _EditEventPageState extends State<EditEventPage> {
                     child: _buildTextField(
                       controller: _deadlineTimeController,
                       label: 'Deadline Time',
-                      placeholder: 'hh:mm am/pm',
+                      placeholder: '',
                       icon: Icons.timer_outlined,
                       readOnly: true,
                       onTap: () async {
@@ -448,16 +448,16 @@ class _EditEventPageState extends State<EditEventPage> {
               
               _buildTextField(
                 controller: _budgetController,
-                label: 'Budget / Payment Amount',
-                placeholder: 'e.g. \$500 - \$1000',
-                icon: Icons.payments_outlined,
+                label: 'Budget / Payment Amount (₹)',
+                placeholder: '',
+                icon: Icons.currency_rupee,
               ),
               const SizedBox(height: 20),
               
               _buildTextField(
                 controller: _detailsController,
                 label: 'Event Description',
-                placeholder: 'Describe your event in detail...',
+                placeholder: '',
                 maxLines: 6,
                 isScrollable: true,
               ),
@@ -466,7 +466,7 @@ class _EditEventPageState extends State<EditEventPage> {
               _buildTextField(
                 controller: _reqsController,
                 label: 'Company Requirements',
-                placeholder: 'e.g. Needs 5+ years experience...',
+                placeholder: '',
                 maxLines: 6,
                 isScrollable: true,
               ),

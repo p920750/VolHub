@@ -169,6 +169,28 @@ class _VolunteerHomePageState extends State<VolunteerHomePage> {
         'status': 'pending',
       });
 
+      // Notify the manager about the new registration
+      try {
+        final userData = await Supabase.instance.client
+            .from('users')
+            .select('full_name')
+            .eq('id', user.id)
+            .maybeSingle();
+        
+        final volunteerName = userData?['full_name'] ?? 'A new volunteer';
+        final eventName = event['name'] ?? 'your event';
+
+        await Supabase.instance.client.from('notifications').insert({
+          'user_id': managerId,
+          'event_id': event['id'],
+          'title': 'New Registration',
+          'body': '$volunteerName has registered for "$eventName".',
+          'type': 'proposal',
+        });
+      } catch (notifyError) {
+        debugPrint('Error sending manager notification: $notifyError');
+      }
+
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Registered successfully!')));
       _fetchUserApplications(); // Refresh application statuses

@@ -2,6 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'profile_provider.dart';
 import 'package:main_volhub/widgets/safe_avatar.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:file_picker/file_picker.dart';
+import 'dart:io';
+import '../../../services/supabase_service.dart';
 
 class EditProfileScreen extends ConsumerStatefulWidget {
   final bool firstTime;
@@ -21,10 +25,11 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
   late TextEditingController _companyNameController;
   late TextEditingController _companyLocationController;
   late TextEditingController _linkedinController;
-  late TextEditingController _certNameController;
-  late TextEditingController _certDateController;
   late TextEditingController _categoryController;
   List<String> _categories = [];
+  List<String> _certificates = [];
+  bool _isUploading = false;
+  final ImagePicker _picker = ImagePicker();
 
   @override
   void initState() {
@@ -43,8 +48,6 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
       _companyNameController.dispose();
       _companyLocationController.dispose();
       _linkedinController.dispose();
-      _certNameController.dispose();
-      _certDateController.dispose();
       _categoryController.dispose();
     }
     super.dispose();
@@ -65,8 +68,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
       companyName: _companyNameController.text,
       companyLocation: _companyLocationController.text,
       linkedinUrl: _linkedinController.text,
-      certName: _certNameController.text,
-      certIssuedDate: _certDateController.text,
+      certificates: _certificates,
       categories: _categories,
     );
     
@@ -84,6 +86,97 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
     });
   }
 
+  Future<void> _pickAndUploadImage() async {
+    try {
+      final XFile? image = await _picker.pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 70,
+      );
+
+      if (image == null) return;
+
+      setState(() => _isUploading = true);
+
+      final profileAsync = ref.read(userProfileProvider);
+      if (!profileAsync.hasValue) return;
+
+      final userId = SupabaseService.currentUser?.id;
+      if (userId == null) return;
+
+      final String? photoUrl = await SupabaseService.uploadProfileImage(
+        File(image.path),
+        userId,
+      );
+
+      if (photoUrl != null) {
+        final currentProfile = profileAsync.value!;
+        final updatedProfile = currentProfile.copyWith(profileImage: photoUrl);
+        
+        // Update both local state and provider
+        await ref.read(userProfileProvider.notifier).updateProfile(updatedProfile);
+        
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Profile photo updated successfully!')),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error uploading image: $e')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isUploading = false);
+      }
+    }
+  }
+
+  Future<void> _pickAndUploadCertificate() async {
+    try {
+      FilePickerResult? result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['jpg', 'jpeg', 'png', 'pdf'],
+      );
+
+      if (result == null || result.files.single.path == null) return;
+
+      setState(() => _isUploading = true);
+
+      final userId = SupabaseService.currentUser?.id;
+      if (userId == null) return;
+
+      final String? certUrl = await SupabaseService.uploadCertificate(
+        File(result.files.single.path!),
+        userId,
+      );
+
+      if (certUrl != null) {
+        setState(() {
+          _certificates.add(certUrl);
+        });
+        
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Certificate uploaded successfully!')),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error uploading certificate: $e')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isUploading = false);
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final profileAsync = ref.watch(userProfileProvider);
@@ -99,9 +192,8 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
           _companyNameController = TextEditingController(text: widget.firstTime ? '' : profile.companyName);
           _companyLocationController = TextEditingController(text: widget.firstTime ? '' : profile.companyLocation);
           _linkedinController = TextEditingController(text: widget.firstTime ? '' : profile.linkedinUrl);
-          _certNameController = TextEditingController(text: widget.firstTime ? '' : profile.certName);
-          _certDateController = TextEditingController(text: widget.firstTime ? '' : profile.certIssuedDate);
           _categories = List.from(profile.categories);
+          _certificates = List.from(profile.certificates);
           _isInitialized = true;
         }
 
@@ -128,6 +220,13 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                         imageUrl: profile.profileImage,
                         name: profile.name,
                       ),
+                      if (_isUploading)
+                        const Positioned.fill(
+                          child: CircleAvatar(
+                            backgroundColor: Colors.black26,
+                            child: CircularProgressIndicator(color: Colors.white),
+                          ),
+                        ),
                       Positioned(
                         bottom: 0,
                         right: 0,
@@ -136,11 +235,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                           backgroundColor: Theme.of(context).primaryColor,
                           child: IconButton(
                             icon: const Icon(Icons.camera_alt, size: 18, color: Colors.white),
-                            onPressed: () {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text('Photo upload coming soon!')),
-                              );
-                            },
+                            onPressed: _isUploading ? null : _pickAndUploadImage,
                           ),
                         ),
                       ),
@@ -188,8 +283,69 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                 const SizedBox(height: 24),
                 
                 _buildTextField('LinkedIn Profile URL', _linkedinController, icon: Icons.link),
-                _buildTextField('Certification Name', _certNameController, icon: Icons.workspace_premium),
-                _buildTextField('Issued Date', _certDateController, icon: Icons.calendar_today),
+                
+                const SizedBox(height: 24),
+                const Text('Certificates', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                const SizedBox(height: 8),
+                const Text('Upload your professional certificates (PNG, PDF)', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                const SizedBox(height: 12),
+                
+                if (_certificates.isNotEmpty) ...[
+                  SizedBox(
+                    height: 100,
+                    child: ListView.builder(
+                      scrollDirection: Axis.horizontal,
+                      itemCount: _certificates.length,
+                      itemBuilder: (context, index) {
+                        final url = _certificates[index];
+                        final isPdf = url.toLowerCase().endsWith('.pdf');
+                        
+                        return Container(
+                          width: 100,
+                          margin: const EdgeInsets.only(right: 8),
+                          decoration: BoxDecoration(
+                            border: Border.all(color: Colors.grey.shade300),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Stack(
+                            children: [
+                              Center(
+                                child: isPdf 
+                                  ? const Icon(Icons.picture_as_pdf, color: Colors.red, size: 40)
+                                  : ClipRRect(
+                                      borderRadius: BorderRadius.circular(7),
+                                      child: Image.network(url, fit: BoxFit.cover, width: double.infinity, height: double.infinity),
+                                    ),
+                              ),
+                              Positioned(
+                                top: 0,
+                                right: 0,
+                                child: GestureDetector(
+                                  onTap: () => setState(() => _certificates.removeAt(index)),
+                                  child: Container(
+                                    padding: const EdgeInsets.all(2),
+                                    decoration: const BoxDecoration(color: Colors.red, shape: BoxShape.circle),
+                                    child: const Icon(Icons.close, size: 14, color: Colors.white),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                ],
+                
+                OutlinedButton.icon(
+                  onPressed: _isUploading ? null : _pickAndUploadCertificate,
+                  icon: const Icon(Icons.upload_file),
+                  label: const Text('Add Certificate'),
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: const Size(double.infinity, 44),
+                  ),
+                ),
                 
                 const SizedBox(height: 32),
                 SizedBox(

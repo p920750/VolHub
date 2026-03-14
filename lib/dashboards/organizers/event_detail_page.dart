@@ -609,6 +609,23 @@ class _EventDetailPageState extends State<EventDetailPage> {
                                       child: Row(
                                         mainAxisAlignment: MainAxisAlignment.end,
                                         children: [
+                                          IconButton(
+                                            onPressed: () {
+                                              Navigator.push(
+                                                context,
+                                                MaterialPageRoute(
+                                                  builder: (context) => ChatDetailPage(
+                                                    chatId: manager['id'],
+                                                    name: manager['full_name'] ?? 'Manager',
+                                                    avatar: manager['profile_photo'] ?? '',
+                                                    isOnline: false, // We can query this later or keep false as default
+                                                  ),
+                                                ),
+                                              );
+                                            },
+                                            icon: const Icon(Icons.chat_bubble_outline, color: Color(0xFF1E4D40)),
+                                            tooltip: 'Chat with Manager',
+                                          ),
                                           TextButton.icon(
                                             onPressed: () {
                                               Navigator.pushNamed(
@@ -760,7 +777,7 @@ class _EventDetailPageState extends State<EventDetailPage> {
                                                         Icon(Icons.info_outline, color: Colors.red[400], size: 20),
                                                         const SizedBox(width: 8),
                                                         const Text(
-                                                          'Application Update',
+                                                          'Manager Withdrawal',
                                                           style: TextStyle(
                                                             color: Colors.red,
                                                             fontWeight: FontWeight.bold,
@@ -920,39 +937,44 @@ class _EventDetailPageState extends State<EventDetailPage> {
   }
 
   void _showDeleteConfirmation(BuildContext context) {
+    final bool hasManager = _currentEvent['assigned_manager_id'] != null;
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Delete Event'),
-        content: const Text('Are you sure you want to permanently delete this event? This action cannot be undone.'),
+        title: Text(hasManager ? 'Cannot Delete Event' : 'Delete Event'),
+        content: Text(hasManager 
+            ? 'This event has an assigned manager. You must reject the manager first before you can delete the event.'
+            : 'Are you sure you want to permanently delete this event? This action cannot be undone.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
             child: const Text('Cancel'),
           ),
-          TextButton(
-            onPressed: () async {
-              try {
-                if (_currentEvent['id'] != null) {
-                  await HostService.deleteEvent(_currentEvent['id'].toString());
+          if (!hasManager)
+            TextButton(
+              onPressed: () async {
+                try {
+                  if (_currentEvent['id'] != null) {
+                    await HostService.deleteEvent(_currentEvent['id'].toString());
+                    if (context.mounted) {
+                      Navigator.pop(context); // Close dialog
+                      Navigator.pop(context, true); // Go back to dashboard with refresh
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Event deleted successfully')),
+                      );
+                    }
+                  }
+                } catch (e) {
                   if (context.mounted) {
-                    Navigator.pop(context); // Close dialog
-                    Navigator.pop(context, true); // Go back to dashboard with refresh
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Event deleted successfully')),
+                      SnackBar(content: Text('Failed to delete event: $e')),
                     );
                   }
                 }
-              } catch (e) {
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Failed to delete event: $e')),
-                  );
-                }
-              }
-            },
-            child: const Text('Delete', style: TextStyle(color: Colors.red)),
-          ),
+              },
+              child: const Text('Delete', style: TextStyle(color: Colors.red)),
+            ),
         ],
       ),
     );

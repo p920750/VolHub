@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../services/supabase_service.dart';
 import '../../../auth/auth_provider.dart';
@@ -12,8 +13,7 @@ class UserProfile {
   final String companyLocation;
   final String profileImage;
   final String linkedinUrl;
-  final String certName;
-  final String certIssuedDate;
+  final List<String> certificates;
   final List<String> categories;
 
   UserProfile({
@@ -26,8 +26,7 @@ class UserProfile {
     required this.companyLocation,
     required this.profileImage,
     required this.linkedinUrl,
-    required this.certName,
-    required this.certIssuedDate,
+    required this.certificates,
     required this.categories,
   });
 
@@ -42,8 +41,10 @@ class UserProfile {
       companyLocation: map['company_location'] ?? '',
       profileImage: map['profile_photo'] ?? '',
       linkedinUrl: map['linkedin_url'] ?? '',
-      certName: map['cert_name'] ?? '',
-      certIssuedDate: map['cert_issued_date'] ?? '',
+      certificates: (map['certificates'] as List<dynamic>?)
+              ?.map((e) => e.toString())
+              .toList() ??
+          [],
       categories: (map['company_category'] as List<dynamic>?)
               ?.map((e) => e.toString())
               .toList() ??
@@ -61,8 +62,7 @@ class UserProfile {
     String? companyLocation,
     String? profileImage,
     String? linkedinUrl,
-    String? certName,
-    String? certIssuedDate,
+    List<String>? certificates,
     List<String>? categories,
   }) {
     return UserProfile(
@@ -75,8 +75,7 @@ class UserProfile {
       companyLocation: companyLocation ?? this.companyLocation,
       profileImage: profileImage ?? this.profileImage,
       linkedinUrl: linkedinUrl ?? this.linkedinUrl,
-      certName: certName ?? this.certName,
-      certIssuedDate: certIssuedDate ?? this.certIssuedDate,
+      certificates: certificates ?? this.certificates,
       categories: categories ?? this.categories,
     );
   }
@@ -105,8 +104,7 @@ class UserProfileNotifier extends AsyncNotifier<UserProfile> {
         companyLocation: '',
         profileImage: '',
         linkedinUrl: '',
-        certName: '',
-        certIssuedDate: '',
+        certificates: [],
         categories: [],
       );
     }
@@ -123,9 +121,14 @@ class UserProfileNotifier extends AsyncNotifier<UserProfile> {
         'company_name': newProfile.companyName,
         'company_location': newProfile.companyLocation,
         'company_category': newProfile.categories,
+        'profile_photo': newProfile.profileImage,
+        'linkedin_url': newProfile.linkedinUrl,
+        'certificates': newProfile.certificates,
       });
     } catch (e) {
-      // Revert or log error
+      if (kDebugMode) print('Error updating profile: $e');
+      // Revert state if needed
+      ref.invalidateSelf();
     }
   }
 }

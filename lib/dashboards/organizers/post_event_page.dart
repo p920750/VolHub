@@ -282,7 +282,7 @@ class _PostEventPageState extends State<PostEventPage> {
                   _buildTextField(
                     controller: _titleController,
                     label: 'Event Title',
-                    placeholder: 'e.g. Summer Music Festival 2026',
+                    placeholder: '',
                   ),
                   const SizedBox(height: 20),
 
@@ -354,7 +354,7 @@ class _PostEventPageState extends State<PostEventPage> {
                   _buildTextField(
                     controller: _locationController,
                     label: 'Location',
-                    placeholder: 'e.g. Central Park, NY',
+                    placeholder: '',
                     icon: Icons.location_on_outlined,
                   ),
                   const SizedBox(height: 20),
@@ -368,7 +368,7 @@ class _PostEventPageState extends State<PostEventPage> {
                         child: _buildTextField(
                           controller: _dateController,
                           label: 'Date',
-                          placeholder: 'dd/mm/yyyy',
+                          placeholder: '',
                           icon: Icons.calendar_today_outlined,
                           readOnly: true,
                           onTap: _pickDateInSequence,
@@ -379,7 +379,7 @@ class _PostEventPageState extends State<PostEventPage> {
                         child: _buildTextField(
                           controller: _timeController,
                           label: 'Time',
-                          placeholder: '--:-- --',
+                          placeholder: '',
                           icon: Icons.access_time,
                           readOnly: true,
                           onTap: () async {
@@ -406,7 +406,7 @@ class _PostEventPageState extends State<PostEventPage> {
                         child: _buildTextField(
                           controller: _deadlineDateController,
                           label: 'Date',
-                          placeholder: 'dd/mm/yyyy',
+                          placeholder: '',
                           icon: Icons.calendar_today_outlined,
                           readOnly: true,
                           onTap: _pickDeadlineDateInSequence,
@@ -417,7 +417,7 @@ class _PostEventPageState extends State<PostEventPage> {
                         child: _buildTextField(
                           controller: _deadlineTimeController,
                           label: 'Time',
-                          placeholder: '--:-- --',
+                          placeholder: '',
                           icon: Icons.access_time,
                           readOnly: true,
                           onTap: () async {
@@ -439,9 +439,9 @@ class _PostEventPageState extends State<PostEventPage> {
                   // Budget/Payment Amount
                   _buildTextField(
                     controller: _budgetController,
-                    label: 'Budget / Payment Amount',
-                    placeholder: 'e.g. \$500 - \$1000',
-                    icon: Icons.payments_outlined,
+                    label: 'Budget / Payment Amount (₹)',
+                    placeholder: '',
+                    icon: Icons.currency_rupee,
                   ),
                   const SizedBox(height: 20),
                   
@@ -449,7 +449,7 @@ class _PostEventPageState extends State<PostEventPage> {
                   _buildTextField(
                     controller: _detailsController,
                     label: 'Event Description',
-                    placeholder: 'Describe your event in detail...',
+                    placeholder: '',
                     maxLines: 6,
                     isScrollable: true,
                   ),
@@ -459,7 +459,7 @@ class _PostEventPageState extends State<PostEventPage> {
                   _buildTextField(
                     controller: _reqsController,
                     label: 'Requirements',
-                    placeholder: 'e.g. Needs 5+ years experience...',
+                    placeholder: '',
                     maxLines: 6,
                     isScrollable: true,
                   ),

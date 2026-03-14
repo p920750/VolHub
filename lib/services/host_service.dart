@@ -67,7 +67,7 @@ class HostService {
       final user = SupabaseService.currentUser;
       if (user == null) throw Exception('User not authenticated');
 
-      await SupabaseService.client.from('events').insert({
+      final insertedEvent = await SupabaseService.client.from('events').insert({
         'name': event['title'],
         'location': event['location'],
         'date': event['date'], // Expecting ISO string or DateTime
@@ -82,8 +82,40 @@ class HostService {
         'time': event['time'],
         'posted_at': event['posted_at'],
         'registration_deadline': event['registration_deadline'],
-      });
+      }).select().single();
       
+      try {
+        final category = event['category'];
+        if (category != null) {
+          final managersResponse = await SupabaseService.client
+              .from('users')
+              .select('id, company_category')
+              .or('role.eq.manager,role.eq.event_manager');
+          
+          final List<Map<String, dynamic>> notifications = [];
+          for (var manager in managersResponse) {
+            final List<String> managerCategories = (manager['company_category'] as List<dynamic>?)
+                ?.map((e) => e.toString())
+                .toList() ?? [];
+            if (managerCategories.contains(category)) {
+              notifications.add({
+                'user_id': manager['id'],
+                'event_id': insertedEvent['id'], // Reference back to the newly inserted event
+                'title': 'New Event Proposal',
+                'body': 'A new proposal "${event['title']}" is available.',
+                'type': 'proposal',
+              });
+            }
+          }
+          
+          if (notifications.isNotEmpty) {
+            await SupabaseService.client.from('notifications').insert(notifications);
+          }
+        }
+      } catch (e) {
+        if (kDebugMode) print('Error sending notifications: $e');
+      }
+
       if (kDebugMode) print('Event added to Supabase: ${event['title']}');
     } catch (e) {
       if (kDebugMode) print('Error adding event: $e');
@@ -118,6 +150,17 @@ class HostService {
 
   static Future<void> deleteEvent(String id) async {
     try {
+      // Check if a manager is assigned before allowing deletion
+      final eventResponse = await SupabaseService.client
+          .from('events')
+          .select('assigned_manager_id')
+          .eq('id', id)
+          .maybeSingle();
+
+      if (eventResponse != null && eventResponse['assigned_manager_id'] != null) {
+        throw Exception('Cannot delete event with an assigned manager. Please reject the manager first.');
+      }
+
       await SupabaseService.client.from('events').delete().eq('id', id);
       if (kDebugMode) print('Event deleted from Supabase: $id');
     } catch (e) {
@@ -331,6 +374,30 @@ class HostService {
         'assigned_manager_id': managerId,
         'rejection_reason': null,
       }).eq('id', eventId);
+      
+      try {
+        final eventResponse = await SupabaseService.client
+            .from('events')
+            .select('name, host_name')
+            .eq('id', eventId)
+            .maybeSingle();
+
+        if (eventResponse != null) {
+          final hostName = eventResponse['host_name'] ?? 'Organizer';
+          final eventName = eventResponse['name'] ?? 'an event';
+          
+          await SupabaseService.client.from('notifications').insert({
+            'user_id': managerId,
+            'event_id': eventId,
+            'title': 'Proposal Accepted',
+            'body': 'You have been accepted by $hostName for the event "$eventName".',
+            'type': 'acceptance',
+          });
+        }
+      } catch (e) {
+        if (kDebugMode) print('Error sending manager notification on accept: $e');
+      }
+
       if (kDebugMode) print('Organizer assigned manager: $managerId to event: $eventId');
     } catch (e) {
       if (kDebugMode) print('Error assigning manager: $e');
@@ -348,9 +415,33 @@ class HostService {
       
       // The user explicitly instructed to delete the manager ID from the manager_ids list when organizer rejects
       await SupabaseService.client.rpc('remove_manager_from_event', params: {
-        'event_id': eventId,
-        'manager_id': managerId,
+        'p_event_id': eventId,
+        'p_manager_id': managerId,
+        'p_reason': reason,
       });
+
+      try {
+        final eventResponse = await SupabaseService.client
+            .from('events')
+            .select('name, host_name')
+            .eq('id', eventId)
+            .maybeSingle();
+
+        if (eventResponse != null) {
+          final hostName = eventResponse['host_name'] ?? 'Organizer';
+          final eventName = eventResponse['name'] ?? 'an event';
+          
+          await SupabaseService.client.from('notifications').insert({
+            'user_id': managerId,
+            'event_id': eventId,
+            'title': 'Proposal Rejected',
+            'body': 'Your application for "$eventName" was not selected by $hostName. Reason: $reason',
+            'type': 'proposal',
+          });
+        }
+      } catch (e) {
+        if (kDebugMode) print('Error sending manager notification on reject: $e');
+      }
 
       if (kDebugMode) print('Organizer rejected manager: $managerId from event: $eventId with reason: $reason');
     } catch (e) {

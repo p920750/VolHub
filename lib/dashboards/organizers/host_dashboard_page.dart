@@ -11,6 +11,8 @@ import 'host_profile_page.dart';
 import 'event_detail_page.dart';
 import '../../services/host_service.dart';
 import 'host_profile_provider.dart';
+import '../shared/notifications_screen.dart';
+import '../../services/notification_service.dart';
 
 class HostDashboardPage extends ConsumerStatefulWidget {
   const HostDashboardPage({super.key});
@@ -66,9 +68,48 @@ class _HostDashboardPageState extends ConsumerState<HostDashboardPage> {
         ),
         centerTitle: true,
         actions: [
-          IconButton(
-            icon: const Icon(Icons.notifications_none, color: Colors.black),
-            onPressed: () {},
+          StreamBuilder<List<Map<String, dynamic>>>(
+            stream: NotificationService.getNotificationsStream(),
+            builder: (context, snapshot) {
+              final notifications = snapshot.data ?? [];
+              final unreadCount = notifications.where((n) => !(n['is_read'] ?? false)).length;
+              
+              return Stack(
+                alignment: Alignment.center,
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.notifications_none, color: Colors.black),
+                    onPressed: () {
+                      Navigator.push(context, MaterialPageRoute(builder: (_) => const NotificationsScreen()));
+                    },
+                  ),
+                  if (unreadCount > 0)
+                    Positioned(
+                      right: 8,
+                      top: 8,
+                      child: Container(
+                        padding: const EdgeInsets.all(2),
+                        decoration: BoxDecoration(
+                          color: Colors.red,
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        constraints: const BoxConstraints(
+                          minWidth: 16,
+                          minHeight: 16,
+                        ),
+                        child: Text(
+                          unreadCount > 99 ? '99+' : unreadCount.toString(),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 10,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                    ),
+                ],
+              );
+            },
           ),
           GestureDetector(
             onTap: () {
@@ -339,93 +380,110 @@ class _HostDashboardPageState extends ConsumerState<HostDashboardPage> {
           ),
         ],
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Expanded(
-                  child: Text(
-                    title,
-                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF001529)),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: statusColor.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: Text(
-                    status.toUpperCase(),
-                    style: TextStyle(
-                      color: statusColor,
-                      fontSize: 10, 
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ],
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (event['imageUrl'] != null && event['imageUrl'].toString().isNotEmpty) ...[
+            ClipRRect(
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+              child: Image.network(
+                event['imageUrl'].toString().split(',').first,
+                height: 150,
+                width: double.infinity,
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) => const SizedBox.shrink(),
+              ),
             ),
-            const SizedBox(height: 12),
-            Row(
+          ],
+          Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Icon(Icons.calendar_today_outlined, size: 14, color: Colors.grey),
-                const SizedBox(width: 6),
-                Expanded(child: Text(date, style: const TextStyle(fontSize: 13, color: Colors.grey))),
-              ],
-            ),
-            const SizedBox(height: 6),
-            Row(
-              children: [
-                const Icon(Icons.location_on_outlined, size: 14, color: Colors.grey),
-                const SizedBox(width: 6),
-                Expanded(child: Text(location, style: const TextStyle(fontSize: 13, color: Colors.grey))),
-              ],
-            ),
-            const Divider(height: 24),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  stats,
-                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: Colors.grey),
-                ),
-                GestureDetector(
-                  onTap: () async {
-                    final result = await Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => EventDetailPage(event: event),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        title,
+                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF001529)),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
-                    );
-                    if (result == true) {
-                      _loadData();
-                    }
-                  },
-                  child: const Row(
-                    children: [
-                      Text(
-                        'View Details', 
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: statusColor.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        status.toUpperCase(),
                         style: TextStyle(
-                          fontSize: 13, 
-                          color: Color(0xFF1E4D40), 
+                          color: statusColor,
+                          fontSize: 10, 
                           fontWeight: FontWeight.bold,
                         ),
                       ),
-                      Icon(Icons.arrow_forward_ios, size: 10, color: Color(0xFF1E4D40)),
-                    ],
-                  ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    const Icon(Icons.calendar_today_outlined, size: 14, color: Colors.grey),
+                    const SizedBox(width: 6),
+                    Expanded(child: Text(date, style: const TextStyle(fontSize: 13, color: Colors.grey))),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Row(
+                  children: [
+                    const Icon(Icons.location_on_outlined, size: 14, color: Colors.grey),
+                    const SizedBox(width: 6),
+                    Expanded(child: Text(location, style: const TextStyle(fontSize: 13, color: Colors.grey))),
+                  ],
+                ),
+                const Divider(height: 24),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      stats,
+                      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: Colors.grey),
+                    ),
+                    GestureDetector(
+                      onTap: () async {
+                        final result = await Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => EventDetailPage(event: event),
+                          ),
+                        );
+                        if (result == true) {
+                          _loadData();
+                        }
+                      },
+                      child: const Row(
+                        children: [
+                          Text(
+                            'View Details', 
+                            style: TextStyle(
+                              fontSize: 13, 
+                              color: Color(0xFF1E4D40), 
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          Icon(Icons.arrow_forward_ios, size: 10, color: Color(0xFF1E4D40)),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

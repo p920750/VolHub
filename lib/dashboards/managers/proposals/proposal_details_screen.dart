@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../../services/event_manager_service.dart';
 import '../../../../widgets/text_truncator.dart';
 import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class ProposalDetailsScreen extends StatefulWidget {
   final Map<String, dynamic> event;
@@ -377,9 +378,29 @@ class _ProposalDetailsScreenState extends State<ProposalDetailsScreen> {
                     ],
                   ),
                   const SizedBox(height: 16),
-                  _buildContactRow(Icons.email_outlined, host?['email'] ?? 'No email provided'),
+                  _buildContactRow(
+                    Icons.email_outlined, 
+                    host?['email'] ?? 'No email provided',
+                    textColor: host?['email'] != null ? Colors.blue : null,
+                    onTap: host?['email'] != null 
+                      ? () {
+                          final String email = host!['email'].toString();
+                          final Uri emailUri = Uri(
+                            scheme: 'mailto',
+                            path: email,
+                          );
+                          _launchURL(emailUri.toString());
+                        }
+                      : null,
+                  ),
                   const SizedBox(height: 8),
-                  _buildContactRow(Icons.phone_outlined, host?['phone_number'] ?? 'No phone number provided'),
+                  _buildContactRow(
+                    Icons.phone_outlined, 
+                    host?['phone_number'] ?? 'No phone number provided',
+                    onTap: host?['phone_number'] != null 
+                      ? () => _launchURL('tel:${host?['phone_number']}') 
+                      : null,
+                  ),
                   if (host?['company_location'] != null && host!['company_location'].toString().isNotEmpty) ...[
                     const SizedBox(height: 8),
                     _buildContactRow(Icons.location_on_outlined, host['company_location']),
@@ -863,19 +884,48 @@ class _ProposalDetailsScreenState extends State<ProposalDetailsScreen> {
     }
   }
 
-  Widget _buildContactRow(IconData icon, String text) {
-    return Row(
-      children: [
-        Icon(icon, size: 16, color: Colors.grey[600]),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Text(
-            text,
-            style: TextStyle(fontSize: 14, color: Colors.grey[800]),
-            overflow: TextOverflow.ellipsis,
+  Future<void> _launchURL(String urlString) async {
+    final Uri url = Uri.parse(urlString);
+    try {
+      // Try to launch without canLaunchUrl first as it can be flaky on some Android versions
+      final bool launched = await launchUrl(
+        url, 
+        mode: LaunchMode.platformDefault,
+      );
+      if (!launched && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not launch mail app for $urlString')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error launching $urlString: $e')),
+        );
+      }
+    }
+  }
+
+  Widget _buildContactRow(IconData icon, String text, {VoidCallback? onTap, Color? textColor}) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Row(
+        children: [
+          Icon(icon, size: 16, color: textColor ?? (onTap != null ? const Color(0xFF1E4D40) : Colors.grey[600])),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              text,
+              style: TextStyle(
+                fontSize: 14, 
+                color: textColor ?? (onTap != null ? const Color(0xFF1E4D40) : Colors.grey[800]),
+                decoration: onTap != null ? TextDecoration.underline : null,
+              ),
+              overflow: TextOverflow.ellipsis,
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 

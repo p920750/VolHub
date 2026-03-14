@@ -4,6 +4,7 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'profile_provider.dart';
 import '../core/manager_drawer.dart';
 import 'package:main_volhub/widgets/safe_avatar.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});
@@ -60,7 +61,6 @@ class ProfileScreen extends ConsumerWidget {
                         _buildInfoRow(Icons.business, profile.companyName.isNotEmpty ? profile.companyName : 'No company specified'),
                         _buildInfoRow(Icons.location_on, profile.companyLocation.isNotEmpty ? profile.companyLocation : 'No location specified'),
                       ],
-                      onEdit: () => Navigator.pushNamed(context, '/manager-profile-edit'),
                     ),
                     const SizedBox(height: 16),
                     _buildSection(
@@ -81,7 +81,6 @@ class ProfileScreen extends ConsumerWidget {
                              : profile.categories.map((c) => Chip(label: Text(c))).toList(),
                          ),
                       ],
-                      onEdit: () => Navigator.pushNamed(context, '/manager-profile-edit'),
                     ),
                      const SizedBox(height: 16),
                     _buildSection(
@@ -98,35 +97,82 @@ class ProfileScreen extends ConsumerWidget {
                             style: const TextStyle(fontSize: 12),
                           ),
                           contentPadding: EdgeInsets.zero,
-                          onTap: () {
+                          onTap: () async {
                             if (profile.linkedinUrl.isNotEmpty) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(content: Text('Navigating to ${profile.linkedinUrl}')),
-                              );
+                              final Uri? uri = Uri.tryParse(profile.linkedinUrl);
+                              if (uri != null) {
+                                if (await canLaunchUrl(uri)) {
+                                  await launchUrl(uri, mode: LaunchMode.externalApplication);
+                                } else {
+                                  if (context.mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(content: Text('Could not launch LinkedIn profile')),
+                                    );
+                                  }
+                                }
+                              }
                             }
                           },
-                          trailing: IconButton(
-                            icon: const Icon(Icons.edit, size: 16),
-                            onPressed: () => Navigator.pushNamed(context, '/manager-profile-edit'),
-                          ),
                         ),
-                        ListTile(
-                          leading: const Icon(FontAwesomeIcons.certificate, color: Colors.orange),
-                          title: Text(profile.certName.isNotEmpty ? profile.certName : 'No certifications'),
-                          subtitle: Text(profile.certIssuedDate),
-                          contentPadding: EdgeInsets.zero,
-                          onTap: () {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Certification details coming soon!')),
-                            );
-                          },
-                          trailing: IconButton(
-                            icon: const Icon(Icons.edit, size: 16),
-                            onPressed: () => Navigator.pushNamed(context, '/manager-profile-edit'),
+                        const SizedBox(height: 8),
+                        if (profile.certificates.isEmpty)
+                          const Text('No certificates uploaded', style: TextStyle(fontStyle: FontStyle.italic, color: Colors.grey))
+                        else
+                          SizedBox(
+                            height: 120,
+                            child: ListView.builder(
+                              scrollDirection: Axis.horizontal,
+                              itemCount: profile.certificates.length,
+                              itemBuilder: (context, index) {
+                                final url = profile.certificates[index];
+                                final isPdf = url.toLowerCase().endsWith('.pdf');
+                                
+                                return Padding(
+                                  padding: const EdgeInsets.only(right: 12),
+                                  child: GestureDetector(
+                                    onTap: () {
+                                      if (isPdf) {
+                                        launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+                                      } else {
+                                        showDialog(
+                                          context: context,
+                                          builder: (context) => Dialog.fullscreen(
+                                            child: Stack(
+                                              children: [
+                                                Center(child: InteractiveViewer(child: Image.network(url))),
+                                                Positioned(
+                                                  top: 40,
+                                                  right: 20,
+                                                  child: IconButton(
+                                                    icon: const Icon(Icons.close, color: Colors.white, size: 30),
+                                                    onPressed: () => Navigator.pop(context),
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        );
+                                      }
+                                    },
+                                    child: Container(
+                                      width: 100,
+                                      decoration: BoxDecoration(
+                                        border: Border.all(color: Colors.grey.shade300),
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      child: isPdf 
+                                        ? const Icon(Icons.picture_as_pdf, color: Colors.red, size: 40)
+                                        : ClipRRect(
+                                            borderRadius: BorderRadius.circular(11),
+                                            child: Image.network(url, fit: BoxFit.cover, errorBuilder: (c, e, s) => const Icon(Icons.error)),
+                                          ),
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
                           ),
-                        ),
                       ],
-                      onEdit: () => Navigator.pushNamed(context, '/manager-profile-edit'),
                     ),
                   ],
                 ),

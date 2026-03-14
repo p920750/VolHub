@@ -321,6 +321,21 @@ class EventManagerService {
         'status': 'accepted',
       }).eq('id', eventId);
       
+      try {
+        final eventResponse = await client.from('events').select('user_id, name').eq('id', eventId).maybeSingle();
+        if (eventResponse != null && eventResponse['user_id'] != null) {
+          await client.from('notifications').insert({
+            'user_id': eventResponse['user_id'],
+            'event_id': eventId, // Reference back to the event
+            'title': 'Proposal Accepted',
+            'body': 'Managers have accepted your proposals for "${eventResponse['name']}".',
+            'type': 'acceptance',
+          });
+        }
+      } catch (e) {
+        if (kDebugMode) print('Error sending notification: $e');
+      }
+
       if (kDebugMode) print('Manager accepted organizer request: $eventId');
     } catch (e) {
       if (kDebugMode) print('Error accepting organizer request: $e');
@@ -546,6 +561,22 @@ class EventManagerService {
       }
 
       if (kDebugMode) print('Manager accepted volunteer: $volunteerId for event: $eventId');
+
+      // Notify the volunteer about the acceptance
+      try {
+        if (eventResponse != null) {
+          final eventName = eventResponse['name'] ?? 'an event';
+          await client.from('notifications').insert({
+            'user_id': volunteerId,
+            'event_id': eventId,
+            'title': 'Application Accepted!',
+            'body': 'Congratulations! You have been accepted for the event "$eventName".',
+            'type': 'acceptance',
+          });
+        }
+      } catch (notifyError) {
+        if (kDebugMode) print('Error sending volunteer acceptance notification: $notifyError');
+      }
     } catch (e) {
       if (kDebugMode) print('Error accepting volunteer: $e');
       throw Exception('Failed to accept volunteer: $e');
@@ -562,6 +593,28 @@ class EventManagerService {
       });
 
       if (kDebugMode) print('Manager rejected volunteer: $volunteerId for event: $eventId');
+
+      // Notify the volunteer about the rejection
+      try {
+        final eventResponse = await client
+            .from('events')
+            .select('name')
+            .eq('id', eventId)
+            .maybeSingle();
+
+        if (eventResponse != null) {
+          final eventName = eventResponse['name'] ?? 'an event';
+          await client.from('notifications').insert({
+            'user_id': volunteerId,
+            'event_id': eventId,
+            'title': 'Application Update',
+            'body': 'Your application for "$eventName" was not successful.',
+            'type': 'proposal',
+          });
+        }
+      } catch (notifyError) {
+        if (kDebugMode) print('Error sending volunteer rejection notification: $notifyError');
+      }
     } catch (e) {
       if (kDebugMode) print('Error rejecting volunteer: $e');
       throw Exception('Failed to reject volunteer: $e');
@@ -582,12 +635,26 @@ class EventManagerService {
       });
       
       // Update manager_ids array on events table directly so organizers can see it immediately
-      final currentEvent = await client.from('events').select('manager_ids').eq('id', eventId).maybeSingle();
+      final currentEvent = await client.from('events').select('manager_ids, user_id, name').eq('id', eventId).maybeSingle();
       if (currentEvent != null) {
         List<dynamic> currentManagers = List<dynamic>.from(currentEvent['manager_ids'] ?? []);
         if (!currentManagers.contains(user.id)) {
           currentManagers.add(user.id);
           await client.from('events').update({'manager_ids': currentManagers}).eq('id', eventId);
+        }
+        
+        try {
+          if (currentEvent['user_id'] != null) {
+            await client.from('notifications').insert({
+              'user_id': currentEvent['user_id'],
+              'event_id': eventId, // Reference back to the event
+              'title': 'Managers have accepted your proposals',
+              'body': 'Managers have accepted your proposals for "${currentEvent['name'] ?? 'your event'}".',
+              'type': 'acceptance',
+            });
+          }
+        } catch (e) {
+          if (kDebugMode) print('Error sending notification: $e');
         }
       }
       
@@ -616,6 +683,37 @@ class EventManagerService {
           'status': 'pending',
           'rejection_reason': serializedReason,
         }).eq('id', eventId);
+        
+        // Notify the organizer about the withdrawal
+        try {
+          final eventResponse = await client
+              .from('events')
+              .select('name, user_id')
+              .eq('id', eventId)
+              .maybeSingle();
+
+          final userResponse = await client
+              .from('users')
+              .select('full_name')
+              .eq('id', user.id)
+              .maybeSingle();
+
+          if (eventResponse != null && userResponse != null) {
+            final organizerId = eventResponse['user_id'];
+            final eventName = eventResponse['name'] ?? 'an event';
+            final managerName = userResponse['full_name'] ?? 'A manager';
+            
+            await client.from('notifications').insert({
+              'user_id': organizerId,
+              'event_id': eventId,
+              'title': 'Manager Withdrawal',
+              'body': '$managerName has withdrawn from "$eventName". Reason: $reason',
+              'type': 'proposal',
+            });
+          }
+        } catch (e) {
+          if (kDebugMode) print('Error sending notification on manager withdrawal: $e');
+        }
       }
       
       // Keep manager_ids array on events synchronized
@@ -834,6 +932,44 @@ class EventManagerService {
       }
 
       if (kDebugMode) print('Volunteer $volunteerId backed out from event: $eventId. Reason: $reason');
+
+      // Notify the manager about the volunteer backing out
+      try {
+        final managerResponse = await client
+            .from('event_applications')
+            .select('manager_id')
+            .eq('event_id', eventId)
+            .eq('volunteer_id', volunteerId)
+            .maybeSingle();
+        
+        final eventResponse = await client
+            .from('events')
+            .select('name')
+            .eq('id', eventId)
+            .maybeSingle();
+
+        final userResponse = await client
+            .from('users')
+            .select('full_name')
+            .eq('id', volunteerId)
+            .maybeSingle();
+
+        if (managerResponse != null && eventResponse != null && userResponse != null) {
+          final managerId = managerResponse['manager_id'];
+          final eventName = eventResponse['name'] ?? 'an event';
+          final volunteerName = userResponse['full_name'] ?? 'A volunteer';
+
+          await client.from('notifications').insert({
+            'user_id': managerId,
+            'event_id': eventId,
+            'title': 'Volunteer Backed Out',
+            'body': '$volunteerName has backed out from "$eventName". Reason: $reason',
+            'type': 'withdrawal',
+          });
+        }
+      } catch (notifyError) {
+        if (kDebugMode) print('Error sending manager notification on volunteer back out: $notifyError');
+      }
     } catch (e) {
       if (kDebugMode) print('Error backing out from event: $e');
       rethrow;

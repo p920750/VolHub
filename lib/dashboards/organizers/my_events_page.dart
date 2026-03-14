@@ -99,150 +99,167 @@ class _MyEventsPageState extends State<MyEventsPage> {
         margin: const EdgeInsets.only(bottom: 20),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         elevation: 1,
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (event['imageUrl'] != null && event['imageUrl'].toString().isNotEmpty) ...[
+              ClipRRect(
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+                child: Image.network(
+                  event['imageUrl'].toString().split(',').first,
+                  height: 180,
+                  width: double.infinity,
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) => const SizedBox.shrink(),
+                ),
+              ),
+            ],
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Expanded(
-                    child: Text(
-                      event['title'],
-                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF001529)),
-                    ),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          event['title'],
+                          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF001529)),
+                        ),
+                      ),
+                      PopupMenuButton<String>(
+                        icon: const Icon(Icons.more_vert, color: Colors.grey),
+                        onSelected: (value) => _handleMenuAction(value, event),
+                        itemBuilder: (context) => [
+                          const PopupMenuItem(value: 'edit', child: Text('Edit')),
+                          const PopupMenuItem(value: 'delete', child: Text('Delete')),
+                        ],
+                      ),
+                    ],
                   ),
-                  PopupMenuButton<String>(
-                    icon: const Icon(Icons.more_vert, color: Colors.grey),
-                    onSelected: (value) => _handleMenuAction(value, event),
-                    itemBuilder: (context) => [
-                      const PopupMenuItem(value: 'edit', child: Text('Edit')),
-                      const PopupMenuItem(value: 'delete', child: Text('Delete')),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      const Icon(Icons.location_on, size: 14, color: Colors.grey),
+                      const SizedBox(width: 4),
+                      Expanded(child: Text('Event Location: ${event['location']}', style: const TextStyle(fontSize: 13, color: Colors.grey))),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      const Icon(Icons.access_time, size: 14, color: Colors.grey),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: Text(
+                          'Event Date: ${event['date_time_formatted'] ?? 'TBD'}',
+                          style: const TextStyle(fontSize: 13, color: Colors.grey),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      const Icon(Icons.timer_outlined, size: 14, color: Colors.grey),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: Text(
+                          'Deadline for Acceptance: ${event['registration_deadline_formatted'] ?? 'Not set'}',
+                          style: const TextStyle(fontSize: 13, color: Colors.grey),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  const Text(
+                    'Event Description:',
+                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                  ),
+                  const SizedBox(height: 4),
+                  _MyEventsExpandableText(
+                    text: event['description'] ?? 'No description',
+                    isExpanded: _expandedFieldId == '${event['id']}_description',
+                    onToggle: () {
+                      setState(() {
+                        if (_expandedFieldId == '${event['id']}_description') {
+                          _expandedFieldId = null;
+                        } else {
+                          _expandedFieldId = '${event['id']}_description';
+                        }
+                      });
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  const Text(
+                    'Company Requirements:',
+                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                  ),
+                  const SizedBox(height: 4),
+                  _MyEventsExpandableText(
+                    text: event['requirements'] ?? 'No requirements',
+                    isExpanded: _expandedFieldId == '${event['id']}_requirements',
+                    onToggle: () {
+                      setState(() {
+                        if (_expandedFieldId == '${event['id']}_requirements') {
+                          _expandedFieldId = null;
+                        } else {
+                          _expandedFieldId = '${event['id']}_requirements';
+                        }
+                      });
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Expanded(
+                        child: Builder(
+                          builder: (context) {
+                            if (HostService.getEventDynamicStatus(event) == 'Acceptance started') {
+                              int daysLeft = 999;
+                              if (event['registration_deadline'] != null) {
+                                try {
+                                  daysLeft = DateTime.parse(event['registration_deadline']).difference(DateTime.now()).inDays;
+                                } catch (_) {}
+                              }
+                              if (daysLeft <= 5) {
+                                return const Row(
+                                  children: [
+                                    Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 16),
+                                    SizedBox(width: 4),
+                                    Expanded(child: Text('Please accept a manager', style: TextStyle(color: Colors.orange, fontSize: 13, fontWeight: FontWeight.bold))),
+                                  ],
+                                );
+                              }
+                            }
+                            return const SizedBox.shrink();
+                          }
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: HostService.getStatusColor(HostService.getEventDynamicStatus(event)).withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Text(
+                          HostService.getEventDynamicStatus(event),
+                          style: TextStyle(
+                            color: HostService.getStatusColor(HostService.getEventDynamicStatus(event)),
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
                     ],
                   ),
                 ],
               ),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  const Icon(Icons.location_on, size: 14, color: Colors.grey),
-                  const SizedBox(width: 4),
-                  Expanded(child: Text('Event Location: ${event['location']}', style: const TextStyle(fontSize: 13, color: Colors.grey))),
-                ],
-              ),
-              const SizedBox(height: 4),
-              Row(
-                children: [
-                  const Icon(Icons.access_time, size: 14, color: Colors.grey),
-                  const SizedBox(width: 4),
-                  Expanded(
-                    child: Text(
-                      'Event Date: ${event['date_time_formatted'] ?? 'TBD'}',
-                      style: const TextStyle(fontSize: 13, color: Colors.grey),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 4),
-              Row(
-                children: [
-                  const Icon(Icons.timer_outlined, size: 14, color: Colors.grey),
-                  const SizedBox(width: 4),
-                  Expanded(
-                    child: Text(
-                      'Deadline for Acceptance: ${event['registration_deadline_formatted'] ?? 'Not set'}',
-                      style: const TextStyle(fontSize: 13, color: Colors.grey),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              const Text(
-                'Event Description:',
-                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
-              ),
-              const SizedBox(height: 4),
-              _MyEventsExpandableText(
-                text: event['description'] ?? 'No description',
-                isExpanded: _expandedFieldId == '${event['id']}_description',
-                onToggle: () {
-                  setState(() {
-                    if (_expandedFieldId == '${event['id']}_description') {
-                      _expandedFieldId = null;
-                    } else {
-                      _expandedFieldId = '${event['id']}_description';
-                    }
-                  });
-                },
-              ),
-              const SizedBox(height: 12),
-              const Text(
-                'Company Requirements:',
-                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
-              ),
-              const SizedBox(height: 4),
-              _MyEventsExpandableText(
-                text: event['requirements'] ?? 'No requirements',
-                isExpanded: _expandedFieldId == '${event['id']}_requirements',
-                onToggle: () {
-                  setState(() {
-                    if (_expandedFieldId == '${event['id']}_requirements') {
-                      _expandedFieldId = null;
-                    } else {
-                      _expandedFieldId = '${event['id']}_requirements';
-                    }
-                  });
-                },
-              ),
-              const SizedBox(height: 16),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Expanded(
-                    child: Builder(
-                      builder: (context) {
-                        if (HostService.getEventDynamicStatus(event) == 'Acceptance started') {
-                          int daysLeft = 999;
-                          if (event['registration_deadline'] != null) {
-                            try {
-                              daysLeft = DateTime.parse(event['registration_deadline']).difference(DateTime.now()).inDays;
-                            } catch (_) {}
-                          }
-                          if (daysLeft <= 5) {
-                            return const Row(
-                              children: [
-                                Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 16),
-                                SizedBox(width: 4),
-                                Expanded(child: Text('Please accept a manager', style: TextStyle(color: Colors.orange, fontSize: 13, fontWeight: FontWeight.bold))),
-                              ],
-                            );
-                          }
-                        }
-                        return const SizedBox.shrink();
-                      }
-                    ),
-                  ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: HostService.getStatusColor(HostService.getEventDynamicStatus(event)).withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Text(
-                      HostService.getEventDynamicStatus(event),
-                      style: TextStyle(
-                        color: HostService.getStatusColor(HostService.getEventDynamicStatus(event)),
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
@@ -252,26 +269,40 @@ class _MyEventsPageState extends State<MyEventsPage> {
     if (action == 'edit') {
        Navigator.pushNamed(context, '/edit-event', arguments: event).then((_) => _loadEvents());
     } else if (action == 'delete') {
-      _showDeleteConfirmation(event['id']);
+      _showDeleteConfirmation(event);
     }
   }
 
-  Future<void> _showDeleteConfirmation(String id) async {
+  Future<void> _showDeleteConfirmation(Map<String, dynamic> event) async {
+    final bool hasManager = event['assigned_manager_id'] != null;
+    final String id = event['id'].toString();
+
     return showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Delete Event?'),
-        content: const Text('Are you sure you want to delete this event? This action cannot be undone.'),
+        title: Text(hasManager ? 'Cannot Delete Event' : 'Delete Event?'),
+        content: Text(hasManager 
+            ? 'This event has an assigned manager. You must reject the manager first before you can delete the event.'
+            : 'Are you sure you want to delete this event? This action cannot be undone.'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-          TextButton(
-            onPressed: () async {
-              Navigator.pop(context);
-              await HostService.deleteEvent(id);
-              _loadEvents();
-            },
-            child: const Text('Delete', style: TextStyle(color: Colors.red)),
-          ),
+          if (!hasManager)
+            TextButton(
+              onPressed: () async {
+                Navigator.pop(context);
+                try {
+                  await HostService.deleteEvent(id);
+                  _loadEvents();
+                } catch (e) {
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Error: $e')),
+                    );
+                  }
+                }
+              },
+              child: const Text('Delete', style: TextStyle(color: Colors.red)),
+            ),
         ],
       ),
     );
