@@ -15,6 +15,7 @@ import 'reset_password_page.dart';
 import 'forget_page.dart'; // Added for named route
 import 'screens/app_opening.dart';
 import 'dashboards/volunteers/volunteer_home_page.dart';
+import 'dashboards/volunteers/volunteer_recommendation_page.dart';
 import 'auth/auth_session_holder.dart';
 import 'dashboards/admin/admin_home_page.dart';
 import 'dashboards/organizers/host_dashboard_page.dart';
@@ -281,6 +282,7 @@ class _MyAppState extends State<MyApp> {
 
         // ✅ DASHBOARD ROUTES
         '/volunteer-dashboard': (context) => const VolunteerHomePage(),
+        '/volunteer-recommendations': (context) => const VolunteerRecommendationPage(),
         '/admin-dashboard': (context) => const AdminHomePage(),
 
         '/organizer-dashboard': (context) => const HostDashboardPage(),

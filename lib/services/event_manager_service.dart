@@ -263,6 +263,21 @@ class EventManagerService {
     }
   }
 
+  /// Fetches details for a specific manager (user) from the users table.
+  static Future<Map<String, dynamic>> getManagerDetails(String managerId) async {
+    try {
+      final response = await client
+          .from('users')
+          .select()
+          .eq('id', managerId)
+          .single();
+      return Map<String, dynamic>.from(response);
+    } catch (e) {
+      if (kDebugMode) print('Error fetching manager details: $e');
+      rethrow;
+    }
+  }
+
   /// Manager accepts an event request from an organizer.
   static Future<void> acceptOrganizerRequest(String eventId) async {
     try {

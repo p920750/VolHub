@@ -54,7 +54,7 @@ class _ManagerProposalCardState extends State<ManagerProposalCard> {
     final rejectionStr = widget.event['rejection_reason'] as String?;
     if (rejectionStr != null && userId != null) {
       final parts = rejectionStr.split('::');
-      if (parts.length >= 3 && parts[1] == userId && parts[0] == 'ORGANIZER_REJECTED') {
+      if (parts.length >= 3 && parts[1] == userId && (parts[0] == 'ORGANIZER_REJECTED' || parts[0] == 'MANAGER_REJECTED')) {
         isRejected = true;
         reason = parts.sublist(2).join('::');
       }
@@ -77,6 +77,101 @@ class _ManagerProposalCardState extends State<ManagerProposalCard> {
       return '$formattedDate at ${timeStr ?? "TBD"}';
     } catch (e) {
       return 'TBD';
+    }
+  }
+
+  int _getDaysUntilDeadline(dynamic deadlineStr) {
+    if (deadlineStr == null) return 999;
+    try {
+      final deadline = DateTime.parse(deadlineStr.toString());
+      final now = DateTime.now();
+      final deadlineDate = DateTime(deadline.year, deadline.month, deadline.day);
+      final nowDate = DateTime(now.year, now.month, now.day);
+      return deadlineDate.difference(nowDate).inDays;
+    } catch (_) {
+      return 999;
+    }
+  }
+
+  bool get _canRejectManager {
+    return _getDaysUntilDeadline(widget.event['registration_deadline']) > 5;
+  }
+
+  Future<void> _showRejectDialog() async {
+    final currentDiff = _getDaysUntilDeadline(widget.event['registration_deadline']);
+    if (currentDiff == 6) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Cannot reject because only 5 days left for deadline')),
+        );
+      }
+      return;
+    }
+
+    final reasonController = TextEditingController();
+    
+    final bool? confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Cancel Proposal Agreement'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('Please state your reason for withdrawing from this event. The organizer will be notified.'),
+            const SizedBox(height: 16),
+            TextField(
+              controller: reasonController,
+              decoration: const InputDecoration(
+                labelText: 'Mandatory Reason',
+                border: OutlineInputBorder(),
+              ),
+              maxLines: 3,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Go Back'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              if (reasonController.text.trim().isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Reason is strictly required.')),
+                );
+                return;
+              }
+              Navigator.pop(context, true);
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Reject Event', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      setState(() => _isAccepting = true);
+      try {
+        await EventManagerService.rejectEvent(widget.event['id'].toString(), reasonController.text.trim());
+        if (mounted) {
+          setState(() {
+            _isAccepting = false;
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('You have withdrawn from this event.')),
+          );
+          widget.onStatusChanged();
+        }
+      } catch (e) {
+        if (mounted) {
+          setState(() => _isAccepting = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Failed to withdraw: $e')),
+          );
+        }
+      }
     }
   }
 
@@ -204,17 +299,38 @@ class _ManagerProposalCardState extends State<ManagerProposalCard> {
     final userId = EventManagerService.client.auth.currentUser?.id;
 
     if (assignedManagerId == userId && userId != null) {
-      return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        decoration: BoxDecoration(
-          color: Colors.green.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: Colors.green),
-        ),
-        child: const Text(
-          'Accepted',
-          style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold),
-        ),
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            decoration: BoxDecoration(
+              color: Colors.green.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.green),
+            ),
+            child: const Text(
+              'Accepted',
+              style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold),
+            ),
+          ),
+          if (_canRejectManager) ...[
+            const SizedBox(width: 8),
+            ElevatedButton(
+              onPressed: _isAccepting ? null : _showRejectDialog,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red[50],
+                foregroundColor: Colors.red,
+                elevation: 0,
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+              child: _isAccepting
+                  ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.red))
+                  : const Text('Reject', style: TextStyle(fontWeight: FontWeight.bold)),
+            ),
+          ],
+        ],
       );
     }
 

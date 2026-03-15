@@ -11,6 +11,7 @@ import 'host_profile_page.dart';
 import 'event_detail_page.dart';
 import '../../services/host_service.dart';
 import 'host_profile_provider.dart';
+import '../../widgets/safe_avatar.dart';
 
 class HostDashboardPage extends ConsumerStatefulWidget {
   const HostDashboardPage({super.key});
@@ -31,11 +32,35 @@ class _HostDashboardPageState extends ConsumerState<HostDashboardPage> {
 
   Future<void> _loadData() async {
     setState(() => _isLoading = true);
-    await _loadEvents();
+    await Future.wait([
+      _loadEvents(),
+      _loadRecommendedManagers(),
+    ]);
     if (mounted) setState(() => _isLoading = false);
   }
 
+  List<Map<String, dynamic>> _recommendedManagers = [];
+  bool _isLoadingRecommendations = true;
 
+  Future<void> _loadRecommendedManagers() async {
+    final userId = SupabaseService.client.auth.currentUser?.id;
+    if (userId == null) return;
+    try {
+      final response = await SupabaseService.client.rpc(
+        'recommend_managers_for_organizer',
+        params: {'p_organizer_id': userId},
+      );
+      if (mounted) {
+        setState(() {
+          _recommendedManagers = List<Map<String, dynamic>>.from(response);
+          _isLoadingRecommendations = false;
+        });
+      }
+    } catch (e) {
+      if (kDebugMode) print('Error loading recommended managers: $e');
+      if (mounted) setState(() => _isLoadingRecommendations = false);
+    }
+  }
   Future<void> _loadEvents() async {
     try {
       final events = await HostService.getEvents();
@@ -199,8 +224,107 @@ class _HostDashboardPageState extends ConsumerState<HostDashboardPage> {
                       ),
                     ),
                   ),
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 32),
                   
+                  // AI Recommended Managers
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Row(
+                        children: [
+                          Icon(Icons.star, color: Colors.orange, size: 20),
+                          SizedBox(width: 8),
+                          Text(
+                            'AI Suggested Managers',
+                            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF1A1A1A)),
+                          ),
+                        ],
+                      ),
+                      TextButton(
+                        onPressed: () {},
+                        child: const Text('View All', style: TextStyle(color: Color(0xFF1E4D40))),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  if (_isLoadingRecommendations)
+                    const Center(child: Padding(padding: EdgeInsets.all(24.0), child: CircularProgressIndicator()))
+                  else if (_recommendedManagers.isEmpty)
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(24),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: Colors.grey.withOpacity(0.2)),
+                      ),
+                      child: const Center(
+                        child: Text(
+                          'No manager recommendations yet.',
+                          style: TextStyle(color: Colors.grey),
+                        ),
+                      ),
+                    )
+                  else
+                    SizedBox(
+                      height: 140,
+                      child: ListView.separated(
+                        scrollDirection: Axis.horizontal,
+                        itemCount: _recommendedManagers.take(5).length,
+                        separatorBuilder: (context, index) => const SizedBox(width: 16),
+                        itemBuilder: (context, index) {
+                          final mgr = _recommendedManagers[index];
+                          final rating = mgr['received_rating']?.toString() ?? 'New';
+                          return Container(
+                            width: 130,
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(16),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.04),
+                                  blurRadius: 10,
+                                  offset: const Offset(0, 4),
+                                )
+                              ],
+                            ),
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                SafeAvatar(
+                                  radius: 28,
+                                  imageUrl: mgr['profile_photo'],
+                                  name: mgr['full_name'] ?? 'Manager',
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  mgr['full_name'] ?? 'Unknown',
+                                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  textAlign: TextAlign.center,
+                                ),
+                                const SizedBox(height: 4),
+                                Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Icon(Icons.star, color: Colors.orange, size: 12),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      rating,
+                                      style: TextStyle(color: Colors.grey[700], fontSize: 12, fontWeight: FontWeight.bold),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  const SizedBox(height: 32),
+
                   // Featured Events
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,

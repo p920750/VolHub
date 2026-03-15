@@ -75,6 +75,7 @@ class _VolunteerHomePageState extends State<VolunteerHomePage> {
           }).toList();
           
           final enrichedEvents = await _enrichEventsWithManager(openEvents);
+          enrichedEvents.shuffle(); // Display in a random order
           
           if (mounted) {
             setState(() {
@@ -216,6 +217,7 @@ class _VolunteerHomePageState extends State<VolunteerHomePage> {
 
     if (confirmed == true) {
       if (reasonController.text.trim().isEmpty) {
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please provide a reason')));
         return;
       }
@@ -413,7 +415,6 @@ class _VolunteerHomePageState extends State<VolunteerHomePage> {
   void _showEventDetails(Map<String, dynamic> event) {
     final manager = event['manager'] as Map<String, dynamic>?;
     final companyName = manager?['company_name'] ?? manager?['full_name'] ?? 'Unknown Company';
-    final categories = (event['categories'] as List?)?.join(', ') ?? 'No categories';
     
     final roleDescription = event['role_description'] ?? 'No role description provided.';
     final paymentType = event['payment_type'] ?? 'Unpaid';
@@ -518,7 +519,7 @@ class _VolunteerHomePageState extends State<VolunteerHomePage> {
                   runSpacing: 8,
                   children: skillsRequired.map((skill) => Container(
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    decoration: BoxDecoration(color: Colors.orange.withOpacity(0.1), borderRadius: BorderRadius.circular(20)),
+                    decoration: BoxDecoration(color: Colors.orange.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(20)),
                     child: Text(skill, style: const TextStyle(color: Colors.deepOrange, fontWeight: FontWeight.w500)),
                   )).toList(),
                 ),
@@ -533,7 +534,7 @@ class _VolunteerHomePageState extends State<VolunteerHomePage> {
                   runSpacing: 8,
                   children: (event['categories'] as List? ?? []).map((cat) => Container(
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    decoration: BoxDecoration(color: Colors.blue.withOpacity(0.1), borderRadius: BorderRadius.circular(20)),
+                    decoration: BoxDecoration(color: Colors.blue.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(20)),
                     child: Text(cat.toString(), style: const TextStyle(color: Colors.blue, fontWeight: FontWeight.w500)),
                   )).toList(),
                 ),
@@ -594,9 +595,9 @@ class _VolunteerHomePageState extends State<VolunteerHomePage> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color.withOpacity(0.5)),
+        border: Border.all(color: color.withValues(alpha: 0.5)),
       ),
       child: Text(
         label,
@@ -702,8 +703,6 @@ class _VolunteerHomePageState extends State<VolunteerHomePage> {
                           final event = _events[index];
                           final manager = event['manager'] as Map<String, dynamic>?;
                           final companyName = manager?['company_name'] ?? manager?['full_name'] ?? 'Unknown Company';
-                          final companyLocation = manager?['company_location'] ?? 'Location unknown';
-                          final categories = (event['categories'] as List?)?.join(', ') ?? 'No categories';
 
                           return Card(
                             color: VolunteerColors.card,
@@ -745,7 +744,7 @@ class _VolunteerHomePageState extends State<VolunteerHomePage> {
                                                 color: _getSlotsColor(
                                                   (event['volunteers_needed'] ?? 0) - (event['current_volunteers_count'] ?? 0), 
                                                   event['volunteers_needed'] ?? 1
-                                                ).withOpacity(0.5),
+                                                ).withValues(alpha: 0.5),
                                               ),
                                             ),
                                             child: Text(
@@ -906,7 +905,7 @@ class _VolunteerHomePageState extends State<VolunteerHomePage> {
                                         Container(
                                           padding: const EdgeInsets.all(8),
                                           decoration: BoxDecoration(
-                                            color: Colors.blue.withOpacity(0.05),
+                                            color: Colors.blue.withValues(alpha: 0.05),
                                             borderRadius: BorderRadius.circular(8),
                                           ),
                                           child: Row(
@@ -935,7 +934,69 @@ class _VolunteerHomePageState extends State<VolunteerHomePage> {
           ),
         ],
       ), // End of Column
-          const Center(child: Text('Menu Coming Soon...', style: TextStyle(color: Colors.grey))),
+          
+          // Menu Tab (Index 1)
+          SingleChildScrollView(
+            padding: const EdgeInsets.all(24.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const SizedBox(height: 24),
+                const Text('Menu', style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 32),
+                
+                // Recommendations Card
+                Card(
+                  color: Colors.white,
+                  elevation: 2,
+                  shadowColor: Colors.black12,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  child: InkWell(
+                    onTap: () {
+                      Navigator.pushNamed(context, '/volunteer-recommendations');
+                    },
+                    borderRadius: BorderRadius.circular(16),
+                    child: Padding(
+                      padding: const EdgeInsets.all(20.0),
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: Colors.orange.withValues(alpha: 0.1),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(Icons.star, color: Colors.orange, size: 28),
+                          ),
+                          const SizedBox(width: 20),
+                          const Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'See Recommendations',
+                                  style: TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                SizedBox(height: 4),
+                                Text(
+                                  'View AI matches tailored for you',
+                                  style: TextStyle(color: Colors.grey, fontSize: 13),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const Icon(Icons.chevron_right, color: Colors.grey),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
           const VolunteerChatPage(),
           const Center(child: Text('Board Coming Soon...', style: TextStyle(color: Colors.grey))),
         ],
@@ -1001,8 +1062,8 @@ class _VolunteerHomePageState extends State<VolunteerHomePage> {
           foregroundColor: Colors.white,
           elevation: 0,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          disabledBackgroundColor: buttonColor.withOpacity(0.6),
-          disabledForegroundColor: Colors.white.withOpacity(0.9),
+          disabledBackgroundColor: buttonColor.withValues(alpha: 0.6),
+          disabledForegroundColor: Colors.white.withValues(alpha: 0.9),
         ),
         onPressed: isEnabled 
           ? (status == 'accepted' ? () => _handleBackOut(event) : () => _registerForEvent(event)) 

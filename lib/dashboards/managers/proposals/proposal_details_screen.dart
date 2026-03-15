@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../../services/event_manager_service.dart';
 import '../../../../widgets/text_truncator.dart';
+import '../../../../widgets/safe_avatar.dart';
 import 'package:intl/intl.dart';
 
 class ProposalDetailsScreen extends StatefulWidget {
@@ -22,6 +23,9 @@ class _ProposalDetailsScreenState extends State<ProposalDetailsScreen> {
   bool _isManagerRejected = false;
   String? _actualReason;
   String? _expandedFieldId;
+
+  Map<String, dynamic>? _organizerInfo;
+  bool _isLoadingOrganizerInfo = false;
 
   @override
   void initState() {
@@ -46,6 +50,59 @@ class _ProposalDetailsScreenState extends State<ProposalDetailsScreen> {
         }
         _actualReason = parts.sublist(2).join('::');
       }
+    }
+
+    final organizerId = widget.event['user_id'];
+    if (organizerId != null) {
+      _loadOrganizerInfo(organizerId.toString());
+    }
+
+    // Load recommendations only if this manager has already accepted/been assigned to this event
+    if (widget.event['assigned_manager_id'] == userId) {
+      _loadRecommendedVolunteers();
+    }
+  }
+
+  List<Map<String, dynamic>> _recommendedVolunteers = [];
+  bool _isLoadingRecommendations = false;
+
+  Future<void> _loadRecommendedVolunteers() async {
+    setState(() => _isLoadingRecommendations = true);
+    final userId = EventManagerService.client.auth.currentUser?.id;
+    if (userId == null) return;
+
+    try {
+      final response = await EventManagerService.client.rpc(
+        'recommend_volunteers_for_manager',
+        params: {
+          'p_manager_id': userId,
+          'p_event_id': widget.event['id'].toString(),
+        },
+      );
+      if (mounted) {
+        setState(() {
+          _recommendedVolunteers = List<Map<String, dynamic>>.from(response);
+          _isLoadingRecommendations = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading recommended volunteers: $e');
+      if (mounted) setState(() => _isLoadingRecommendations = false);
+    }
+  }
+
+  Future<void> _loadOrganizerInfo(String organizerId) async {
+    setState(() => _isLoadingOrganizerInfo = true);
+    try {
+      final info = await EventManagerService.getManagerDetails(organizerId); // Reusing getManagerDetails since it fetches from users table
+      if (mounted) {
+        setState(() {
+          _organizerInfo = info;
+          _isLoadingOrganizerInfo = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) setState(() => _isLoadingOrganizerInfo = false);
     }
   }
 
@@ -84,20 +141,14 @@ class _ProposalDetailsScreenState extends State<ProposalDetailsScreen> {
   }
 
   Future<void> _showRejectDialog() async {
-    final deadlineStr = widget.event['registration_deadline'];
-    if (deadlineStr != null) {
-      try {
-        final deadline = DateTime.parse(deadlineStr.toString());
-        final currentDiff = deadline.difference(DateTime.now()).inDays;
-        if (currentDiff == 5) {
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Cannot reject the accepted event only five days left')),
-            );
-          }
-          return;
-        }
-      } catch (_) {}
+    final currentDiff = _getDaysUntilDeadline(widget.event['registration_deadline']);
+    if (currentDiff == 6) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Cannot reject because only 5 days left for deadline')),
+        );
+      }
+      return;
     }
 
     final reasonController = TextEditingController();
@@ -333,7 +384,9 @@ class _ProposalDetailsScreenState extends State<ProposalDetailsScreen> {
                 ),
               ),
             ],
-            const SizedBox(height: 32),
+
+            // 7.25) Assigned Manager Details (Removed as per request)
+
             // 7.5) Rejection Reason (if applicable)
             if (_isApplied && widget.event['assigned_manager_id'] == null && widget.event['rejection_reason'] != null) ...[
               const SizedBox(height: 12),
@@ -368,6 +421,7 @@ class _ProposalDetailsScreenState extends State<ProposalDetailsScreen> {
 
             // 7.75) Organizer Details
             if (widget.event['assigned_manager_id'] == EventManagerService.client.auth.currentUser?.id) ...[
+              const SizedBox(height: 12),
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.all(16),
@@ -387,31 +441,78 @@ class _ProposalDetailsScreenState extends State<ProposalDetailsScreen> {
                           'Organizer Details',
                           style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                         ),
-                        const Spacer(),
-                        TextButton(
-                          onPressed: () {
-                            final host = widget.event['host'] as Map<String, dynamic>?;
-                            if (host != null && host['id'] != null) {
-                              Navigator.pushNamed(
-                                context,
-                                '/host-profile-public',
-                                arguments: {'hostId': host['id']},
-                              );
-                            }
-                          },
-                          style: TextButton.styleFrom(
-                            padding: EdgeInsets.zero,
-                            minimumSize: Size.zero,
-                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                          ),
-                          child: const Text('View Profile', style: TextStyle(color: Color(0xFF1E4D40), fontSize: 13, fontWeight: FontWeight.bold)),
-                        ),
                       ],
                     ),
                     const SizedBox(height: 16),
-                    _buildContactRow(Icons.email_outlined, widget.event['host']?['email'] ?? 'No email provided'),
-                    const SizedBox(height: 8),
-                    _buildContactRow(Icons.location_on_outlined, widget.event['host']?['company_location'] ?? 'No location provided'),
+                    _isLoadingOrganizerInfo 
+                      ? const Center(child: CircularProgressIndicator())
+                      : _organizerInfo == null
+                        ? const Text('Loading organizer info...')
+                        : Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  SafeAvatar(
+                                    radius: 24,
+                                    imageUrl: _organizerInfo!['profile_photo'],
+                                    name: _organizerInfo!['full_name'] ?? 'Organizer',
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          _organizerInfo!['full_name'] ?? 'Organizer',
+                                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                                        ),
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          '${_organizerInfo!['company_name'] ?? 'Independent'} • ${_organizerInfo!['company_location'] ?? 'Location N/A'}',
+                                          style: TextStyle(color: Colors.grey[600], fontSize: 13),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  TextButton(
+                                    onPressed: () {
+                                      Navigator.pushNamed(
+                                        context,
+                                        '/host-profile-public',
+                                        arguments: {'hostId': _organizerInfo!['id']},
+                                      );
+                                    },
+                                    style: TextButton.styleFrom(
+                                      padding: EdgeInsets.zero,
+                                      minimumSize: Size.zero,
+                                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                    ),
+                                    child: const Text('View Profile', style: TextStyle(color: Color(0xFF1E4D40), fontSize: 13, fontWeight: FontWeight.bold)),
+                                  ),
+                                ],
+                              ),
+                              if (_organizerInfo!['bio'] != null && _organizerInfo!['bio'].toString().isNotEmpty) ...[
+                                const SizedBox(height: 12),
+                                Text(
+                                  _organizerInfo!['bio'],
+                                  style: TextStyle(color: Colors.grey[700], fontSize: 14),
+                                  maxLines: 3,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ],
+                              const SizedBox(height: 16),
+                              const Divider(),
+                              const SizedBox(height: 8),
+                              Row(
+                                children: [
+                                  Expanded(child: _buildContactRow(Icons.email_outlined, _organizerInfo!['email'] ?? 'No email')),
+                                  const SizedBox(width: 16),
+                                  Expanded(child: _buildContactRow(Icons.phone_outlined, _organizerInfo!['phone_number'] ?? 'No phone')),
+                                ],
+                              ),
+                            ],
+                          ),
                   ],
                 ),
               ),
@@ -446,6 +547,107 @@ class _ProposalDetailsScreenState extends State<ProposalDetailsScreen> {
                   ),
                 ),
               ],
+              const SizedBox(height: 32),
+            ],
+
+            // 7.8) Recommended Volunteers (Only shows if assigned to this manager)
+            if (widget.event['assigned_manager_id'] == EventManagerService.client.auth.currentUser?.id) ...[
+              const Row(
+                children: [
+                   Icon(Icons.star, color: Colors.orange, size: 20),
+                   SizedBox(width: 8),
+                   Text(
+                    'AI Recommended Volunteers',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              const Text(
+                'Top matches based on skills, past performance, and reliability.',
+                style: TextStyle(color: Colors.grey, fontSize: 13),
+              ),
+              const SizedBox(height: 16),
+              if (_isLoadingRecommendations)
+                const Center(child: Padding(
+                  padding: EdgeInsets.all(24.0),
+                  child: CircularProgressIndicator(),
+                ))
+              else if (_recommendedVolunteers.isEmpty)
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(24),
+                  decoration: BoxDecoration(
+                    color: Colors.grey[50],
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.grey[200]!),
+                  ),
+                  child: const Center(
+                    child: Text(
+                      'No volunteers match the specific requirements yet.',
+                      style: TextStyle(color: Colors.grey),
+                    ),
+                  ),
+                )
+              else
+                SizedBox(
+                  height: 140,
+                  child: ListView.separated(
+                    scrollDirection: Axis.horizontal,
+                    itemCount: _recommendedVolunteers.take(5).length, // Show top 5
+                    separatorBuilder: (context, index) => const SizedBox(width: 16),
+                    itemBuilder: (context, index) {
+                      final vol = _recommendedVolunteers[index];
+                      final rating = vol['received_rating']?.toString() ?? 'New';
+                      return Container(
+                        width: 120,
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.grey[200]!),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.02),
+                              blurRadius: 10,
+                              offset: const Offset(0, 4),
+                            )
+                          ]
+                        ),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            SafeAvatar(
+                              radius: 28,
+                              imageUrl: vol['profile_photo'],
+                              name: vol['full_name'] ?? 'Volunteer',
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              vol['full_name'] ?? 'Unknown',
+                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              textAlign: TextAlign.center,
+                            ),
+                            const SizedBox(height: 4),
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(Icons.star, color: Colors.orange, size: 12),
+                                const SizedBox(width: 4),
+                                Text(
+                                  rating,
+                                  style: TextStyle(color: Colors.grey[700], fontSize: 12, fontWeight: FontWeight.bold),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+                ),
               const SizedBox(height: 32),
             ],
 
@@ -502,15 +704,21 @@ class _ProposalDetailsScreenState extends State<ProposalDetailsScreen> {
     }
   }
 
-  bool get _canRejectManager {
-    final deadlineStr = widget.event['registration_deadline'];
-    if (deadlineStr == null) return true;
+  int _getDaysUntilDeadline(dynamic deadlineStr) {
+    if (deadlineStr == null) return 999;
     try {
       final deadline = DateTime.parse(deadlineStr.toString());
-      return deadline.difference(DateTime.now()).inDays >= 5;
+      final now = DateTime.now();
+      final deadlineDate = DateTime(deadline.year, deadline.month, deadline.day);
+      final nowDate = DateTime(now.year, now.month, now.day);
+      return deadlineDate.difference(nowDate).inDays;
     } catch (_) {
-      return true;
+      return 999;
     }
+  }
+
+  bool get _canRejectManager {
+    return _getDaysUntilDeadline(widget.event['registration_deadline']) > 5;
   }
 
   Widget _buildAcceptButton() {
