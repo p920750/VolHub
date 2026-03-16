@@ -805,6 +805,39 @@ class SupabaseService {
     }
   }
 
+  /// Fetches event-specific conversations for a host/organizer.
+  static Future<List<Map<String, dynamic>>> getEventConversationsForHost() async {
+    try {
+      final user = currentUser;
+      if (user == null) return [];
+
+      // Get events owned by this host with assigned managers
+      final eventsResponse = await client
+          .from('events')
+          .select('*, manager:assigned_manager_id(*)')
+          .eq('user_id', user.id)
+          .not('assigned_manager_id', 'is', null);
+
+      if (eventsResponse == null) return [];
+
+      final List<Map<String, dynamic>> conversations = [];
+      for (var event in (eventsResponse as List)) {
+        final manager = event['manager'];
+        if (manager != null) {
+          conversations.add({
+            'user': manager,
+            'event': event,
+            'id': '${manager['id']}_${event['id']}',
+          });
+        }
+      }
+      return conversations;
+    } catch (e) {
+      if (kDebugMode) print('Error fetching event conversations for host: $e');
+      return [];
+    }
+  }
+
   /// Fetches hosts who have assigned the current manager to at least one event.
   static Future<List<Map<String, dynamic>>> getAssignedHostsForManager() async {
     try {
@@ -836,6 +869,39 @@ class SupabaseService {
     }
   }
 
+  /// Fetches event-specific conversations for a manager.
+  /// Returns a list of maps, each containing 'user' data and 'event' data.
+  static Future<List<Map<String, dynamic>>> getEventConversationsForManager() async {
+    try {
+      final user = currentUser;
+      if (user == null) return [];
+
+      // Get events where this manager is assigned
+      final eventsResponse = await client
+          .from('events')
+          .select('*, host:user_id(*)')
+          .eq('assigned_manager_id', user.id);
+
+      if (eventsResponse == null) return [];
+
+      final List<Map<String, dynamic>> conversations = [];
+      for (var event in (eventsResponse as List)) {
+        final host = event['host'];
+        if (host != null) {
+          conversations.add({
+            'user': host,
+            'event': event,
+            'id': '${host['id']}_${event['id']}', // Synthetic ID for UI tracking
+          });
+        }
+      }
+      return conversations;
+    } catch (e) {
+      if (kDebugMode) print('Error fetching event conversations for manager: $e');
+      return [];
+    }
+  }
+
   // --- Chat System Methods ---
 
   // Send a message (text, image, file, location)
@@ -844,6 +910,7 @@ class SupabaseService {
     required String content,
     String type = 'text', // 'text', 'image', 'file', 'location'
     String? replyToId,
+    String? eventId,
   }) async {
     if (currentUser == null) return;
     
@@ -852,6 +919,7 @@ class SupabaseService {
       'receiver_id': receiverId,
       'content': content,
       'message_type': type,
+      'event_id': eventId,
     };
 
     if (replyToId != null) {
@@ -859,6 +927,33 @@ class SupabaseService {
     }
     
     await client.from('messages').insert(messageData);
+
+    // Send notification to the receiver
+    try {
+      final senderData = await getUserFromUsersTable();
+      final senderName = senderData?['full_name'] ?? 'Someone';
+      
+      String displayContent = content;
+      if (type == 'image') {
+        displayContent = 'sent an image';
+      } else if (type == 'file') {
+        displayContent = 'sent a file';
+      } else if (type == 'location') {
+        displayContent = 'sent a location';
+      } else if (displayContent.length > 50) {
+        displayContent = '${displayContent.substring(0, 47)}...';
+      }
+
+      await client.from('notifications').insert({
+        'user_id': receiverId,
+        'title': 'New Message from $senderName',
+        'body': displayContent,
+        'type': 'chat',
+        'event_id': eventId,
+      });
+    } catch (e) {
+      if (kDebugMode) print('Error sending chat notification: $e');
+    }
   }
 
   // Upload a chat attachment (image or file)
@@ -889,7 +984,7 @@ class SupabaseService {
   }
 
   // Get stream of messages for a specific chat (live updates)
-  static Stream<List<Map<String, dynamic>>> getMessagesStream(String otherUserId) {
+  static Stream<List<Map<String, dynamic>>> getMessagesStream(String otherUserId, {String? eventId}) {
     if (currentUser == null) return const Stream.empty();
 
     return client
@@ -903,13 +998,24 @@ class SupabaseService {
             final sender = msg['sender_id'];
             final receiver = msg['receiver_id'];
             final deletedBy = List<String>.from(msg['deleted_by_users'] ?? []);
+            final msgEventId = msg['event_id']?.toString();
             
-            // Check if message belongs to this chat AND is not deleted by me
+            // Check if message belongs to this chat AND matches the eventId (if provided)
             final isRelevant = (sender == myId && receiver == otherUserId) || 
                                (sender == otherUserId && receiver == myId);
+            
             final isNotDeleted = !deletedBy.contains(myId);
             
-            return isRelevant && isNotDeleted;
+            bool isSameEvent = true;
+            if (eventId != null) {
+              isSameEvent = msgEventId == eventId;
+            } else {
+              // If eventId is null, we might want to show only chats with no eventId
+              // or all chats depending on UX. Usually, null means general chat.
+              isSameEvent = msgEventId == null;
+            }
+            
+            return isRelevant && isNotDeleted && isSameEvent;
           }).toList();
         });
   }
@@ -995,15 +1101,25 @@ class SupabaseService {
   }
 
   // Mark messages from a specific user as read
-  static Future<void> markMessagesAsRead(String senderId) async {
+  // If [eventId] is provided, only marks messages for that specific event as read.
+  // If [eventId] is null, only marks non-event messages (plain DMs) as read.
+  static Future<void> markMessagesAsRead(String senderId, {String? eventId}) async {
     if (currentUser == null) return;
 
-    await client
+    var query = client
         .from('messages')
         .update({'is_read': true})
         .eq('sender_id', senderId)
         .eq('receiver_id', currentUser!.id)
         .eq('is_read', false);
+
+    if (eventId != null) {
+      query = query.eq('event_id', eventId);
+    } else {
+      query = query.isFilter('event_id', null);
+    }
+
+    await query;
   }
 
   // Mark group messages as read (seen by anyone other than sender)
@@ -1081,7 +1197,17 @@ class SupabaseService {
             // Filter is_read and deleted_by_users client-side
             if (item['is_read'] == false && !deletedBy.contains(currentUser!.id)) {
               final senderId = item['sender_id'] as String;
-              unreadMap[senderId] = (unreadMap[senderId] ?? 0) + 1;
+              final eventId = item['event_id']?.toString();
+              if (eventId != null) {
+                // Event-scoped message: only go into the event-specific key.
+                // Do NOT also increment bare senderId to avoid bleeding counts
+                // across unrelated event conversations with the same person.
+                final eventKey = '${senderId}_$eventId';
+                unreadMap[eventKey] = (unreadMap[eventKey] ?? 0) + 1;
+              } else {
+                // Plain DM with no event context: use bare sender key.
+                unreadMap[senderId] = (unreadMap[senderId] ?? 0) + 1;
+              }
             }
           }
           return unreadMap;

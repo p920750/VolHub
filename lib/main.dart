@@ -314,12 +314,14 @@ class _MyAppState extends State<MyApp> {
         '/manager-profile-public': (context) {
           final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
           final managerId = args?['managerId'] as String? ?? '';
-          return ManagerProfilePublicPage(managerId: managerId);
+          final eventId = args?['eventId'] as String?;
+          return ManagerProfilePublicPage(managerId: managerId, eventId: eventId);
         },
         '/volunteer-public-profile': (context) {
           final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
           final volunteerId = args?['volunteerId'] as String? ?? '';
-          return VolunteerPublicProfilePage(volunteerId: volunteerId);
+          final eventId = args?['eventId'] as String?;
+          return VolunteerPublicProfilePage(volunteerId: volunteerId, eventId: eventId);
         },
         '/manager-proposal-details': (context) {
           final args = ModalRoute.of(context)?.settings.arguments;

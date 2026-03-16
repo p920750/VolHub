@@ -7,6 +7,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:latlong2/latlong.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:path_provider/path_provider.dart';
 import 'dart:io';
@@ -15,12 +16,14 @@ import '../../screens/chat_profile_page.dart';
 import '../managers/core/theme.dart';
 import 'widgets/enhanced_media_viewer.dart';
 import '../../../utils/date_formatter.dart';
+import '../../screens/map_picker_screen.dart';
 
 class ChatDetailPage extends StatefulWidget {
   final String chatId;
   final String name;
   final String avatar;
   final bool isOnline;
+  final String? eventId;
 
   const ChatDetailPage({
     super.key,
@@ -28,6 +31,7 @@ class ChatDetailPage extends StatefulWidget {
     required this.name,
     required this.avatar,
     required this.isOnline,
+    this.eventId,
   });
 
   @override
@@ -48,7 +52,7 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
   @override
   void initState() {
     super.initState();
-    _messagesStream = SupabaseService.getMessagesStream(widget.chatId);
+    _messagesStream = SupabaseService.getMessagesStream(widget.chatId, eventId: widget.eventId);
     _markRead();
     
     // Listen to stream for real-time unread clearing
@@ -64,7 +68,7 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
   }
 
   void _markRead() async {
-    await SupabaseService.markMessagesAsRead(widget.chatId);
+    await SupabaseService.markMessagesAsRead(widget.chatId, eventId: widget.eventId);
   }
 
   @override
@@ -90,6 +94,7 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
       receiverId: widget.chatId,
       content: content,
       replyToId: replyToId?.toString(),
+      eventId: widget.eventId,
     );
     
     _scrollToBottom();
@@ -117,9 +122,33 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
     
     if (permission == LocationPermission.deniedForever) return;
 
-    final position = await Geolocator.getCurrentPosition();
-    final content = '${position.latitude},${position.longitude}';
-    await SupabaseService.sendMessage(receiverId: widget.chatId, content: content, type: 'location');
+    LatLng? initialPos;
+    try {
+      final pos = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+        timeLimit: const Duration(seconds: 6),
+      );
+      initialPos = LatLng(pos.latitude, pos.longitude);
+    } catch (_) {
+      // If GPS fails/times out, picker starts with its own locator
+    }
+
+    if (!mounted) return;
+    final picked = await Navigator.push<LatLng?>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => MapPickerScreen(initialLocation: initialPos),
+      ),
+    );
+
+    if (picked == null) return; // user cancelled
+    final content = '${picked.latitude},${picked.longitude}';
+    await SupabaseService.sendMessage(
+      receiverId: widget.chatId,
+      content: content,
+      type: 'location',
+      eventId: widget.eventId,
+    );
     _scrollToBottom();
   }
 
@@ -132,7 +161,12 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
         if (image != null) {
           final imageUrl = await SupabaseService.uploadChatAttachment(file: File(image.path), chatId: widget.chatId);
           if (imageUrl != null) {
-            await SupabaseService.sendMessage(receiverId: widget.chatId, content: imageUrl, type: 'image');
+            await SupabaseService.sendMessage(
+              receiverId: widget.chatId, 
+              content: imageUrl, 
+              type: 'image',
+              eventId: widget.eventId,
+            );
           }
         }
       } else if (type == 'Document') {
@@ -143,7 +177,12 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
           final fileUrl = await SupabaseService.uploadChatAttachment(file: file, chatId: widget.chatId);
           if (fileUrl != null) {
             final content = '${result.files.single.name}|$fileUrl';
-            await SupabaseService.sendMessage(receiverId: widget.chatId, content: content, type: 'file');
+            await SupabaseService.sendMessage(
+              receiverId: widget.chatId, 
+              content: content, 
+              type: 'file',
+              eventId: widget.eventId,
+            );
           }
         }
       }
@@ -681,32 +720,17 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
                                 ],
                               ),
                             if (type == 'location')
-                              Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      const Icon(Icons.location_on, color: Colors.redAccent, size: 28),
-                                      const SizedBox(width: 8),
-                                      Text(
-                                        'Shared Location',
-                                        style: TextStyle(
-                                          color: isMe ? Colors.white : Colors.black87,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 8),
-                                  Text(
-                                    'Tap to view in maps',
-                                    style: TextStyle(
-                                      color: isMe ? Colors.white70 : Colors.grey,
-                                      fontSize: 11,
-                                    ),
-                                  ),
-                                ],
+                              GestureDetector(
+                                onTap: () async {
+                                  final googleMapsUrl =
+                                      'https://www.google.com/maps/search/?api=1&query=$content';
+                                  if (await canLaunchUrl(
+                                      Uri.parse(googleMapsUrl))) {
+                                    await launchUrl(Uri.parse(googleMapsUrl),
+                                        mode: LaunchMode.externalApplication);
+                                  }
+                                },
+                                child: _buildLocationBubble(content, isMe),
                               ),
                           ],
                         ),
@@ -1069,7 +1093,10 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
                     Navigator.pop(context);
                     _sendMedia('Document');
                   }),
-                  _buildAttachmentItem(Icons.location_on, 'Location', Colors.green, onTap: _sendLocation),
+                  _buildAttachmentItem(Icons.location_on, 'Location', Colors.green, onTap: () {
+                    Navigator.pop(context);
+                    _sendLocation();
+                  }),
                 ],
               ),
               const SizedBox(height: 16),
@@ -1184,3 +1211,107 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
     );
   }
 }
+
+/// Builds an OSM static-tile map preview bubble for a location message.
+/// [coords] is the stored "lat,lng" string.
+Widget _buildLocationBubble(String coords, bool isMe) {
+  double? lat, lng;
+  try {
+    final parts = coords.split(',');
+    if (parts.length == 2) {
+      lat = double.parse(parts[0].trim());
+      lng = double.parse(parts[1].trim());
+    }
+  } catch (_) {}
+
+  final bool validCoords = lat != null && lng != null;
+  final String staticMapUrl = validCoords
+      ? 'https://staticmap.openstreetmap.de/staticmap.php'
+          '?center=$lat,$lng&zoom=15&size=260x130'
+          '&markers=$lat,$lng,red-pushpin'
+      : '';
+
+  return Column(
+    crossAxisAlignment:
+        isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+    children: [
+      ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: validCoords
+            ? Image.network(
+                staticMapUrl,
+                width: 250,
+                height: 130,
+                fit: BoxFit.cover,
+                loadingBuilder: (_, child, progress) {
+                  if (progress == null) return child;
+                  return Container(
+                    width: 250,
+                    height: 130,
+                    color: Colors.grey[200],
+                    alignment: Alignment.center,
+                    child: const CircularProgressIndicator(
+                      color: Color(0xFF001529),
+                      strokeWidth: 2,
+                    ),
+                  );
+                },
+                errorBuilder: (_, __, ___) => _locationFallbackBox(isMe),
+              )
+            : _locationFallbackBox(isMe),
+      ),
+      const SizedBox(height: 6),
+      Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.location_on, size: 13, color: Colors.redAccent),
+          const SizedBox(width: 3),
+          Text(
+            validCoords
+                ? '${lat!.toStringAsFixed(4)}, ${lng!.toStringAsFixed(4)}'
+                : 'Shared Location',
+            style: TextStyle(
+              fontSize: 11,
+              color: isMe ? Colors.white70 : Colors.black54,
+            ),
+          ),
+          const SizedBox(width: 4),
+          Text(
+            '· Tap to open',
+            style: TextStyle(
+              fontSize: 11,
+              color: isMe ? Colors.white54 : Colors.black38,
+            ),
+          ),
+        ],
+      ),
+    ],
+  );
+}
+
+Widget _locationFallbackBox(bool isMe) => Container(
+      width: 250,
+      height: 130,
+      decoration: BoxDecoration(
+        color: isMe ? Colors.white.withOpacity(0.15) : Colors.grey[200],
+        borderRadius: BorderRadius.circular(12),
+      ),
+      alignment: Alignment.center,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.map_outlined,
+              size: 36,
+              color:
+                  isMe ? Colors.white54 : const Color(0xFF001529).withOpacity(0.3)),
+          const SizedBox(height: 6),
+          Text(
+            'Tap to open in Maps',
+            style: TextStyle(
+              fontSize: 11,
+              color: isMe ? Colors.white54 : Colors.black38,
+            ),
+          ),
+        ],
+      ),
+    );

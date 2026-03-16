@@ -33,7 +33,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
 
   Future<void> _fetchUsers() async {
     setState(() => _isLoading = true);
-    final organizers = await SupabaseService.getAssignedHostsForManager();
+    final eventConversations = await SupabaseService.getEventConversationsForManager();
     final volunteers = await SupabaseService.getUsersByRole('volunteer');
     final activeGroups = await EventManagerService.getActiveGroupChatsForManager();
 
@@ -50,7 +50,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
     }).toList();
     
     setState(() {
-      _organizers = organizers;
+      _organizers = eventConversations;
       _volunteers = volunteers;
       _groupChats = mappedGroups;
       _isLoading = false;
@@ -128,13 +128,23 @@ class _MessagesScreenState extends State<MessagesScreen> {
             endIndent: 16,
           ),
           itemBuilder: (context, index) {
-            final user = users[index];
-            final userId = user['id'] as String;
-            final unreadCount = unreadCounts[userId] ?? 0;
+            final item = users[index];
+            final bool isEventConversation = item.containsKey('user') && item.containsKey('event');
             
+            final user = isEventConversation ? item['user'] as Map<String, dynamic> : item;
+            final event = isEventConversation ? item['event'] as Map<String, dynamic>? : null;
+            
+            final userId = user['id'] as String;
+            final eventId = event?['id']?.toString();
+            final unreadKey = eventId != null ? '${userId}_$eventId' : userId;
+            final unreadCount = unreadCounts[unreadKey] ?? 0;
+            
+            final String displayName = user['full_name'] ?? 'Unknown';
+            final String subtitle = event != null ? 'Event: ${event['name']}' : (unreadCount > 0 ? '$unreadCount new messages' : 'Tap to start chatting');
+
             return ChatListItem(
-              name: user['full_name'] ?? 'Unknown',
-              lastMessage: unreadCount > 0 ? '$unreadCount new messages' : 'Tap to start chatting',
+              name: displayName,
+              lastMessage: subtitle,
               time: '',
               unreadCount: unreadCount,
               avatarUrl: user['profile_photo'],
@@ -145,8 +155,9 @@ class _MessagesScreenState extends State<MessagesScreen> {
                   MaterialPageRoute(
                     builder: (context) => ChatDetailScreen(
                       chatId: userId,
-                      chatName: user['full_name'] as String?,
+                      chatName: displayName,
                       avatarUrl: user['profile_photo'] as String?,
+                      eventId: eventId,
                     ),
                   ),
                 );

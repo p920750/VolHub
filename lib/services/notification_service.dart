@@ -73,4 +73,36 @@ class NotificationService {
       if (kDebugMode) print('Error deleting notification: $e');
     }
   }
+
+  /// Delete all notifications for the current user
+  static Future<void> deleteAllNotifications() async {
+    try {
+      final user = SupabaseService.currentUser;
+      if (user == null) throw Exception('User not logged in');
+
+      await _client
+          .from('notifications')
+          .delete()
+          .eq('user_id', user.id);
+    } catch (e) {
+      if (kDebugMode) print('Error deleting all notifications: $e');
+    }
+  }
+
+  /// Delete multiple notifications by ID
+  static Future<void> deleteMultipleNotifications(List<String> notificationIds) async {
+    if (notificationIds.isEmpty) return;
+    try {
+      final user = SupabaseService.currentUser;
+      if (user == null) throw Exception('User not logged in');
+
+      await _client
+          .from('notifications')
+          .delete()
+          .inFilter('id', notificationIds)
+          .eq('user_id', user.id);
+    } catch (e) {
+      if (kDebugMode) print('Error deleting multiple notifications: $e');
+    }
+  }
 }

@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:latlong2/latlong.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:share_plus/share_plus.dart';
 import '../core/theme.dart';
@@ -14,14 +15,16 @@ import '../../../services/supabase_service.dart';
 import '../../../services/event_manager_service.dart';
 import '../../organizers/widgets/enhanced_media_viewer.dart';
 import '../../../utils/date_formatter.dart';
+import '../../../screens/map_picker_screen.dart';
 
 class ChatDetailScreen extends StatefulWidget {
   final String chatId;
   final String? chatName;
   final String? avatarUrl;
   final bool? isGroup;
+  final String? eventId;
   
-  const ChatDetailScreen({super.key, required this.chatId, this.chatName, this.avatarUrl, this.isGroup});
+  const ChatDetailScreen({super.key, required this.chatId, this.chatName, this.avatarUrl, this.isGroup, this.eventId});
 
   @override
   State<ChatDetailScreen> createState() => _ChatDetailScreenState();
@@ -52,9 +55,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     // Initialize stream here to prevent re-subscriptions on build
     if (!_isGroup) {
       _avatarUrl = widget.avatarUrl;
-      _messagesStream = SupabaseService.getMessagesStream(widget.chatId);
+      _messagesStream = SupabaseService.getMessagesStream(widget.chatId, eventId: widget.eventId);
       // Mark messages as read when opening chat
-      SupabaseService.markMessagesAsRead(widget.chatId);
+      SupabaseService.markMessagesAsRead(widget.chatId, eventId: widget.eventId);
       
       // Listen to stream for real-time unread clearing
       _messagesSubscription = _messagesStream.listen((messages) {
@@ -63,7 +66,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
           msg['is_read'] == false
         );
         if (hasUnread) {
-          SupabaseService.markMessagesAsRead(widget.chatId);
+          SupabaseService.markMessagesAsRead(widget.chatId, eventId: widget.eventId);
         }
       });
     } else {
@@ -144,6 +147,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       receiverId: widget.chatId,
       content: content,
       replyToId: replyToId?.toString(),
+      eventId: widget.eventId,
     );
     _scrollToBottom();
   }
@@ -157,7 +161,12 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
         if (image != null) {
           final imageUrl = await SupabaseService.uploadChatAttachment(file: File(image.path), chatId: widget.chatId);
           if (imageUrl != null) {
-            await SupabaseService.sendMessage(receiverId: widget.chatId, content: imageUrl, type: 'image');
+            await SupabaseService.sendMessage(
+              receiverId: widget.chatId, 
+              content: imageUrl, 
+              type: 'image',
+              eventId: widget.eventId,
+            );
           }
         }
       } else if (type == 'Document') {
@@ -169,22 +178,50 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
           if (fileUrl != null) {
             // Store filename|url to display nice name
             final content = '${result.files.single.name}|$fileUrl';
-            await SupabaseService.sendMessage(receiverId: widget.chatId, content: content, type: 'file');
+            await SupabaseService.sendMessage(
+              receiverId: widget.chatId, 
+              content: content, 
+              type: 'file',
+              eventId: widget.eventId,
+            );
           }
         }
       } else if (type == 'Location') {
-        // Request permissions
+        // Get current GPS position first, then open map picker
         LocationPermission permission = await Geolocator.checkPermission();
         if (permission == LocationPermission.denied) {
           permission = await Geolocator.requestPermission();
           if (permission == LocationPermission.denied) return;
         }
-        
         if (permission == LocationPermission.deniedForever) return;
 
-        final position = await Geolocator.getCurrentPosition();
-        final content = '${position.latitude},${position.longitude}';
-        await SupabaseService.sendMessage(receiverId: widget.chatId, content: content, type: 'location');
+        LatLng? initialPos;
+        try {
+          final pos = await Geolocator.getCurrentPosition(
+            desiredAccuracy: LocationAccuracy.high,
+            timeLimit: const Duration(seconds: 6),
+          );
+          initialPos = LatLng(pos.latitude, pos.longitude);
+        } catch (_) {
+          // If GPS fails/times out, pass null and let the picker handle it
+        }
+
+        if (!context.mounted) return;
+        final picked = await Navigator.push<LatLng?>(
+          context,
+          MaterialPageRoute(
+            builder: (_) => MapPickerScreen(initialLocation: initialPos),
+          ),
+        );
+
+        if (picked == null) return; // user cancelled
+        final content = '${picked.latitude},${picked.longitude}';
+        await SupabaseService.sendMessage(
+          receiverId: widget.chatId,
+          content: content,
+          type: 'location',
+          eventId: widget.eventId,
+        );
       }
     } catch (e) {
       if (mounted) {
@@ -525,7 +562,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                           children: [
                             _buildMediaOption(Icons.image, 'Gallery', Colors.blue, () => _sendMedia('Image')),
                             _buildMediaOption(Icons.description, 'Document', Colors.orange, () => _sendMedia('Document')),
-                            _buildMediaOption(Icons.location_on, 'Location', Colors.green, () => _sendMedia('Location')),
+                            _buildMediaOption(Icons.location_on, 'Location', Colors.green, () {
+                              _sendMedia('Location');
+                            }),
                           ],
                         ),
                         const SizedBox(height: 16),
@@ -941,50 +980,28 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                               else if (type == 'location')
                                 GestureDetector(
                                   onTap: () async {
-                                    final coords = message;
-                                    final geoUrl = 'geo:$coords';
-                                    final googleMapsUrl = 'https://www.google.com/maps/search/?api=1&query=$coords';
-                                    
+                                    final googleMapsUrl =
+                                        'https://www.google.com/maps/search/?api=1&query=$message';
                                     try {
-                                      if (await canLaunchUrl(Uri.parse(geoUrl))) {
-                                        await launchUrl(Uri.parse(geoUrl));
-                                      } else if (await canLaunchUrl(Uri.parse(googleMapsUrl))) {
-                                        await launchUrl(Uri.parse(googleMapsUrl), mode: LaunchMode.externalApplication);
-                                      } else {
-                                        throw 'Could not launch maps';
-                                      }
-                                    } catch (e) {
-                                       if (context.mounted) {
-                                        ScaffoldMessenger.of(context).showSnackBar(
-                                          const SnackBar(content: Text('Could not open maps application')),
+                                      if (await canLaunchUrl(
+                                          Uri.parse(googleMapsUrl))) {
+                                        await launchUrl(
+                                          Uri.parse(googleMapsUrl),
+                                          mode: LaunchMode.externalApplication,
                                         );
+                                      }
+                                    } catch (_) {
+                                      if (context.mounted) {
+                                        ScaffoldMessenger.of(context)
+                                            .showSnackBar(const SnackBar(
+                                          content: Text(
+                                              'Could not open maps'),
+                                        ));
                                       }
                                     }
                                   },
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      ClipRRect(
-                                        borderRadius: BorderRadius.circular(12),
-                                        child: Container(
-                                          height: 150,
-                                          width: 250,
-                                          color: Colors.grey[200],
-                                          alignment: Alignment.center,
-                                          child: Icon(Icons.map, color: AppColors.midnightBlue.withOpacity(0.3), size: 50),
-                                        ),
-                                      ),
-                                      const SizedBox(height: 4),
-                                      Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          const Icon(Icons.location_on, size: 14, color: Colors.redAccent),
-                                          const SizedBox(width: 4),
-                                          Text('Location: Shared', style: TextStyle(color: isMe ? Colors.white70 : Colors.black54, fontSize: 12)),
-                                        ],
-                                      ),
-                                    ],
-                                  ),
+                                  child: _buildLocationBubble(
+                                      message, isMe),
                                 )
                               else
                                 Text(
@@ -1273,3 +1290,107 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     );
   }
 }
+
+/// Builds an OSM static-tile map preview bubble for a location message.
+/// [coords] is the stored "lat,lng" string.
+Widget _buildLocationBubble(String coords, bool isMe) {
+  double? lat, lng;
+  try {
+    final parts = coords.split(',');
+    if (parts.length == 2) {
+      lat = double.parse(parts[0].trim());
+      lng = double.parse(parts[1].trim());
+    }
+  } catch (_) {}
+
+  final bool validCoords = lat != null && lng != null;
+  final String staticMapUrl = validCoords
+      ? 'https://staticmap.openstreetmap.de/staticmap.php'
+          '?center=$lat,$lng&zoom=15&size=260x130'
+          '&markers=$lat,$lng,red-pushpin'
+      : '';
+
+  return Column(
+    crossAxisAlignment:
+        isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+    children: [
+      ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: validCoords
+            ? Image.network(
+                staticMapUrl,
+                width: 250,
+                height: 130,
+                fit: BoxFit.cover,
+                loadingBuilder: (_, child, progress) {
+                  if (progress == null) return child;
+                  return Container(
+                    width: 250,
+                    height: 130,
+                    color: Colors.grey[200],
+                    alignment: Alignment.center,
+                    child: const CircularProgressIndicator(
+                      color: Color(0xFF001529),
+                      strokeWidth: 2,
+                    ),
+                  );
+                },
+                errorBuilder: (_, __, ___) => _locationFallbackBox(isMe),
+              )
+            : _locationFallbackBox(isMe),
+      ),
+      const SizedBox(height: 6),
+      Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.location_on, size: 13, color: Colors.redAccent),
+          const SizedBox(width: 3),
+          Text(
+            validCoords
+                ? '${lat!.toStringAsFixed(4)}, ${lng!.toStringAsFixed(4)}'
+                : 'Shared Location',
+            style: TextStyle(
+              fontSize: 11,
+              color: isMe ? Colors.white70 : Colors.black54,
+            ),
+          ),
+          const SizedBox(width: 4),
+          Text(
+            '· Tap to open',
+            style: TextStyle(
+              fontSize: 11,
+              color: isMe ? Colors.white54 : Colors.black38,
+            ),
+          ),
+        ],
+      ),
+    ],
+  );
+}
+
+Widget _locationFallbackBox(bool isMe) => Container(
+      width: 250,
+      height: 130,
+      decoration: BoxDecoration(
+        color: isMe ? Colors.white.withOpacity(0.15) : Colors.grey[200],
+        borderRadius: BorderRadius.circular(12),
+      ),
+      alignment: Alignment.center,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.map_outlined,
+              size: 36,
+              color:
+                  isMe ? Colors.white54 : const Color(0xFF001529).withOpacity(0.3)),
+          const SizedBox(height: 6),
+          Text(
+            'Tap to open in Maps',
+            style: TextStyle(
+              fontSize: 11,
+              color: isMe ? Colors.white54 : Colors.black38,
+            ),
+          ),
+        ],
+      ),
+    );

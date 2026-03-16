@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'matching_events_widget.dart';
 import '../recent_activity_providers.dart';
 import '../../../../utils/date_formatter.dart';
+import '../../proposals/proposal_details_screen.dart';
 
 class RecentActivityWidget extends ConsumerWidget {
   const RecentActivityWidget({super.key});
@@ -142,7 +143,15 @@ class RecentActivityWidget extends ConsumerWidget {
                 side: BorderSide.none,
               ),
               onTap: () {
-                if (kDebugMode) print('Tapped activity proposal: ${prop['event']}');
+                final eventData = prop['eventData'] as Map<String, dynamic>?;
+                if (eventData != null) {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => ProposalDetailsScreen(event: eventData),
+                    ),
+                  );
+                }
               },
             );
           },

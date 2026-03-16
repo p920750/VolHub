@@ -605,102 +605,126 @@ class _EventDetailPageState extends State<EventDetailPage> {
                                       ),
                                     ),
                                     Padding(
-                                      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-                                      child: Row(
-                                        mainAxisAlignment: MainAxisAlignment.end,
+                                      padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 4.0),
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
                                         children: [
-                                          IconButton(
-                                            onPressed: () {
-                                              Navigator.push(
-                                                context,
-                                                MaterialPageRoute(
-                                                  builder: (context) => ChatDetailPage(
-                                                    chatId: manager['id'],
-                                                    name: manager['full_name'] ?? 'Manager',
-                                                    avatar: manager['profile_photo'] ?? '',
-                                                    isOnline: false, // We can query this later or keep false as default
-                                                  ),
-                                                ),
-                                              );
-                                            },
-                                            icon: const Icon(Icons.chat_bubble_outline, color: Color(0xFF1E4D40)),
-                                            tooltip: 'Chat with Manager',
-                                          ),
-                                          TextButton.icon(
-                                            onPressed: () {
-                                              Navigator.pushNamed(
-                                                context, 
-                                                '/manager-profile-public',
-                                                arguments: {'managerId': manager['id']},
-                                              );
-                                            },
-                                            icon: const Icon(Icons.person_outline, size: 16),
-                                            label: const Text('View Profile', style: TextStyle(fontSize: 12)),
-                                          ),
-                                          const Spacer(),
-                                            if (_currentEvent['assigned_manager_id'] == manager['id']) ...[
-                                              const Text('Accepted', style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold)),
-                                              const SizedBox(width: 12),
-                                              Builder(
-                                                builder: (context) {
-                                                  int? daysLeft;
-                                                  if (_currentEvent['registration_deadline'] != null) {
-                                                    try {
-                                                      daysLeft = DateTime.parse(_currentEvent['registration_deadline']).difference(DateTime.now()).inDays;
-                                                    } catch (_) {}
-                                                  }
-                                                  if (daysLeft == null || daysLeft >= 5) {
-                                                    return ElevatedButton(
-                                                      onPressed: () => _handleRejectManager(manager['id']),
-                                                      style: ElevatedButton.styleFrom(backgroundColor: Colors.red[50], foregroundColor: Colors.red, elevation: 0),
-                                                      child: const Text('Reject'),
-                                                    );
-                                                  }
-                                                  return const SizedBox.shrink();
-                                                }
-                                              ),
-                                                if (_currentEvent['assigned_manager_id'] == manager['id'] && _currentEvent['status']?.toString().toLowerCase() == 'completed' && _managerReview == null) ...[
-                                                  const SizedBox(width: 8),
-                                                  TextButton.icon(
-                                                    onPressed: () async {
-                                                      final result = await Navigator.pushNamed(
-                                                        context,
-                                                        '/manager-review',
-                                                        arguments: {
-                                                          'event': _currentEvent,
-                                                          'manager': manager,
-                                                        },
-                                                      );
-                                                      if (result == true) {
-                                                        _checkIfReviewed();
-                                                      }
-                                                    },
-                                                    icon: const Icon(Icons.star_outline, size: 16, color: Colors.amber),
-                                                    label: const Text('Review', style: TextStyle(color: Colors.amber, fontWeight: FontWeight.bold, fontSize: 12)),
-                                                    style: TextButton.styleFrom(
-                                                      padding: const EdgeInsets.symmetric(horizontal: 12),
-                                                      backgroundColor: Colors.amber.withOpacity(0.1),
-                                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                                          // Row 1: Chat + View Profile
+                                          Row(
+                                            children: [
+                                              IconButton(
+                                                onPressed: () {
+                                                  Navigator.push(
+                                                    context,
+                                                    MaterialPageRoute(
+                                                      builder: (context) => ChatDetailPage(
+                                                        chatId: manager['id'],
+                                                        name: manager['full_name'] ?? 'Manager',
+                                                        avatar: manager['profile_photo'] ?? '',
+                                                        isOnline: false,
+                                                        eventId: _currentEvent['id']?.toString(),
+                                                      ),
                                                     ),
+                                                  );
+                                                },
+                                                icon: const Icon(Icons.chat_bubble_outline, color: Color(0xFF1E4D40)),
+                                                tooltip: 'Chat with Manager',
+                                              ),
+                                              TextButton.icon(
+                                                onPressed: () {
+                                                  Navigator.pushNamed(
+                                                    context,
+                                                    '/manager-profile-public',
+                                                    arguments: {
+                                                      'managerId': manager['id'],
+                                                      'eventId': _currentEvent['id']?.toString(),
+                                                    },
+                                                  );
+                                                },
+                                                icon: const Icon(Icons.person_outline, size: 16),
+                                                label: const Text('View Profile', style: TextStyle(fontSize: 12)),
+                                              ),
+                                            ],
+                                          ),
+                                          // Row 2: Status + Review / Reject
+                                          if (_currentEvent['assigned_manager_id'] == manager['id']) ...[
+                                            Padding(
+                                              padding: const EdgeInsets.only(left: 4.0, bottom: 8.0),
+                                              child: Row(
+                                                children: [
+                                                  const Text('Accepted', style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold, fontSize: 13)),
+                                                  const SizedBox(width: 8),
+                                                  // Show reject button only if deadline hasn't passed
+                                                  Builder(
+                                                    builder: (context) {
+                                                      int? daysLeft;
+                                                      if (_currentEvent['registration_deadline'] != null) {
+                                                        try {
+                                                          daysLeft = DateTime.parse(_currentEvent['registration_deadline']).difference(DateTime.now()).inDays;
+                                                        } catch (_) {}
+                                                      }
+                                                      if (daysLeft == null || daysLeft >= 5) {
+                                                        return ElevatedButton(
+                                                          onPressed: () => _handleRejectManager(manager['id']),
+                                                          style: ElevatedButton.styleFrom(
+                                                            backgroundColor: Colors.red[50],
+                                                            foregroundColor: Colors.red,
+                                                            elevation: 0,
+                                                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                                                            minimumSize: const Size(0, 32),
+                                                          ),
+                                                          child: const Text('Reject', style: TextStyle(fontSize: 12)),
+                                                        );
+                                                      }
+                                                      return const SizedBox.shrink();
+                                                    },
                                                   ),
-                                                ] else if (_currentEvent['assigned_manager_id'] == manager['id'] && _managerReview != null) ...[
-                                                   const SizedBox(width: 8),
-                                                   Container(
-                                                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                                     decoration: BoxDecoration(
-                                                       color: Colors.amber.withOpacity(0.1),
-                                                       borderRadius: BorderRadius.circular(12),
-                                                     ),
-                                                     child: const Row(
-                                                       children: [
-                                                         Icon(Icons.star, color: Colors.amber, size: 14),
-                                                         SizedBox(width: 4),
-                                                         Text('Reviewed', style: TextStyle(color: Colors.amber, fontSize: 12, fontWeight: FontWeight.bold)),
-                                                       ],
-                                                     ),
-                                                   ),
+                                                  const SizedBox(width: 8),
+                                                  // Review button
+                                                  if (_currentEvent['status']?.toString().toLowerCase() == 'completed' && _managerReview == null)
+                                                    TextButton.icon(
+                                                      onPressed: () async {
+                                                        final result = await Navigator.pushNamed(
+                                                          context,
+                                                          '/manager-review',
+                                                          arguments: {
+                                                            'event': _currentEvent,
+                                                            'manager': manager,
+                                                          },
+                                                        );
+                                                        if (result == true) {
+                                                          _checkIfReviewed();
+                                                        }
+                                                      },
+                                                      icon: const Icon(Icons.star_outline, size: 16, color: Colors.amber),
+                                                      label: const Text('Review', style: TextStyle(color: Colors.amber, fontWeight: FontWeight.bold, fontSize: 12)),
+                                                      style: TextButton.styleFrom(
+                                                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                                                        backgroundColor: Colors.amber.withOpacity(0.1),
+                                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                                                        minimumSize: const Size(0, 32),
+                                                      ),
+                                                    )
+                                                  else if (_managerReview != null)
+                                                    Container(
+                                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                                      decoration: BoxDecoration(
+                                                        color: Colors.amber.withOpacity(0.1),
+                                                        borderRadius: BorderRadius.circular(12),
+                                                      ),
+                                                      child: const Row(
+                                                        mainAxisSize: MainAxisSize.min,
+                                                        children: [
+                                                          Icon(Icons.star, color: Colors.amber, size: 14),
+                                                          SizedBox(width: 4),
+                                                          Text('Reviewed', style: TextStyle(color: Colors.amber, fontSize: 12, fontWeight: FontWeight.bold)),
+                                                        ],
+                                                      ),
+                                                    ),
                                                 ],
-                                              ] else ...[
+                                              ),
+                                            ),
+                                          ] else ...[
                                             Builder(
                                               builder: (context) {
                                                 final rejectionReasonStr = _currentEvent['rejection_reason'] as String?;

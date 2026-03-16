@@ -72,10 +72,7 @@ class _HostProfilePageState extends ConsumerState<HostProfilePage> {
           ),
           centerTitle: true,
           actions: [
-            IconButton(
-              icon: const Icon(Icons.notifications_none, color: Colors.black),
-              onPressed: () {},
-            ),
+
             Padding(
               padding: const EdgeInsets.only(right: 16.0),
               child: Column(

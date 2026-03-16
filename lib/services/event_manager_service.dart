@@ -1104,6 +1104,7 @@ class EventManagerService {
         'budget': app['events']?['budget'] ?? 'N/A',
         'status': app['status'],
         'date': app['created_at'],
+        'eventData': app['events'], // Full event object for navigation
       }).toList();
     } catch (e) {
       if (kDebugMode) print('Error fetching recent proposals: $e');

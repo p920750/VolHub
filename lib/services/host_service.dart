@@ -370,35 +370,77 @@ class HostService {
 
   static Future<void> acceptManager(String eventId, String managerId) async {
     try {
+      // 1. Fetch current event data to get the applicant list
+      final eventResponse = await SupabaseService.client
+          .from('events')
+          .select('name, host_name, manager_ids')
+          .eq('id', eventId)
+          .maybeSingle();
+
+      if (eventResponse == null) throw Exception('Event not found');
+
+      final String hostName = eventResponse['host_name'] ?? 'Organizer';
+      final String eventName = eventResponse['name'] ?? 'an event';
+      final List<dynamic> allManagerIds = List<dynamic>.from(eventResponse['manager_ids'] ?? []);
+
+      // 2. Perform the acceptance update
       await SupabaseService.client.from('events').update({
         'assigned_manager_id': managerId,
         'rejection_reason': null,
+        // Update manager_ids to only include the accepted manager
+        'manager_ids': [managerId],
       }).eq('id', eventId);
       
+      // 3. Notify the accepted manager
       try {
-        final eventResponse = await SupabaseService.client
-            .from('events')
-            .select('name, host_name')
-            .eq('id', eventId)
-            .maybeSingle();
-
-        if (eventResponse != null) {
-          final hostName = eventResponse['host_name'] ?? 'Organizer';
-          final eventName = eventResponse['name'] ?? 'an event';
-          
-          await SupabaseService.client.from('notifications').insert({
-            'user_id': managerId,
-            'event_id': eventId,
-            'title': 'Proposal Accepted',
-            'body': 'You have been accepted by $hostName for the event "$eventName".',
-            'type': 'acceptance',
-          });
-        }
+        await SupabaseService.client.from('notifications').insert({
+          'user_id': managerId,
+          'event_id': eventId,
+          'title': 'Proposal Accepted',
+          'body': 'You have been accepted by $hostName for the event "$eventName".',
+          'type': 'acceptance',
+        });
       } catch (e) {
-        if (kDebugMode) print('Error sending manager notification on accept: $e');
+        if (kDebugMode) print('Error notifying accepted manager: $e');
       }
 
-      if (kDebugMode) print('Organizer assigned manager: $managerId to event: $eventId');
+      // 4. Cleanup for rejected managers
+      final List<String> rejectedManagers = allManagerIds
+          .map((id) => id.toString())
+          .where((id) => id != managerId)
+          .toList();
+
+      if (rejectedManagers.isNotEmpty) {
+        // a. Send notifications to rejected managers
+        final List<Map<String, dynamic>> rejectNotifications = rejectedManagers.map((mId) => {
+          'user_id': mId,
+          'event_id': eventId,
+          'title': 'Proposal Rejected',
+          'body': 'You were not eligible for the event.',
+          'type': 'proposal',
+        }).toList();
+
+        try {
+          await SupabaseService.client.from('notifications').insert(rejectNotifications);
+        } catch (e) {
+          if (kDebugMode) print('Error notifying rejected managers: $e');
+        }
+
+        // b. Delete chat history for rejected managers for this event
+        try {
+          for (var rId in rejectedManagers) {
+            await SupabaseService.client
+                .from('messages')
+                .delete()
+                .eq('event_id', eventId)
+                .or('sender_id.eq.$rId,receiver_id.eq.$rId');
+          }
+        } catch (e) {
+          if (kDebugMode) print('Error deleting rejected messages: $e');
+        }
+      }
+
+      if (kDebugMode) print('Organizer assigned manager: $managerId to event: $eventId. Cleaned up ${rejectedManagers.length} candidates.');
     } catch (e) {
       if (kDebugMode) print('Error assigning manager: $e');
       rethrow;

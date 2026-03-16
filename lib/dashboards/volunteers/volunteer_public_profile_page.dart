@@ -7,8 +7,9 @@ import '../managers/messages/chat_detail_screen.dart';
 
 class VolunteerPublicProfilePage extends StatefulWidget {
   final String volunteerId;
+  final String? eventId;
 
-  const VolunteerPublicProfilePage({super.key, required this.volunteerId});
+  const VolunteerPublicProfilePage({super.key, required this.volunteerId, this.eventId});
 
   @override
   State<VolunteerPublicProfilePage> createState() => _VolunteerPublicProfilePageState();
@@ -122,6 +123,7 @@ class _VolunteerPublicProfilePageState extends State<VolunteerPublicProfilePage>
                             chatName: name,
                             avatarUrl: photoUrl,
                             isGroup: false,
+                            eventId: widget.eventId,
                           ),
                         ),
                       );
@@ -197,12 +199,13 @@ class _VolunteerPublicProfilePageState extends State<VolunteerPublicProfilePage>
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (context) => ChatDetailScreen(
-                        chatId: widget.volunteerId,
-                        chatName: name,
-                        avatarUrl: photoUrl ?? '',
-                        isGroup: false,
-                      ),
+                        builder: (context) => ChatDetailScreen(
+                          chatId: widget.volunteerId,
+                          chatName: name,
+                          avatarUrl: photoUrl ?? '',
+                          isGroup: false,
+                          eventId: widget.eventId,
+                        ),
                     ),
                   );
                 },

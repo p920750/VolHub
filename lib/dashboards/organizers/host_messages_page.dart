@@ -21,11 +21,11 @@ class _HostMessagesPageState extends State<HostMessagesPage> {
 
   Future<void> _fetchManagers() async {
     setState(() => _isLoading = true);
-    // Fetch only managers assigned to this host's events
-    final managers = await SupabaseService.getAssignedManagersForHost();
+    // Fetch event-specific manager conversations
+    final conversations = await SupabaseService.getEventConversationsForHost();
     
     setState(() {
-      _managers = managers;
+      _managers = conversations;
       _isLoading = false;
     });
   }
@@ -88,12 +88,22 @@ class _HostMessagesPageState extends State<HostMessagesPage> {
                         itemCount: _managers.length,
                         separatorBuilder: (context, index) => const Divider(height: 1, indent: 80),
                         itemBuilder: (context, index) {
-                          final manager = _managers[index];
-                          final managerId = manager['id'];
-                          final name = manager['full_name'] ?? 'Unknown Manager';
-                          final avatar = manager['profile_photo'] ?? '';
-                          final isOnline = manager['is_online'] ?? false;
-                          final unreadCount = unreadCounts[managerId] ?? 0;
+                          final item = _managers[index];
+                          final bool isEventConversation = item.containsKey('user') && item.containsKey('event');
+                          
+                          final user = isEventConversation ? item['user'] as Map<String, dynamic> : item;
+                          final event = isEventConversation ? item['event'] as Map<String, dynamic>? : null;
+                          
+                          final managerId = user['id'];
+                          final eventId = event?['id']?.toString();
+                          final name = user['full_name'] ?? 'Unknown Manager';
+                          final avatar = user['profile_photo'] ?? '';
+                          final isOnline = user['is_online'] ?? false;
+                          
+                          final unreadKey = eventId != null ? '${managerId}_$eventId' : managerId;
+                          final unreadCount = unreadCounts[unreadKey] ?? 0;
+                          
+                          final String subtitle = event != null ? 'Event: ${event['name']}' : (unreadCount > 0 ? '$unreadCount new messages' : 'Tap to start chatting');
                           
                           return ListTile(
                             onTap: () async {
@@ -105,10 +115,10 @@ class _HostMessagesPageState extends State<HostMessagesPage> {
                                     name: name,
                                     avatar: avatar,
                                     isOnline: isOnline,
+                                    eventId: eventId,
                                   ),
                                 ),
                               );
-                              // Refresh counts if needed, though stream should handle it
                             },
                             leading: Stack(
                               children: [
@@ -137,9 +147,12 @@ class _HostMessagesPageState extends State<HostMessagesPage> {
                             title: Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
-                                Text(
-                                  name,
-                                  style: const TextStyle(fontWeight: FontWeight.bold),
+                                Expanded(
+                                  child: Text(
+                                    name,
+                                    style: const TextStyle(fontWeight: FontWeight.bold),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
                                 ),
                                 if (unreadCount > 0)
                                   Container(
@@ -156,7 +169,7 @@ class _HostMessagesPageState extends State<HostMessagesPage> {
                               ],
                             ),
                             subtitle: Text(
-                              unreadCount > 0 ? '$unreadCount new messages' : 'Tap to start chatting',
+                              subtitle,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: TextStyle(

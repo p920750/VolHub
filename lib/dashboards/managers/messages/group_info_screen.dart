@@ -346,6 +346,7 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
                                     chatName: member['name'],
                                     avatarUrl: member['avatar'],
                                     isGroup: false,
+                                    eventId: widget.chatId,
                                   ),
                                 ),
                               );

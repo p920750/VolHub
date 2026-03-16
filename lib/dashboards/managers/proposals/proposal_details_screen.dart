@@ -3,6 +3,7 @@ import '../../../../services/event_manager_service.dart';
 import '../../../../widgets/text_truncator.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../messages/chat_detail_screen.dart';
 
 class ProposalDetailsScreen extends StatefulWidget {
   final Map<String, dynamic> event;
@@ -50,15 +51,33 @@ class _ProposalDetailsScreenState extends State<ProposalDetailsScreen> {
     }
   }
 
-  String _formatDateTime(String? dateStr, String? timeStr) {
-    if (dateStr == null) return 'TBD';
-    try {
-      final date = DateTime.parse(dateStr);
-      final formattedDate = DateFormat('dd/MM/yyyy').format(date);
-      return '$formattedDate at ${timeStr ?? "TBD"}';
-    } catch (e) {
-      return 'TBD';
+  String _formatDateTime(String? rawIso, String? formattedDate, String? timeStr) {
+    // Try parsing from the raw ISO8601 string first (most reliable)
+    if (rawIso != null && rawIso.isNotEmpty) {
+      try {
+        final dt = DateTime.parse(rawIso);
+        final fDate = DateFormat('dd/MM/yyyy').format(dt);
+        final fTime = DateFormat('hh:mm a').format(dt);
+        return '$fDate at $fTime';
+      } catch (_) {}
     }
+    // Fall back: 'date' may already be a formatted string like '12/02/2027'
+    // and 'time' is a separate string like '12:00 PM'
+    if (formattedDate != null && formattedDate.isNotEmpty && formattedDate != 'TBD') {
+      // Try to parse it as ISO anyway (manager events store ISO in 'date')
+      try {
+        final dt = DateTime.parse(formattedDate);
+        final fDate = DateFormat('dd/MM/yyyy').format(dt);
+        final fTime = DateFormat('hh:mm a').format(dt);
+        return '$fDate at $fTime';
+      } catch (_) {
+        // It's a pre-formatted string — show with separate time
+        return timeStr != null && timeStr.isNotEmpty && timeStr != 'TBD'
+            ? '$formattedDate at $timeStr'
+            : formattedDate;
+      }
+    }
+    return 'TBD';
   }
 
   Future<void> _handleAccept() async {
@@ -174,10 +193,20 @@ class _ProposalDetailsScreenState extends State<ProposalDetailsScreen> {
   @override
   Widget build(BuildContext context) {
     final host = widget.event['host'] as Map<String, dynamic>?;
-    final images = (widget.event['image_url'] as String?)?.split(',').where((s) => s.isNotEmpty).toList() ?? [];
+    final rawImages = widget.event['image_url'];
+    List<String> images = [];
+    if (rawImages is String && rawImages.isNotEmpty) {
+      images = rawImages.split(',').where((s) => s.trim().isNotEmpty).map((s) => s.trim()).toList();
+    } else if (rawImages is List) {
+      images = rawImages.map((e) => e.toString()).where((s) => s.isNotEmpty).toList();
+    }
     final title = widget.event['title'] ?? widget.event['name'] ?? 'Unknown Event';
     final location = widget.event['location'] ?? 'N/A';
-    final dateTime = _formatDateTime(widget.event['date'], widget.event['time']);
+    final dateTime = _formatDateTime(
+      widget.event['date_raw']?.toString(),   // raw ISO8601 (from HostService)
+      widget.event['date']?.toString(),        // may be pre-formatted or ISO
+      widget.event['time']?.toString(),        // separate time string
+    );
     final budget = widget.event['budget'] ?? 'Not specified';
     final description = widget.event['description'] ?? '';
     final requirements = widget.event['requirements'] ?? '';
@@ -374,6 +403,28 @@ class _ProposalDetailsScreenState extends State<ProposalDetailsScreen> {
                             tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                           ),
                           child: const Text('View Profile', style: TextStyle(color: Color(0xFF1E4D40), fontSize: 13, fontWeight: FontWeight.bold)),
+                        ),
+                      const SizedBox(width: 8),
+                      if (host?['id'] != null)
+                        IconButton(
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => ChatDetailScreen(
+                                  chatId: host!['id'],
+                                  chatName: host['full_name'] ?? 'Organizer',
+                                  avatarUrl: host['profile_photo'] ?? host['avatar_url'],
+                                  isGroup: false,
+                                  eventId: widget.event['id']?.toString(),
+                                ),
+                              ),
+                            );
+                          },
+                          icon: const Icon(Icons.chat_bubble_outline, color: Color(0xFF1E4D40), size: 20),
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(),
+                          tooltip: 'Chat with Organizer',
                         ),
                     ],
                   ),

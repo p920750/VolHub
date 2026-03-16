@@ -293,7 +293,10 @@ class _MyEventsScreenState extends State<MyEventsScreen> {
                             Navigator.pushNamed(
                               context,
                               '/volunteer-public-profile',
-                              arguments: {'volunteerId': volunteer['id'].toString()},
+                              arguments: {
+                                'volunteerId': volunteer['id'].toString(),
+                                'eventId': event['id'].toString(),
+                              },
                             );
                           },
                           child: Container(

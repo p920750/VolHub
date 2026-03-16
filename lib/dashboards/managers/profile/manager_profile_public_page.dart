@@ -3,11 +3,13 @@ import 'dart:async';
 import '../../../services/host_service.dart';
 import '../../../../widgets/safe_avatar.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../messages/chat_detail_screen.dart';
 
 class ManagerProfilePublicPage extends StatefulWidget {
   final String managerId;
+  final String? eventId;
 
-  const ManagerProfilePublicPage({super.key, required this.managerId});
+  const ManagerProfilePublicPage({super.key, required this.managerId, this.eventId});
 
   @override
   State<ManagerProfilePublicPage> createState() => _ManagerProfilePublicPageState();
@@ -138,6 +140,33 @@ class _ManagerProfilePublicPageState extends State<ManagerProfilePublicPage> {
                   Text(
                     company,
                     style: TextStyle(fontSize: 16, color: Colors.grey[600]),
+                  ),
+                  const SizedBox(height: 16),
+                  ElevatedButton.icon(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => ChatDetailScreen(
+                            chatId: widget.managerId,
+                            chatName: name,
+                            avatarUrl: photoUrl,
+                            isGroup: false,
+                            eventId: widget.eventId,
+                          ),
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.chat_bubble_outline),
+                    label: const Text('Message Manager'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF1E4D40),
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                    ),
                   ),
                 ],
               ),
