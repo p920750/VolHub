@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import '../../../../services/event_manager_service.dart';
 import '../../../../widgets/text_truncator.dart';
@@ -239,7 +240,12 @@ class _ProposalDetailsScreenState extends State<ProposalDetailsScreen> {
                       ),
                       const SizedBox(height: 4),
                       // 2) Event location
-                      _buildInfoRow(Icons.location_on, 'Event Location: $location', fontSize: 16),
+                      _buildInfoRow(
+                        Icons.location_on, 
+                        'Event Location: $location', 
+                        fontSize: 16,
+                        onTap: () => _launchMaps(location),
+                      ),
                       const SizedBox(height: 4),
                       // 3) Date and time
                       _buildInfoRow(Icons.calendar_today, 'Event Date: $dateTime', fontSize: 14),
@@ -980,22 +986,56 @@ class _ProposalDetailsScreenState extends State<ProposalDetailsScreen> {
     );
   }
 
-  Widget _buildInfoRow(IconData icon, String text, {double fontSize = 14, Color? color}) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.only(top: 2),
-          child: Icon(icon, size: fontSize, color: color ?? Colors.grey),
-        ),
-        const SizedBox(width: 4),
-        Expanded(
-          child: Text(
-            text,
-            style: TextStyle(fontSize: fontSize, color: color ?? Colors.grey),
+  Widget _buildInfoRow(IconData icon, String text, {double fontSize = 14, Color? color, VoidCallback? onTap}) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(top: 2),
+            child: Icon(icon, size: fontSize, color: color ?? (onTap != null ? const Color(0xFF1E4D40) : Colors.grey)),
           ),
-        ),
-      ],
+          const SizedBox(width: 4),
+          Expanded(
+            child: Text(
+              text,
+              style: TextStyle(
+                fontSize: fontSize, 
+                color: color ?? (onTap != null ? const Color(0xFF1E4D40) : Colors.grey),
+                decoration: onTap != null ? TextDecoration.underline : null,
+                fontWeight: onTap != null ? FontWeight.bold : null,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
+  }
+
+  Future<void> _launchMaps(String location) async {
+    if (location == 'N/A') return;
+    final String googleMapsUrl = "https://www.google.com/maps/search/?api=1&query=${Uri.encodeComponent(location)}";
+    final String appleMapsUrl = "https://maps.apple.com/?q=${Uri.encodeComponent(location)}";
+    final Uri googleUri = Uri.parse(googleMapsUrl);
+    final Uri appleUri = Uri.parse(appleMapsUrl);
+
+    try {
+      if (Platform.isIOS) {
+        if (await canLaunchUrl(appleUri)) {
+          await launchUrl(appleUri, mode: LaunchMode.externalApplication);
+        } else if (await canLaunchUrl(googleUri)) {
+          await launchUrl(googleUri, mode: LaunchMode.externalApplication);
+        }
+      } else {
+        if (await canLaunchUrl(googleUri)) {
+          await launchUrl(googleUri, mode: LaunchMode.externalApplication);
+        }
+      }
+    } catch (e) {
+      debugPrint('Error launching maps: $e');
+      // Fallback to existing launcher for raw URL
+      await _launchURL(googleMapsUrl);
+    }
   }
 }

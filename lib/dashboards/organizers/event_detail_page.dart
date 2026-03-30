@@ -8,6 +8,7 @@ import 'edit_event_page.dart';
 import '../../../widgets/safe_avatar.dart';
 import '../../services/review_service.dart';
 import '../../services/supabase_service.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class EventDetailPage extends StatefulWidget {
   final Map<String, dynamic> event;
@@ -315,7 +316,12 @@ class _EventDetailPageState extends State<EventDetailPage> {
                     ),
                   ),
                   const SizedBox(height: 16),
-                  _buildInfoRow(Icons.location_on_outlined, 'Event Location', location),
+                  _buildInfoRow(
+                    Icons.location_on_outlined, 
+                    'Event Location', 
+                    location,
+                    onTap: () => _launchMaps(location),
+                  ),
                   const SizedBox(height: 12),
                   _buildInfoRow(Icons.calendar_today_outlined, 'Event Date', dateTime),
                   const SizedBox(height: 12),
@@ -1017,35 +1023,69 @@ class _EventDetailPageState extends State<EventDetailPage> {
     );
   }
 
-  Widget _buildInfoRow(IconData icon, String label, String value) {
-    return Row(
-      children: [
-        Container(
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: Colors.grey[100],
-            borderRadius: BorderRadius.circular(8),
+  Widget _buildInfoRow(IconData icon, String label, String value, {VoidCallback? onTap}) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: Colors.grey[100],
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(icon, size: 20, color: onTap != null ? const Color(0xFF1E4D40) : Colors.grey[600]),
           ),
-          child: Icon(icon, size: 20, color: Colors.grey[600]),
-        ),
-        const SizedBox(width: 16),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                label,
-                style: TextStyle(fontSize: 12, color: Colors.grey[500]),
-              ),
-              Text(
-                value,
-                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
-              ),
-            ],
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: TextStyle(fontSize: 12, color: Colors.grey[500]),
+                ),
+                Text(
+                  value,
+                  style: TextStyle(
+                    fontSize: 16, 
+                    fontWeight: FontWeight.w500,
+                    color: onTap != null ? const Color(0xFF1E4D40) : Colors.black,
+                    decoration: onTap != null ? TextDecoration.underline : null,
+                  ),
+                ),
+              ],
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
+  }
+
+  Future<void> _launchMaps(String location) async {
+    if (location == 'N/A') return;
+    final String googleMapsUrl = "https://www.google.com/maps/search/?api=1&query=${Uri.encodeComponent(location)}";
+    final String appleMapsUrl = "https://maps.apple.com/?q=${Uri.encodeComponent(location)}";
+    final Uri googleUri = Uri.parse(googleMapsUrl);
+    final Uri appleUri = Uri.parse(appleMapsUrl);
+
+    try {
+      if (Platform.isIOS) {
+        if (await canLaunchUrl(appleUri)) {
+          await launchUrl(appleUri, mode: LaunchMode.externalApplication);
+        } else if (await canLaunchUrl(googleUri)) {
+          await launchUrl(googleUri, mode: LaunchMode.externalApplication);
+        }
+      } else {
+        if (await canLaunchUrl(googleUri)) {
+          await launchUrl(googleUri, mode: LaunchMode.externalApplication);
+        }
+      }
+    } catch (e) {
+      debugPrint('Error launching maps: $e');
+      // If native apps fail, try opening in browser
+      await launchUrl(googleUri, mode: LaunchMode.externalApplication);
+    }
   }
 
   Widget _buildHorizontalImageGallery(String? urls) {
