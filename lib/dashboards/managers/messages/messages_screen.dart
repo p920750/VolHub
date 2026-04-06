@@ -1,0 +1,346 @@
+import 'package:flutter/material.dart';
+import '../core/theme.dart';
+import '../core/manager_drawer.dart';
+import 'widgets/chat_list_item.dart';
+import 'chat_detail_screen.dart';
+import '../../../services/supabase_service.dart';
+import '../../../services/event_manager_service.dart';
+
+class MessagesScreen extends StatefulWidget {
+  const MessagesScreen({super.key});
+
+  @override
+  State<MessagesScreen> createState() => _MessagesScreenState();
+}
+
+class _MessagesScreenState extends State<MessagesScreen> {
+  // Mock Data for "Groups" - Kept as is for now
+  final mockGroups = [
+    {'id': '3', 'name': 'Photography Team', 'lastMessage': 'Meeting at 5 PM', 'time': '11:45 AM', 'unread': 5, 'memberCount': 14, 'isGroup': true},
+    {'id': '4', 'name': 'Logistics Crew', 'lastMessage': 'All equipment loaded.', 'time': 'Yesterday', 'unread': 0, 'memberCount': 22, 'isGroup': true},
+  ];
+
+  List<Map<String, dynamic>> _organizers = [];
+  List<Map<String, dynamic>> _volunteers = [];
+  List<Map<String, dynamic>> _groupChats = [];
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchUsers();
+  }
+
+  Future<void> _fetchUsers() async {
+    setState(() => _isLoading = true);
+    final eventConversations = await SupabaseService.getEventConversationsForManager();
+    final volunteers = await SupabaseService.getUsersByRole('volunteer');
+    final activeGroups = await EventManagerService.getActiveGroupChatsForManager();
+
+    // Map events to the structure expected by the UI for groups
+    final mappedGroups = activeGroups.map((event) => {
+      'id': event['id']?.toString() ?? '',
+      'name': event['name'] ?? 'Event Group',
+      'lastMessage': 'Tap to view messages',
+      'time': '',
+      'unread': 0, // Unread counts for groups can be implemented later
+      'memberCount': event['current_volunteers_count'],
+      'isGroup': true,
+      'avatarUrl': event['image_url'],
+    }).toList();
+    
+    setState(() {
+      _organizers = eventConversations;
+      _volunteers = volunteers;
+      _groupChats = mappedGroups;
+      _isLoading = false;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return DefaultTabController(
+      length: 3,
+      child: Scaffold(
+        backgroundColor: Colors.white,
+        appBar: AppBar(
+          backgroundColor: Colors.white,
+          elevation: 0.5,
+          title: const Text('Messages', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.midnightBlue)),
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.search, color: AppColors.midnightBlue), 
+              onPressed: () {
+                showSearch(
+                  context: context, 
+                  delegate: UserSearchDelegate(
+                    groups: _groupChats,
+                    organizers: _organizers,
+                    volunteers: _volunteers,
+                  ),
+                );
+              }
+            ),
+          ],
+          bottom: const TabBar(
+            indicatorColor: AppColors.midnightBlue,
+            labelColor: AppColors.midnightBlue,
+            unselectedLabelColor: Colors.grey,
+            tabs: [
+              Tab(text: 'Organizers'),
+              Tab(text: 'Volunteers'),
+              Tab(text: 'Groups'),
+            ],
+          ),
+        ),
+        drawer: const ManagerDrawer(currentRoute: '/manager-messages'),
+        body: Container(
+          color: Colors.white,
+          child: _isLoading 
+            ? const Center(child: CircularProgressIndicator(color: AppColors.midnightBlue))
+            : TabBarView(
+                children: [
+                  _buildUserList(context, _organizers),
+                  _buildUserList(context, _volunteers),
+                  _buildChatList(context, _groupChats),
+                ],
+              ),
+        ), // Container
+      ), // Scaffold
+    ); // DefaultTabController
+  }
+
+  Widget _buildUserList(BuildContext context, List<Map<String, dynamic>> users) {
+    if (users.isEmpty) {
+      return const Center(child: Text('No users found', style: TextStyle(color: Colors.white54)));
+    }
+    return StreamBuilder<Map<String, int>>(
+      stream: SupabaseService.getUnreadCountsStream(),
+      builder: (context, unreadSnapshot) {
+        final unreadCounts = unreadSnapshot.data ?? {};
+        
+        return ListView.separated(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          itemCount: users.length,
+          separatorBuilder: (context, index) => Divider(
+            color: Colors.grey[200],
+            indent: 80,
+            endIndent: 16,
+          ),
+          itemBuilder: (context, index) {
+            final item = users[index];
+            final bool isEventConversation = item.containsKey('user') && item.containsKey('event');
+            
+            final user = isEventConversation ? item['user'] as Map<String, dynamic> : item;
+            final event = isEventConversation ? item['event'] as Map<String, dynamic>? : null;
+            
+            final userId = user['id'] as String;
+            final eventId = event?['id']?.toString();
+            final unreadKey = eventId != null ? '${userId}_$eventId' : userId;
+            final unreadCount = unreadCounts[unreadKey] ?? 0;
+            
+            final String displayName = user['full_name'] ?? 'Unknown';
+            final String subtitle = event != null ? 'Event: ${event['name']}' : (unreadCount > 0 ? '$unreadCount new messages' : 'Tap to start chatting');
+
+            return ChatListItem(
+              name: displayName,
+              lastMessage: subtitle,
+              time: '',
+              unreadCount: unreadCount,
+              avatarUrl: user['profile_photo'],
+              isGroup: false,
+              onTap: () async {
+                await Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => ChatDetailScreen(
+                      chatId: userId,
+                      chatName: displayName,
+                      avatarUrl: user['profile_photo'] as String?,
+                      eventId: eventId,
+                    ),
+                  ),
+                );
+              },
+            );
+          },
+        );
+      }
+    );
+  }
+
+  Widget _buildChatList(BuildContext context, List<Map<String, dynamic>> chats) {
+    return ListView.separated(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      itemCount: chats.length,
+      separatorBuilder: (context, index) => Divider(
+        color: Colors.grey[200],
+        indent: 80,
+        endIndent: 16,
+      ),
+      itemBuilder: (context, index) {
+        final chat = chats[index];
+        return ChatListItem(
+          name: chat['name'],
+          lastMessage: chat['lastMessage'],
+          time: chat['time'],
+          unreadCount: chat['unread'],
+          isGroup: chat['isGroup'],
+          memberCount: chat['memberCount'],
+          avatarUrl: chat['avatarUrl'],
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => ChatDetailScreen(
+                  chatId: chat['id'],
+                  chatName: chat['name'],
+                  isGroup: chat['isGroup'], // Important for ChatDetailScreen to know
+                  avatarUrl: chat['avatarUrl'],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+}
+
+class UserSearchDelegate extends SearchDelegate {
+  final List<Map<String, dynamic>> groups;
+  final List<Map<String, dynamic>> organizers;
+  final List<Map<String, dynamic>> volunteers;
+  
+  UserSearchDelegate({
+    required this.groups,
+    required this.organizers,
+    required this.volunteers,
+  });
+
+  @override
+  ThemeData appBarTheme(BuildContext context) {
+    return Theme.of(context).copyWith(
+      scaffoldBackgroundColor: Colors.white,
+      appBarTheme: const AppBarTheme(
+        backgroundColor: Colors.white,
+        iconTheme: IconThemeData(color: AppColors.midnightBlue),
+        elevation: 0.5,
+      ),
+      textTheme: const TextTheme(
+        titleLarge: TextStyle(color: AppColors.midnightBlue),
+      ),
+      inputDecorationTheme: const InputDecorationTheme(
+        hintStyle: TextStyle(color: AppColors.darkGrey),
+        border: InputBorder.none,
+      ),
+    );
+  }
+
+  @override
+  List<Widget>? buildActions(BuildContext context) {
+    return [
+      IconButton(icon: const Icon(Icons.clear), onPressed: () => query = ''),
+    ];
+  }
+
+  @override
+  Widget? buildLeading(BuildContext context) {
+    return IconButton(
+      icon: const Icon(Icons.arrow_back),
+      onPressed: () => close(context, null),
+    );
+  }
+
+  @override
+  Widget buildResults(BuildContext context) {
+    return FutureBuilder<List<Map<String, dynamic>>>(
+      future: _search(query),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        if (!snapshot.hasData || snapshot.data!.isEmpty) {
+          return const Center(child: Text('No results found', style: TextStyle(color: Colors.white)));
+        }
+        
+        return ListView.builder(
+          itemCount: snapshot.data!.length,
+          itemBuilder: (context, index) {
+            final result = snapshot.data![index];
+            final isGroup = result['isGroup'] == true;
+            return ListTile(
+              leading: CircleAvatar(
+                backgroundColor: AppColors.lightGrey,
+                backgroundImage: result['profile_photo'] != null ? NetworkImage(result['profile_photo']) : null, 
+                child: result['profile_photo'] == null ? Text(result['full_name'][0], style: const TextStyle(color: AppColors.midnightBlue)) : null,
+              ),
+              title: Text(result['full_name'], style: const TextStyle(color: AppColors.midnightBlue)),
+              subtitle: Text(isGroup ? 'Group' : (result['role'] ?? 'User'), style: const TextStyle(color: AppColors.darkGrey)),
+              onTap: () {
+                close(context, null);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => ChatDetailScreen(
+                      chatId: result['id'],
+                      chatName: result['full_name'],
+                      avatarUrl: result['profile_photo'] as String?,
+                    ),
+                  ),
+                );
+              },
+            );
+          },
+        );
+      },
+    );
+  }
+
+  @override
+  Widget buildSuggestions(BuildContext context) {
+    return buildResults(context);
+  }
+
+  Future<List<Map<String, dynamic>>> _search(String query) async {
+    if (query.isEmpty) return [];
+
+    final lowercaseQuery = query.toLowerCase();
+
+    // Filter local lists for restricted search
+    final matchedOrganizers = organizers.where((u) => 
+      (u['full_name']?.toString().toLowerCase().contains(lowercaseQuery) ?? false) ||
+      (u['email']?.toString().toLowerCase().contains(lowercaseQuery) ?? false)
+    ).toList();
+
+    final matchedVolunteers = volunteers.where((u) => 
+      (u['full_name']?.toString().toLowerCase().contains(lowercaseQuery) ?? false) ||
+      (u['email']?.toString().toLowerCase().contains(lowercaseQuery) ?? false)
+    ).toList();
+    
+    // 2. Search Groups (Local Mock)
+    final matchedGroups = groups.where((g) => 
+      g['name'].toString().toLowerCase().contains(query.toLowerCase())
+    ).map((g) => {
+      'id': g['id'],
+      'full_name': g['name'],
+      'profile_photo': null, // Groups might not have single photo url structure here
+      'role': 'Group',
+      'isGroup': true,
+    }).toList();
+
+    // 3. Search Users BY Group Name (The requested feature)
+    // For now, if query matches a group name, return users in that group.
+    // Since we don't have real group-user relation, we'll mock this:
+    // If query matches "Photography", we'll "find" some users and claim they are in it.
+    // In a real app, you'd do: supabase.from('group_members').select('users(*)').eq('group_name', query)
+    
+    List<Map<String, dynamic>> usersInGroup = [];
+    if (query.toLowerCase().contains('photo')) {
+       // Mock finding users in "Photography Team"
+       // usersInGroup.add({'id': 'mock_1', 'full_name': 'Sarah (Photo Lead)', 'role': 'volunteer'});
+    }
+
+    return [...matchedOrganizers, ...matchedVolunteers, ...matchedGroups, ...usersInGroup];
+  }
+}

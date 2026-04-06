@@ -1,0 +1,1217 @@
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
+import '../config/supabase_config.dart';
+import 'dart:io';
+
+class SupabaseService {
+  // Get the Supabase client instance
+  static SupabaseClient get client => Supabase.instance.client;
+
+  // Get the current user
+  static User? get currentUser => client.auth.currentUser;
+
+  // Check if user is logged in
+  static bool get isLoggedIn => currentUser != null;
+
+  // Insert into public.users (source of truth)
+  static Future<void> insertUserIntoUsersTable({
+    required String id,
+    required String role,
+    required String email,
+    String? fullName,
+    String? avatarUrl,
+    String? phone,
+    String? countryCode,
+    String? bio,
+    bool isEmailVerified = false,
+  }) async {
+    await client.from('users').insert({
+      'id': id,
+      'role': role,
+      'email': email,
+      'full_name': fullName,
+      'profile_photo': avatarUrl,
+      'phone_number': phone,
+      'country_code': countryCode,
+      'bio': bio,
+      'is_email_verified': isEmailVerified,
+    });
+  }
+
+  // Read from public.users ONLY
+  static Future<Map<String, dynamic>?> getUserFromUsersTable() async {
+    if (currentUser == null) return null;
+
+    return await client
+        .from('users')
+        .select()
+        .eq('id', currentUser!.id)
+        .maybeSingle();
+  }
+
+  // Fetch a specific user profile by ID (read-only for chat profiles)
+  static Future<Map<String, dynamic>?> getUserProfileById(String userId) async {
+    try {
+      return await client
+          .from('users')
+          .select('id, full_name, profile_photo, phone_number, country_code, role')
+          .eq('id', userId)
+          .maybeSingle();
+    } catch (e) {
+      if (kDebugMode) print('Error fetching user profile: $e');
+      return null;
+    }
+  }
+
+  // Update public.users ONLY
+  static Future<void> updateUsersTable(Map<String, dynamic> data) async {
+    if (currentUser == null) throw Exception('Not authenticated');
+
+    data['updated_at'] = DateTime.now().toIso8601String();
+
+    await client.from('users').update(data).eq('id', currentUser!.id);
+  }
+
+  // Sign up with email and password
+  // static Future<AuthResponse> signUp({
+  //   required String email,
+  //   required String password,
+  //   String? fullName,
+  //   String? phone,
+  //   String? dob,
+  //   String? userType,
+  // }) async {
+  //   try {
+  //     final response = await client.auth.signUp(
+  //       email: email,
+  //       password: password,
+  //       data: {
+  //         if (fullName != null && fullName.isNotEmpty) 'full_name': fullName,
+  //         if (phone != null && phone.isNotEmpty) 'phone': phone,
+  //         if (dob != null && dob.isNotEmpty) 'dob': dob,
+  //         if (userType != null && userType.isNotEmpty) 'user_type': userType,
+  //       },
+  //       emailRedirectTo:
+  //           'io.supabase.volhub://email-confirm', // Deep link for email confirmation
+  //     );
+
+  //     final user = response.user;
+
+  //     if (user != null) {
+  //       await insertUserIntoUsersTable(
+  //         id: user.id,
+  //         role: userType ?? 'volunteer',
+  //         email: email,
+  //         fullName: fullName,
+  //         avatarUrl: user.userMetadata?['avatar_url'],
+  //       );
+  //     }
+
+  //     return response;
+  //   } catch (e) {
+  //     rethrow;
+  //   }
+  // }
+  static Future<AuthResponse> signUp({
+    required String email,
+    required String password,
+    required String fullName,
+    required String userType,
+    required String phone,
+    required String dob,
+    String countryCode = '+91',
+  }) async {
+    // We pass all these details as 'data' (user_metadata) so the Trigger
+    // can pick them up and insert them into public.users immediately.
+    final response = await client.auth.signUp(
+      email: email,
+      password: password,
+      data: {
+        'full_name': fullName,
+        'role':
+            userType, // We use 'role' to match the column name logic in trigger
+        'phone_number': phone,
+        'country_code': countryCode,
+        'dob': dob, // Format: YYYY-MM-DD
+      },
+      emailRedirectTo: kIsWeb
+          ? '${Uri.base.origin}/email-confirm'
+          : 'io.supabase.volhub://email-confirm',
+    );
+
+    // No need to manually insert into public.users here.
+    // The Postgres Trigger 'on_auth_user_created' handles it securely.
+
+    return response;
+  }
+
+  // Check if user exists in public.users
+  static Future<bool> checkUserExists(String email, String phone,
+      {String? excludeUserId}) async {
+    var query = client
+        .from('users')
+        .select()
+        .or('email.eq.$email,phone_number.eq.$phone');
+
+    if (excludeUserId != null) {
+      query = query.neq('id', excludeUserId);
+    }
+
+    final response = await query.maybeSingle();
+    return response != null;
+  }
+
+  // Check if email exists in public.users
+  static Future<bool> checkEmailExists(String email) async {
+    final response = await client
+        .from('users')
+        .select('id')
+        .eq('email', email)
+        .maybeSingle();
+    return response != null;
+  }
+
+  // Check if phone number exists in public.users
+  static Future<bool> checkPhoneExists(String phone) async {
+    final response = await client
+        .from('users')
+        .select('id')
+        .eq('phone_number', phone)
+        .maybeSingle();
+    return response != null;
+  }
+
+  // Step 1: Send Verification Link (Magic Link) - No password required at this stage
+  static Future<void> startEmailVerification(String email) async {
+    // Uses Magic Link (signInWithOtp).
+    // This creates the user if they don't exist, or logs them in if they do.
+    // In both cases, it verifies the email when clicked.
+    await client.auth.signInWithOtp(
+      email: email,
+      emailRedirectTo: kIsWeb
+          ? '${Uri.base.origin}/#/email-confirm'
+          : 'io.supabase.volhub://email-confirm',
+    );
+  }
+
+  // Step 1: Send Signup Confirmation Link (Uses "Confirm Signup" template)
+  // Note: This will create user in auth.users, but trigger is disabled
+  // so public.users record is NOT created until "Create Account" is clicked
+  static Future<void> sendSignupConfirmation({
+    required String email,
+    required String password,
+    String? fullName,
+    String? userType,
+    String? phone,
+    String? dob,
+    String countryCode = '+91',
+  }) async {
+    // Use Confirm Signup template
+    // This creates user in auth.users (but NOT in public.users due to disabled trigger)
+    await client.auth.signUp(
+      email: email,
+      password: password,
+      data: {
+        if (fullName != null) 'full_name': fullName,
+        if (userType != null) 'role': userType,
+        if (phone != null) 'phone_number': phone,
+        'country_code': countryCode,
+        if (dob != null) 'dob': dob,
+      },
+      emailRedirectTo: kIsWeb
+          ? '${Uri.base.origin}/#/email-confirm'
+          : 'io.supabase.volhub://email-confirm',
+    );
+    
+    if (kDebugMode) print('Confirmation email sent');
+  }
+
+  // Step 2: Send OTP to Email for Phone Verification (Uses "Magic Link" template)
+  static Future<void> sendPhoneVerificationOtp(String email) async {
+    await client.auth.signInWithOtp(
+      email: email,
+      // Note: Do NOT provide emailRedirectTo here if you want OTP by default,
+      // but if the dashboard is set to "Magic Link", it will use that template.
+    );
+  }
+
+  // Verify phone OTP
+  static Future<void> verifyPhoneOtp(String phone, String token) async {
+    await client.auth.verifyOTP(phone: phone, token: token, type: OtpType.sms);
+  }
+
+  // Verify email OTP (for phone verification step)
+  static Future<void> verifyEmailOtp(String email, String token) async {
+    await client.auth.verifyOTP(email: email, token: token, type: OtpType.email);
+  }
+
+  // Step 3: Complete Signup (Create public.users record only)
+  // Auth user already exists from email verification step
+  static Future<void> completeSignup({
+    required String email,
+    required String fullName,
+    required String userType,
+    required String phone,
+    required String dob,
+    required bool isEmailVerified,
+    required bool isPhoneVerified,
+    String? bio,
+    String countryCode = '+91',
+  }) async {
+    final user = currentUser;
+    if (user == null) throw Exception('User not verified or logged in.');
+
+    if (kDebugMode) {
+      print('--- SUPABASE: Creating Account in public.users ---');
+      print('User ID: ${user.id}');
+      print('Email: $email');
+    }
+
+    // Insert into public.users (trigger is disabled, so we do it manually)
+    await client.from('users').insert({
+      'id': user.id,
+      'email': email,
+      'full_name': fullName,
+      'role': userType,
+      'phone_number': phone,
+      'country_code': countryCode,
+      'date_of_birth': dob,
+      'bio': bio,
+      'is_email_verified': isEmailVerified,
+      'is_phone_verified': isPhoneVerified,
+    });
+
+    if (kDebugMode) print('User record created in public.users');
+  }
+
+  // Admin: Add a new manager (System Bypass Version)
+  static Future<void> addManager({
+    required String email,
+    required String password,
+    required String fullName,
+    String? phone,
+    String? companyName,
+    String? companyLocation,
+  }) async {
+    // We use a custom RPC to create the user directly in the database.
+    // This bypasses the Supabase Auth email rate limits and marks the user as verified.
+    try {
+      await client.rpc('create_manager_admin', params: {
+        'in_email': email,
+        'in_password': password,
+        'in_full_name': fullName,
+        'in_phone': phone,
+        'in_company_name': companyName,
+        'in_company_location': companyLocation,
+      });
+    } catch (e) {
+      if (e.toString().contains('duplicate key')) {
+        throw Exception('A user with this email already exists.');
+      }
+      rethrow;
+    }
+  }
+
+  // Legacy/Direct Sign up (Kept for reference or alternative flow)
+  static Future<AuthResponse> signUpLegacy({
+    required String email,
+    required String password,
+    required String fullName,
+    required String userType,
+    required String phone,
+    required String dob,
+    String countryCode = '+91',
+  }) async {
+    // ... existing implementation ...
+    final response = await client.auth.signUp(
+      email: email,
+      password: password,
+      data: {
+        'full_name': fullName,
+        'role': userType,
+        'phone': phone,
+        'country_code': countryCode,
+        'dob': dob,
+      },
+      emailRedirectTo: kIsWeb
+          ? '${Uri.base.origin}/#/email-confirm'
+          : 'io.supabase.volhub://email-confirm',
+    );
+    return response;
+  }
+
+  // Sign in with email and password
+  static Future<AuthResponse> signIn({
+    required String email,
+    required String password,
+  }) async {
+    try {
+      final response = await client.auth.signInWithPassword(
+        email: email,
+        password: password,
+      );
+      return response;
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  // Sign out
+  static Future<void> signOut() async {
+    try {
+      await client.auth.signOut();
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  // Reset password (send reset email)
+  static Future<void> resetPassword(String email) async {
+    try {
+      // Always use deep link for mobile apps (works on both phone and when code runs on laptop)
+      // For web, use the current URL with password-reset path
+      String redirectTo;
+      if (kIsWeb) {
+        // For web, use the current URL with password-reset path
+        redirectTo = '${Uri.base.origin}/#/reset-password';
+      } else {
+        // For mobile (Android/iOS), always use deep link
+        // This deep link must be added to Supabase dashboard → Authentication → URL Configuration
+        redirectTo = 'io.supabase.volhub://reset-password';
+      }
+
+      await client.auth.resetPasswordForEmail(email, redirectTo: redirectTo);
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  // Verify current password by attempting a silent sign-in
+  static Future<bool> verifyCurrentPassword(String password) async {
+    try {
+      final email = currentUser?.email;
+      if (email == null) return false;
+      
+      // Attempt to sign in with the provided password to verify it
+      await client.auth.signInWithPassword(
+        email: email,
+        password: password,
+      );
+      return true;
+    } catch (e) {
+      if (kDebugMode) print('Password verification failed: $e');
+      return false;
+    }
+  }
+
+  // Update password for logged in user
+  static Future<void> updatePassword(String newPassword) async {
+    try {
+      await client.auth.updateUser(UserAttributes(password: newPassword));
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  static Future<Map<String, dynamic>?> getUserProfile() async {
+    return await getUserFromUsersTable();
+  }
+
+  // Update user profile (public.users ONLY)
+  static Future<void> updateUserProfile(Map<String, dynamic> updates) async {
+    await updateUsersTable(updates);
+  }
+
+  // Upsert user profile (Create if not exists, Update if exists)
+  static Future<void> upsertUserProfile(Map<String, dynamic> data) async {
+    try {
+      if (currentUser == null) throw Exception('User not logged in');
+      
+      final updates = {
+        ...data,
+        'id': currentUser!.id,
+        'updated_at': DateTime.now().toIso8601String(),
+        'email': currentUser!.email, // Ensure email is always present
+      };
+
+      await client.from('users').upsert(updates);
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  // Alias for updateUsersTable/updateUserProfile
+  static Future<void> updateUsersTableAlias(Map<String, dynamic> data) async {
+    await updateUsersTable(data);
+  }
+
+  // Sign in with Google OAuth
+  static Future<bool> signInWithGoogle() async {
+    try {
+      // Use appropriate redirect URL based on platform
+      String redirectTo;
+      if (kIsWeb) {
+        // For web, use the Supabase callback URL
+        // This must match what's configured in Supabase dashboard
+        redirectTo = '${SupabaseConfig.supabaseUrl}/auth/v1/callback';
+      } else {
+        // For mobile, use deep link
+        redirectTo = 'io.supabase.volhub://login-callback';
+      }
+
+      await client.auth.signInWithOAuth(
+        OAuthProvider.google,
+        redirectTo: redirectTo,
+        authScreenLaunchMode: kIsWeb
+            ? LaunchMode.platformDefault
+            : LaunchMode.externalApplication,
+      );
+      return true;
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+
+  // Handle OAuth callback (for deep linking)
+  static Future<AuthSessionUrlResponse?> handleOAuthCallback(Uri uri) async {
+    try {
+      final response = await client.auth.getSessionFromUrl(uri);
+      return response;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  // Listen to auth state changes
+  // Listen to auth state changes
+  static Stream<AuthState> get authStateChanges =>
+      client.auth.onAuthStateChange.map((event) {
+        final session = event.session;
+
+        if (session != null) {
+          if (kDebugMode) {
+            print('--- SUPABASE AUTH SESSION ---');
+            print('User ID: ${session.user.id}');
+            print('Email: ${session.user.email}');
+            print('Access Token: ${session.accessToken}');
+            print('Refresh Token: ${session.refreshToken}');
+            print('Provider: ${session.user.appMetadata['provider']}');
+            print('Expires At: ${session.expiresAt}');
+            print('--------------------------------');
+          }
+        }
+
+        return event;
+      });
+
+  // Centralized redirection logic after any successful login
+  static Future<void> handlePostAuthRedirect(BuildContext context, {int? targetIndex}) async {
+    try {
+      if (kDebugMode) print('--- Handling Post-Auth Redirect ---');
+      
+      final userData = await getUserFromUsersTable();
+      
+      if (!context.mounted) return;
+
+      final session = client.auth.currentSession;
+      final provider = session?.user.appMetadata['provider'];
+
+      if (userData == null || userData['role'] == null) {
+        // New user or missing role (e.g., first-time Google user)
+        // ONLY redirect to role selection if it's NOT an email signup
+        // (Email signups handled by SignupPage after verification)
+        if (provider != 'email') {
+          if (kDebugMode) print('No profile found (OAuth), redirecting to role selection');
+          Navigator.pushNamedAndRemoveUntil(
+            context,
+            '/end-user-type-selection',
+            (route) => false,
+          );
+        } else {
+          if (kDebugMode) print('Email signup in progress, skipping auto-redirection');
+        }
+      } else {
+        // Existing user with role
+        final role = userData['role'];
+        if (kDebugMode) print('Profile found with role: $role');
+        
+        if (role == 'volunteer') {
+          // Check if volunteer has selected their type (experienced/inexperienced)
+          if (userData['volunteer_type'] == null) {
+            if (kDebugMode) print('Volunteer type not set, redirecting to type selection');
+            Navigator.pushNamedAndRemoveUntil(
+              context,
+              '/volunteer-type-selection',
+              (route) => false,
+            );
+          } else {
+            if (kDebugMode) print('Redirecting to volunteer dashboard');
+            Navigator.pushNamedAndRemoveUntil(
+              context,
+              '/volunteer-dashboard',
+              (route) => false,
+              arguments: targetIndex != null ? {'initialIndex': targetIndex} : null,
+            );
+          }
+        } else if (role == 'admin') {
+          if (kDebugMode) print('Redirecting to admin dashboard');
+          Navigator.pushNamedAndRemoveUntil(
+            context,
+            '/admin-dashboard',
+            (route) => false,
+          );
+        } else if (role == 'organizer' || role == 'host') {
+          if (kDebugMode) print('Redirecting to organizer dashboard');
+          Navigator.pushNamedAndRemoveUntil(
+            context,
+            '/organizer-dashboard',
+            (route) => false,
+          );
+        } else if (role == 'manager' || role == 'event_manager') {
+          if (kDebugMode) print('Redirecting to manager dashboard');
+          Navigator.pushNamedAndRemoveUntil(
+            context,
+            '/manager-dashboard',
+            (route) => false,
+          );
+        } else {
+            if (kDebugMode) print('Unknown role: $role');
+            ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Unknown role or role not set.')),
+            );
+        }
+      }
+    } catch (e) {
+      if (kDebugMode) print('Error in handlePostAuthRedirect: $e');
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error determining redirection: $e')),
+        );
+      }
+    }
+  }
+
+  // Upload verification document
+  static Future<String?> uploadVerificationDocument(
+    File file,
+    String userId,
+  ) async {
+    try {
+      final fileExt = file.path.split('.').last;
+      final timestamp = DateTime.now().toIso8601String().replaceAll(':', '-');
+      final fileName = '$userId/$timestamp.$fileExt';
+      final filePath = fileName;
+
+      await client.storage.from('verification_docs').upload(
+            filePath,
+            file,
+            fileOptions: const FileOptions(cacheControl: '3600', upsert: false),
+          );
+
+      // Get the public URL
+      final String publicUrl = client.storage
+          .from('verification_docs')
+          .getPublicUrl(filePath);
+      
+      return publicUrl;
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error uploading document: $e');
+      }
+      rethrow; 
+      // return null;
+    }
+  }
+
+  // Upload profile image
+  static Future<String?> uploadProfileImage(
+    File file,
+    String userId,
+  ) async {
+    try {
+      final fileExt = file.path.split('.').last;
+      final timestamp = DateTime.now().toIso8601String().replaceAll(':', '-');
+      // Storing directly in userId folder to comply with RLS policy: 
+      // (storage.foldername(name))[1] = auth.uid()::text
+      final fileName = '$userId/avatar_$timestamp.$fileExt';
+      
+      const bucketName = 'verification_docs'; 
+
+      await client.storage.from(bucketName).upload(
+            fileName,
+            file,
+            fileOptions: const FileOptions(cacheControl: '3600', upsert: false),
+          );
+
+      final String publicUrl = client.storage.from(bucketName).getPublicUrl(fileName);
+      return publicUrl;
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error uploading profile image: $e');
+      }
+      rethrow;
+    }
+  }
+
+  // Upload user certificate (PDFs, etc)
+  static Future<String?> uploadCertificate(
+    File file,
+    String userId,
+  ) async {
+    try {
+      final fileExt = file.path.split('.').last;
+      final timestamp = DateTime.now().toIso8601String().replaceAll(':', '-');
+      final fileName = '$userId/cert_$timestamp.$fileExt';
+      
+      const bucketName = 'verification_docs'; 
+
+      await client.storage.from(bucketName).upload(
+            fileName,
+            file,
+            fileOptions: const FileOptions(cacheControl: '3600', upsert: false),
+          );
+
+      final String publicUrl = client.storage.from(bucketName).getPublicUrl(fileName);
+      return publicUrl;
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error uploading certificate: $e');
+      }
+      rethrow;
+    }
+  }
+
+  // Upload event image
+  static Future<String?> uploadEventImage(
+    File file,
+    String managerId,
+  ) async {
+    try {
+      final fileExt = file.path.split('.').last;
+      final timestamp = DateTime.now().toIso8601String().replaceAll(':', '-');
+      final fileName = '$managerId/event_$timestamp.$fileExt';
+      
+      const bucketName = 'verification_docs'; 
+
+      await client.storage.from(bucketName).upload(
+            fileName,
+            file,
+            fileOptions: const FileOptions(cacheControl: '3600', upsert: false),
+          );
+
+      final String publicUrl = client.storage.from(bucketName).getPublicUrl(fileName);
+      return publicUrl;
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error uploading event image: $e');
+      }
+      rethrow;
+    }
+  }
+
+  // Web-compatible upload using bytes
+  static Future<String?> uploadEventImageBytes(
+    Uint8List bytes,
+    String fileName,
+    String userId,
+  ) async {
+    try {
+      final String path = '$userId/event_${DateTime.now().millisecondsSinceEpoch}_$fileName';
+      const bucketName = 'verification_docs';
+
+      await client.storage.from(bucketName).uploadBinary(
+        path,
+        bytes,
+        fileOptions: const FileOptions(cacheControl: '3600', upsert: false),
+      );
+
+      return client.storage.from(bucketName).getPublicUrl(path);
+    } catch (e) {
+      if (kDebugMode) print('Error uploading image bytes: $e');
+      rethrow;
+    }
+  }
+  // Update user metadata (phone, address, avatar, etc.)
+  static Future<void> updateUserMetadata(Map<String, dynamic> data) async {
+    try {
+      await client.auth.updateUser(
+        UserAttributes(
+          data: data,
+        ),
+      );
+    } catch (e) {
+      rethrow;
+    }
+  }
+  // Fetch users by role (for Manager Messaging)
+  static Future<List<Map<String, dynamic>>> getUsersByRole(String role) async {
+    try {
+      final response = await client
+          .from('users')
+          .select('id, full_name, role, profile_photo, email')
+          .eq('role', role);
+      return List<Map<String, dynamic>>.from(response);
+    } catch (e) {
+      if (kDebugMode) print('Error fetching $role users: $e');
+      return [];
+    }
+  }
+
+  // Search users by name or email
+  static Future<List<Map<String, dynamic>>> searchUsers(String query) async {
+    try {
+      final response = await client
+          .from('users')
+          .select()
+          .or('full_name.ilike.%$query%,email.ilike.%$query%')
+          .limit(20);
+      return List<Map<String, dynamic>>.from(response);
+    } catch (e) {
+      if (kDebugMode) print('Error searching users: $e');
+      return [];
+    }
+  }
+
+  /// Fetches managers who are assigned to any event owned by the current host.
+  static Future<List<Map<String, dynamic>>> getAssignedManagersForHost() async {
+    try {
+      final user = currentUser;
+      if (user == null) return [];
+
+      final eventsResponse = await client
+          .from('events')
+          .select('assigned_manager_id')
+          .eq('user_id', user.id)
+          .not('assigned_manager_id', 'is', null);
+
+      final List<dynamic> managerIds = (eventsResponse as List)
+          .map((e) => e['assigned_manager_id'])
+          .where((id) => id != null)
+          .toSet()
+          .toList();
+
+      if (managerIds.isEmpty) return [];
+
+      final usersResponse = await client
+          .from('users')
+          .select()
+          .inFilter('id', managerIds);
+          
+      return List<Map<String, dynamic>>.from(usersResponse);
+    } catch (e) {
+      if (kDebugMode) print('Error fetching assigned managers: $e');
+      return [];
+    }
+  }
+
+  /// Fetches event-specific conversations for a host/organizer.
+  static Future<List<Map<String, dynamic>>> getEventConversationsForHost() async {
+    try {
+      final user = currentUser;
+      if (user == null) return [];
+
+      // Get events owned by this host with assigned managers
+      final eventsResponse = await client
+          .from('events')
+          .select('*, manager:assigned_manager_id(*)')
+          .eq('user_id', user.id)
+          .not('assigned_manager_id', 'is', null);
+
+      if (eventsResponse == null) return [];
+
+      final List<Map<String, dynamic>> conversations = [];
+      for (var event in (eventsResponse as List)) {
+        final manager = event['manager'];
+        if (manager != null) {
+          conversations.add({
+            'user': manager,
+            'event': event,
+            'id': '${manager['id']}_${event['id']}',
+          });
+        }
+      }
+      return conversations;
+    } catch (e) {
+      if (kDebugMode) print('Error fetching event conversations for host: $e');
+      return [];
+    }
+  }
+
+  /// Fetches hosts who have assigned the current manager to at least one event.
+  static Future<List<Map<String, dynamic>>> getAssignedHostsForManager() async {
+    try {
+      final user = currentUser;
+      if (user == null) return [];
+
+      final eventsResponse = await client
+          .from('events')
+          .select('user_id')
+          .eq('assigned_manager_id', user.id);
+
+      final List<dynamic> hostIds = (eventsResponse as List)
+          .map((e) => e['user_id'])
+          .where((id) => id != null)
+          .toSet()
+          .toList();
+
+      if (hostIds.isEmpty) return [];
+
+      final usersResponse = await client
+          .from('users')
+          .select()
+          .inFilter('id', hostIds);
+          
+      return List<Map<String, dynamic>>.from(usersResponse);
+    } catch (e) {
+      if (kDebugMode) print('Error fetching assigned hosts: $e');
+      return [];
+    }
+  }
+
+  /// Fetches event-specific conversations for a manager.
+  /// Returns a list of maps, each containing 'user' data and 'event' data.
+  static Future<List<Map<String, dynamic>>> getEventConversationsForManager() async {
+    try {
+      final user = currentUser;
+      if (user == null) return [];
+
+      // Get events where this manager is assigned
+      final eventsResponse = await client
+          .from('events')
+          .select('*, host:user_id(*)')
+          .eq('assigned_manager_id', user.id);
+
+      if (eventsResponse == null) return [];
+
+      final List<Map<String, dynamic>> conversations = [];
+      for (var event in (eventsResponse as List)) {
+        final host = event['host'];
+        if (host != null) {
+          conversations.add({
+            'user': host,
+            'event': event,
+            'id': '${host['id']}_${event['id']}', // Synthetic ID for UI tracking
+          });
+        }
+      }
+      return conversations;
+    } catch (e) {
+      if (kDebugMode) print('Error fetching event conversations for manager: $e');
+      return [];
+    }
+  }
+
+  // --- Chat System Methods ---
+
+  // Send a message (text, image, file, location)
+  static Future<void> sendMessage({
+    required String receiverId,
+    required String content,
+    String type = 'text', // 'text', 'image', 'file', 'location'
+    String? replyToId,
+    String? eventId,
+  }) async {
+    if (currentUser == null) return;
+    
+    final Map<String, dynamic> messageData = {
+      'sender_id': currentUser!.id,
+      'receiver_id': receiverId,
+      'content': content,
+      'message_type': type,
+      'event_id': eventId,
+    };
+
+    if (replyToId != null) {
+      messageData['reply_to_id'] = replyToId;
+    }
+    
+    await client.from('messages').insert(messageData);
+
+    // Send notification to the receiver
+    try {
+      final senderData = await getUserFromUsersTable();
+      final senderName = senderData?['full_name'] ?? 'Someone';
+      
+      String displayContent = content;
+      if (type == 'image') {
+        displayContent = 'sent an image';
+      } else if (type == 'file') {
+        displayContent = 'sent a file';
+      } else if (type == 'location') {
+        displayContent = 'sent a location';
+      } else if (displayContent.length > 50) {
+        displayContent = '${displayContent.substring(0, 47)}...';
+      }
+
+      await client.from('notifications').insert({
+        'user_id': receiverId,
+        'title': 'New Message from $senderName',
+        'body': displayContent,
+        'type': 'chat',
+        'event_id': eventId,
+      });
+    } catch (e) {
+      if (kDebugMode) print('Error sending chat notification: $e');
+    }
+  }
+
+  // Upload a chat attachment (image or file)
+  static Future<String?> uploadChatAttachment({
+    required File file,
+    required String chatId, // Can be receiverId or groupId
+  }) async {
+    try {
+      final fileExt = file.path.split('.').last;
+      final fileName = '${DateTime.now().millisecondsSinceEpoch}.$fileExt';
+      final filePath = '$chatId/$fileName';
+      
+      await client.storage.from('chat_attachments').upload(
+        filePath,
+        file,
+        fileOptions: const FileOptions(cacheControl: '3600', upsert: false),
+      );
+
+      final String publicUrl = client.storage
+          .from('chat_attachments')
+          .getPublicUrl(filePath);
+      
+      return publicUrl;
+    } catch (e) {
+      if (kDebugMode) print('Error uploading attachment: $e');
+      return null;
+    }
+  }
+
+  // Get stream of messages for a specific chat (live updates)
+  static Stream<List<Map<String, dynamic>>> getMessagesStream(String otherUserId, {String? eventId}) {
+    if (currentUser == null) return const Stream.empty();
+
+    return client
+        .from('messages')
+        .stream(primaryKey: ['id'])
+        .order('created_at', ascending: false) // Newest first for reverse List
+        .map((data) {
+          // Filter client-side for the specific conversation
+          final myId = currentUser!.id;
+          return data.where((msg) {
+            final sender = msg['sender_id'];
+            final receiver = msg['receiver_id'];
+            final deletedBy = List<String>.from(msg['deleted_by_users'] ?? []);
+            final msgEventId = msg['event_id']?.toString();
+            
+            // Check if message belongs to this chat AND matches the eventId (if provided)
+            final isRelevant = (sender == myId && receiver == otherUserId) || 
+                               (sender == otherUserId && receiver == myId);
+            
+            final isNotDeleted = !deletedBy.contains(myId);
+            
+            bool isSameEvent = true;
+            if (eventId != null) {
+              isSameEvent = msgEventId == eventId;
+            } else {
+              // If eventId is null, we might want to show only chats with no eventId
+              // or all chats depending on UX. Usually, null means general chat.
+              isSameEvent = msgEventId == null;
+            }
+            
+            return isRelevant && isNotDeleted && isSameEvent;
+          }).toList();
+        });
+  }
+
+  // Get stream of messages for a group chat (event ID as receiver)
+  static Stream<List<Map<String, dynamic>>> getGroupMessagesStream(String groupId) {
+    if (currentUser == null) return const Stream.empty();
+
+    return client
+        .from('messages')
+        .stream(primaryKey: ['id'])
+        .order('created_at', ascending: false) // Newest first for reverse List
+        .map((data) {
+          final myId = currentUser!.id;
+          return data.where((msg) {
+            final receiver = msg['receiver_id'];
+            final deletedBy = List<String>.from(msg['deleted_by_users'] ?? []);
+            
+            // For groups, the receiver_id IS the event/group UUID.
+            final isRelevant = (receiver == groupId);
+            final isNotDeleted = !deletedBy.contains(myId);
+            
+            return isRelevant && isNotDeleted;
+          }).toList();
+        });
+  }
+
+  // Delete message
+  static Future<bool> deleteMessage({
+    required String messageId,
+    required bool forEveryone,
+  }) async {
+    if (currentUser == null) return false;
+
+    try {
+      if (forEveryone) {
+        // Soft delete for everyone - set is_deleted flag
+        // Also add myself to deleted_by_users so it disappears for me immediately
+        final res = await client
+            .from('messages')
+            .select('deleted_by_users')
+            .eq('id', messageId)
+            .eq('sender_id', currentUser!.id)
+            .maybeSingle();
+            
+        if (res == null) return false;
+        
+        List<String> currentDeleted = List<String>.from(res['deleted_by_users'] ?? []);
+        if (!currentDeleted.contains(currentUser!.id)) {
+          currentDeleted.add(currentUser!.id);
+        }
+
+        await client.from('messages').update({
+          'is_deleted': true,
+          'deleted_by_users': currentDeleted
+        }).eq('id', messageId);
+        
+        return true;
+      } else {
+        // Soft delete for current user only
+        final res = await client
+            .from('messages')
+            .select('deleted_by_users')
+            .eq('id', messageId)
+            .maybeSingle();
+            
+        if (res == null) return false;
+        
+        List<String> currentDeleted = List<String>.from(res['deleted_by_users'] ?? []);
+        
+        if (!currentDeleted.contains(currentUser!.id)) {
+          currentDeleted.add(currentUser!.id);
+          await client.from('messages').update({
+            'deleted_by_users': currentDeleted
+          }).eq('id', messageId);
+        }
+        return true;
+      }
+    } catch (e) {
+      if (kDebugMode) print('Error deleting message: $e');
+      return false;
+    }
+  }
+
+  // Mark messages from a specific user as read
+  // If [eventId] is provided, only marks messages for that specific event as read.
+  // If [eventId] is null, only marks non-event messages (plain DMs) as read.
+  static Future<void> markMessagesAsRead(String senderId, {String? eventId}) async {
+    if (currentUser == null) return;
+
+    var query = client
+        .from('messages')
+        .update({'is_read': true})
+        .eq('sender_id', senderId)
+        .eq('receiver_id', currentUser!.id)
+        .eq('is_read', false);
+
+    if (eventId != null) {
+      query = query.eq('event_id', eventId);
+    } else {
+      query = query.isFilter('event_id', null);
+    }
+
+    await query;
+  }
+
+  // Mark group messages as read (seen by anyone other than sender)
+  static Future<void> markGroupMessagesAsRead(String groupId) async {
+    if (currentUser == null) return;
+
+    await client
+        .from('messages')
+        .update({'is_read': true})
+        .eq('receiver_id', groupId)
+        .neq('sender_id', currentUser!.id)
+        .eq('is_read', false);
+  }
+
+  // Get ALL messages where I am sender or receiver (for Recent Chats)
+  // We will group them client-side to find unique conversations
+  static Future<List<Map<String, dynamic>>> getAllMyMessages() async {
+    if (currentUser == null) return [];
+
+    try {
+      final response = await client
+          .from('messages')
+          .select()
+          .or('sender_id.eq.${currentUser!.id},receiver_id.eq.${currentUser!.id}')
+          .order('created_at', ascending: false); // Latest first
+          
+      return List<Map<String, dynamic>>.from(response).where((msg) {
+        final deletedBy = List<String>.from(msg['deleted_by_users'] ?? []);
+        return !deletedBy.contains(currentUser!.id);
+      }).toList();
+    } catch (e) {
+      if (kDebugMode) print('Error fetching my messages: $e');
+      return [];
+    }
+  }
+
+  // Get unread counts per sender for the current user
+  static Future<Map<String, int>> getUnreadCounts() async {
+    if (currentUser == null) return {};
+
+    try {
+      final response = await client
+          .from('messages')
+          .select('sender_id, deleted_by_users')
+          .eq('receiver_id', currentUser!.id)
+          .eq('is_read', false);
+      
+      final unreadMap = <String, int>{};
+      for (var item in response) {
+        final deletedBy = List<String>.from(item['deleted_by_users'] ?? []);
+        if (!deletedBy.contains(currentUser!.id)) {
+          final senderId = item['sender_id'] as String;
+          unreadMap[senderId] = (unreadMap[senderId] ?? 0) + 1;
+        }
+      }
+      return unreadMap;
+    } catch (e) {
+      if (kDebugMode) print('Error fetching unread counts: $e');
+      return {};
+    }
+  }
+
+  // Get stream of unread counts
+  static Stream<Map<String, int>> getUnreadCountsStream() {
+    if (currentUser == null) return const Stream.empty();
+
+    return client
+        .from('messages')
+        .stream(primaryKey: ['id'])
+        .eq('receiver_id', currentUser!.id)
+        .map((data) {
+          final unreadMap = <String, int>{};
+          for (var item in data) {
+            final deletedBy = List<String>.from(item['deleted_by_users'] ?? []);
+            // Filter is_read and deleted_by_users client-side
+            if (item['is_read'] == false && !deletedBy.contains(currentUser!.id)) {
+              final senderId = item['sender_id'] as String;
+              final eventId = item['event_id']?.toString();
+              if (eventId != null) {
+                // Event-scoped message: only go into the event-specific key.
+                // Do NOT also increment bare senderId to avoid bleeding counts
+                // across unrelated event conversations with the same person.
+                final eventKey = '${senderId}_$eventId';
+                unreadMap[eventKey] = (unreadMap[eventKey] ?? 0) + 1;
+              } else {
+                // Plain DM with no event context: use bare sender key.
+                unreadMap[senderId] = (unreadMap[senderId] ?? 0) + 1;
+              }
+            }
+          }
+          return unreadMap;
+        });
+  }
+}
