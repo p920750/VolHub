@@ -759,6 +759,46 @@ class SupabaseService {
     }
   }
 
+  // Fetch volunteers specific to a manager
+  static Future<List<Map<String, dynamic>>> getVolunteersForManager() async {
+    try {
+      final user = currentUser;
+      if (user == null) return [];
+
+      final eventsResponse = await client
+          .from('events')
+          .select('id')
+          .or('assigned_manager_id.eq.${user.id},manager_ids.cs.{${user.id}}');
+
+      final eventIds = (eventsResponse as List).map((e) => e['id']).toList();
+      if (eventIds.isEmpty) return [];
+
+      final applicationsResponse = await client
+          .from('event_applications')
+          .select('volunteer_id')
+          .inFilter('event_id', eventIds);
+
+      final volunteerIds = (applicationsResponse as List)
+          .map((a) => a['volunteer_id'])
+          .where((id) => id != null)
+          .toSet()
+          .toList();
+
+      if (volunteerIds.isEmpty) return [];
+
+      final usersResponse = await client
+          .from('users')
+          .select('id, full_name, role, profile_photo, email')
+          .inFilter('id', volunteerIds)
+          .eq('role', 'volunteer');
+
+      return List<Map<String, dynamic>>.from(usersResponse);
+    } catch (e) {
+      if (kDebugMode) print('Error fetching volunteers for manager: $e');
+      return [];
+    }
+  }
+
   // Search users by name or email
   static Future<List<Map<String, dynamic>>> searchUsers(String query) async {
     try {
@@ -812,26 +852,56 @@ class SupabaseService {
       final user = currentUser;
       if (user == null) return [];
 
-      // Get events owned by this host with assigned managers
+      final List<Map<String, dynamic>> conversations = [];
+      final Set<String> addedUserIds = {};
+
+      // 1. Get events owned by this host with assigned managers
       final eventsResponse = await client
           .from('events')
           .select('*, manager:assigned_manager_id(*)')
           .eq('user_id', user.id)
           .not('assigned_manager_id', 'is', null);
 
-      if (eventsResponse == null) return [];
-
-      final List<Map<String, dynamic>> conversations = [];
-      for (var event in (eventsResponse as List)) {
-        final manager = event['manager'];
-        if (manager != null) {
-          conversations.add({
-            'user': manager,
-            'event': event,
-            'id': '${manager['id']}_${event['id']}',
-          });
+      if (eventsResponse != null) {
+        for (var event in (eventsResponse as List)) {
+          final manager = event['manager'];
+          if (manager != null && !addedUserIds.contains(manager['id'])) {
+            conversations.add({
+              'user': manager,
+              'event': event,
+              'id': '${manager['id']}_${event['id']}',
+            });
+            addedUserIds.add(manager['id'].toString());
+          }
         }
       }
+
+      // 2. Add users the host has actually chatted with (e.g., from pending proposals)
+      final messagesResponse = await client
+          .from('messages')
+          .select('sender_id, receiver_id, event_id, events(*, manager:assigned_manager_id(*))')
+          .or('sender_id.eq.${user.id},receiver_id.eq.${user.id}')
+          .order('created_at', ascending: false);
+
+      for (var msg in (messagesResponse as List)) {
+        final otherId = msg['sender_id'] == user.id ? msg['receiver_id'] : msg['sender_id'];
+        if (otherId != null && !addedUserIds.contains(otherId)) {
+          final otherProfile = await getUserProfileById(otherId);
+          if (otherProfile != null) {
+            Map<String, dynamic>? eventData;
+            if (msg['events'] != null) {
+               eventData = Map<String, dynamic>.from(msg['events']);
+            }
+            conversations.add({
+              'user': otherProfile,
+              'event': eventData,
+              'id': '${otherId}_${eventData?['id'] ?? 'none'}',
+            });
+            addedUserIds.add(otherId.toString());
+          }
+        }
+      }
+
       return conversations;
     } catch (e) {
       if (kDebugMode) print('Error fetching event conversations for host: $e');
@@ -877,25 +947,76 @@ class SupabaseService {
       final user = currentUser;
       if (user == null) return [];
 
-      // Get events where this manager is assigned
+      final List<Map<String, dynamic>> conversations = [];
+      final Set<String> addedUserIds = {};
+
+      // 1. Get events where this manager is assigned
       final eventsResponse = await client
           .from('events')
           .select('*, host:user_id(*)')
-          .eq('assigned_manager_id', user.id);
+          .or('assigned_manager_id.eq.${user.id},manager_ids.cs.{${user.id}}');
 
-      if (eventsResponse == null) return [];
-
-      final List<Map<String, dynamic>> conversations = [];
-      for (var event in (eventsResponse as List)) {
-        final host = event['host'];
-        if (host != null) {
-          conversations.add({
-            'user': host,
-            'event': event,
-            'id': '${host['id']}_${event['id']}', // Synthetic ID for UI tracking
-          });
+      if (eventsResponse != null) {
+        for (var event in (eventsResponse as List)) {
+          final host = event['host'];
+          if (host != null && !addedUserIds.contains(host['id'])) {
+            conversations.add({
+              'user': host,
+              'event': event,
+              'id': '${host['id']}_${event['id']}', // Synthetic ID for UI tracking
+            });
+            addedUserIds.add(host['id'].toString());
+          }
+          
+          // Co-managers
+          final managerIds = List<dynamic>.from(event['manager_ids'] ?? []);
+          if (event['assigned_manager_id'] != null) {
+            managerIds.add(event['assigned_manager_id']);
+          }
+          
+          for (final mId in managerIds) {
+            final managerIdStr = mId.toString();
+            if (managerIdStr != user.id && !addedUserIds.contains(managerIdStr)) {
+              final managerProfile = await getUserProfileById(managerIdStr);
+              if (managerProfile != null) {
+                conversations.add({
+                  'user': managerProfile,
+                  'event': event,
+                  'id': '${managerIdStr}_${event['id']}',
+                });
+                addedUserIds.add(managerIdStr);
+              }
+            }
+          }
         }
       }
+
+      // 2. Add actual chat contacts (e.g. from pending proposals)
+      final messagesResponse = await client
+          .from('messages')
+          .select('sender_id, receiver_id, event_id, events(*, host:user_id(*))')
+          .or('sender_id.eq.${user.id},receiver_id.eq.${user.id}')
+          .order('created_at', ascending: false);
+
+      for (var msg in (messagesResponse as List)) {
+        final otherId = msg['sender_id'] == user.id ? msg['receiver_id'] : msg['sender_id'];
+        if (otherId != null && !addedUserIds.contains(otherId)) {
+          final otherProfile = await getUserProfileById(otherId);
+          if (otherProfile != null) {
+            Map<String, dynamic>? eventData;
+            if (msg['events'] != null) {
+               eventData = Map<String, dynamic>.from(msg['events']);
+            }
+            conversations.add({
+              'user': otherProfile,
+              'event': eventData,
+              'id': '${otherId}_${eventData?['id'] ?? 'none'}',
+            });
+            addedUserIds.add(otherId.toString());
+          }
+        }
+      }
+
       return conversations;
     } catch (e) {
       if (kDebugMode) print('Error fetching event conversations for manager: $e');

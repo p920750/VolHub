@@ -21,6 +21,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
   ];
 
   List<Map<String, dynamic>> _organizers = [];
+  List<Map<String, dynamic>> _managers = [];
   List<Map<String, dynamic>> _volunteers = [];
   List<Map<String, dynamic>> _groupChats = [];
   bool _isLoading = true;
@@ -34,7 +35,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
   Future<void> _fetchUsers() async {
     setState(() => _isLoading = true);
     final eventConversations = await SupabaseService.getEventConversationsForManager();
-    final volunteers = await SupabaseService.getUsersByRole('volunteer');
+    final volunteers = await SupabaseService.getVolunteersForManager();
     final activeGroups = await EventManagerService.getActiveGroupChatsForManager();
 
     // Map events to the structure expected by the UI for groups
@@ -49,8 +50,19 @@ class _MessagesScreenState extends State<MessagesScreen> {
       'avatarUrl': event['image_url'],
     }).toList();
     
+    final organizersList = eventConversations.where((c) {
+      final role = c['user']['role'];
+      return role == 'organizer' || role == 'host';
+    }).toList();
+
+    final managersList = eventConversations.where((c) {
+      final role = c['user']['role'];
+      return role == 'manager';
+    }).toList();
+
     setState(() {
-      _organizers = eventConversations;
+      _organizers = organizersList;
+      _managers = managersList;
       _volunteers = volunteers;
       _groupChats = mappedGroups;
       _isLoading = false;
@@ -60,7 +72,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
-      length: 3,
+      length: 4,
       child: Scaffold(
         backgroundColor: Colors.white,
         appBar: AppBar(
@@ -76,6 +88,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
                   delegate: UserSearchDelegate(
                     groups: _groupChats,
                     organizers: _organizers,
+                    managers: _managers,
                     volunteers: _volunteers,
                   ),
                 );
@@ -88,6 +101,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
             unselectedLabelColor: Colors.grey,
             tabs: [
               Tab(text: 'Organizers'),
+              Tab(text: 'Managers'),
               Tab(text: 'Volunteers'),
               Tab(text: 'Groups'),
             ],
@@ -101,6 +115,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
             : TabBarView(
                 children: [
                   _buildUserList(context, _organizers),
+                  _buildUserList(context, _managers),
                   _buildUserList(context, _volunteers),
                   _buildChatList(context, _groupChats),
                 ],
@@ -210,11 +225,13 @@ class _MessagesScreenState extends State<MessagesScreen> {
 class UserSearchDelegate extends SearchDelegate {
   final List<Map<String, dynamic>> groups;
   final List<Map<String, dynamic>> organizers;
+  final List<Map<String, dynamic>> managers;
   final List<Map<String, dynamic>> volunteers;
   
   UserSearchDelegate({
     required this.groups,
     required this.organizers,
+    required this.managers,
     required this.volunteers,
   });
 
@@ -307,13 +324,24 @@ class UserSearchDelegate extends SearchDelegate {
 
     final lowercaseQuery = query.toLowerCase();
 
-    // Filter local lists for restricted search
-    final matchedOrganizers = organizers.where((u) => 
-      (u['full_name']?.toString().toLowerCase().contains(lowercaseQuery) ?? false) ||
-      (u['email']?.toString().toLowerCase().contains(lowercaseQuery) ?? false)
-    ).toList();
+    List<Map<String, dynamic>> extractUser(List<Map<String, dynamic>> list) {
+      return list.map((item) {
+        if (item.containsKey('user')) {
+          final user = item['user'] as Map<String, dynamic>;
+          return {...user, 'eventId': item['event']?['id']};
+        }
+        return item;
+      }).toList();
+    }
 
-    final matchedVolunteers = volunteers.where((u) => 
+    final allUsers = [
+      ...extractUser(organizers),
+      ...extractUser(managers),
+      ...extractUser(volunteers),
+    ];
+
+    // Filter local lists for restricted search
+    final matchedUsers = allUsers.where((u) => 
       (u['full_name']?.toString().toLowerCase().contains(lowercaseQuery) ?? false) ||
       (u['email']?.toString().toLowerCase().contains(lowercaseQuery) ?? false)
     ).toList();
@@ -341,6 +369,6 @@ class UserSearchDelegate extends SearchDelegate {
        // usersInGroup.add({'id': 'mock_1', 'full_name': 'Sarah (Photo Lead)', 'role': 'volunteer'});
     }
 
-    return [...matchedOrganizers, ...matchedVolunteers, ...matchedGroups, ...usersInGroup];
+    return [...matchedUsers, ...matchedGroups, ...usersInGroup];
   }
 }

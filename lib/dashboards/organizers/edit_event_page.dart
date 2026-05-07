@@ -465,7 +465,7 @@ class _EditEventPageState extends State<EditEventPage> {
               
               _buildTextField(
                 controller: _reqsController,
-                label: 'Company Requirements',
+                label: 'Requireemnts for Company',
                 placeholder: '',
                 maxLines: 6,
                 isScrollable: true,
@@ -671,6 +671,17 @@ class _EditEventPageState extends State<EditEventPage> {
 
   Future<void> _saveChanges() async {
     if (_formKey.currentState!.validate()) {
+      if (_selectedDate != null && _selectedDeadlineDate != null) {
+        final eDate = DateTime(_selectedDate!.year, _selectedDate!.month, _selectedDate!.day);
+        final dDate = DateTime(_selectedDeadlineDate!.year, _selectedDeadlineDate!.month, _selectedDeadlineDate!.day);
+        if (dDate.isAfter(eDate) || dDate.isAtSameMomentAs(eDate)) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Deadline for Acceptance must be before the Event Date')),
+          );
+          return;
+        }
+      }
+
       setState(() => _isSaving = true);
       try {
         final userId = SupabaseService.currentUser?.id;

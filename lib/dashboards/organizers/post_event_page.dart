@@ -458,7 +458,7 @@ class _PostEventPageState extends State<PostEventPage> {
                   // Specific Requirements
                   _buildTextField(
                     controller: _reqsController,
-                    label: 'Requirements',
+                    label: 'Requirements for Company',
                     placeholder: '',
                     maxLines: 6,
                     isScrollable: true,
@@ -604,6 +604,17 @@ class _PostEventPageState extends State<PostEventPage> {
                           // However, we still need to prevent submission if it's empty.
                           if (_imageDataList.isEmpty) {
                             return;
+                          }
+
+                          if (_selectedDate != null && _selectedDeadlineDate != null) {
+                            final eDate = DateTime(_selectedDate!.year, _selectedDate!.month, _selectedDate!.day);
+                            final dDate = DateTime(_selectedDeadlineDate!.year, _selectedDeadlineDate!.month, _selectedDeadlineDate!.day);
+                            if (dDate.isAfter(eDate) || dDate.isAtSameMomentAs(eDate)) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('Deadline for Acceptance must be before the Event Date')),
+                              );
+                              return;
+                            }
                           }
 
                           try {

@@ -114,6 +114,17 @@ class _ManagerProposalCardState extends State<ManagerProposalCard> {
     ).then((_) => widget.onStatusChanged());
   }
 
+  bool get _isPastDeadline {
+    final deadlineStr = widget.event['registration_deadline'];
+    if (deadlineStr == null) return false;
+    try {
+      final deadline = DateTime.parse(deadlineStr.toString());
+      return DateTime.now().isAfter(deadline);
+    } catch (_) {
+      return false;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final host = widget.event['host'] as Map<String, dynamic>?;
@@ -123,84 +134,103 @@ class _ManagerProposalCardState extends State<ManagerProposalCard> {
     final description = widget.event['description'] ?? '';
     final requirements = widget.event['requirements'] ?? '';
 
+    final String? imageString = widget.event['image_url']?.toString() ?? widget.event['imageUrl']?.toString();
+
     return GestureDetector(
       onTap: _showFullOverview,
       child: Card(
         margin: const EdgeInsets.only(bottom: 16),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         elevation: 2,
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // 1) Name of the event
-              Text(
-                title,
-                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (imageString != null && imageString.isNotEmpty) ...[
+              ClipRRect(
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+                child: Image.network(
+                  imageString.split(',').last.trim(),
+                  height: 180,
+                  width: double.infinity,
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) => const SizedBox.shrink(),
+                ),
               ),
-              const SizedBox(height: 8),
-              
-              // 2) Event location
-              Row(
+            ],
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Icon(Icons.location_on, size: 16, color: Colors.grey),
-                  const SizedBox(width: 4),
-                  Expanded(child: Text(location, style: const TextStyle(color: Colors.grey))),
-                ],
-              ),
-              const SizedBox(height: 4),
-
-              // 3) Date and time
-              Row(
-                children: [
-                   const Icon(Icons.calendar_today, size: 16, color: Colors.grey),
-                  const SizedBox(width: 4),
-                  Expanded(child: Text(dateTime, style: const TextStyle(color: Colors.grey))),
-                ],
-              ),
-              const SizedBox(height: 12),
-
-              // 4) Posted by who + profile link
-              Row(
-                children: [
-                  const CircleAvatar(radius: 12, child: Icon(Icons.person, size: 14)),
-                  const SizedBox(width: 8),
+                  // 1) Name of the event
                   Text(
-                    'Posted by: ${host?['full_name'] ?? 'Organizer'}',
-                    style: TextStyle(color: Colors.grey[700], fontSize: 13),
+                    title,
+                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 8),
+                  
+                  // 2) Event location
+                  Row(
+                    children: [
+                      const Icon(Icons.location_on, size: 16, color: Colors.grey),
+                      const SizedBox(width: 4),
+                      Expanded(child: Text(location, style: const TextStyle(color: Colors.grey))),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+
+                  // 3) Date and time
+                  Row(
+                    children: [
+                       const Icon(Icons.calendar_today, size: 16, color: Colors.grey),
+                      const SizedBox(width: 4),
+                      Expanded(child: Text(dateTime, style: const TextStyle(color: Colors.grey))),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+
+                  // 4) Posted by who + profile link
+                  Row(
+                    children: [
+                      const CircleAvatar(radius: 12, child: Icon(Icons.person, size: 14)),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Posted by: ${host?['full_name'] ?? 'Organizer'}',
+                        style: TextStyle(color: Colors.grey[700], fontSize: 13),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+
+                  // 5) Event Description (5 lines, 30 chars truncation)
+                  const Text('Event Description:', style: TextStyle(fontWeight: FontWeight.bold)),
+                  TextTruncator(
+                    text: description,
+                    maxLines: 5,
+                    charThreshold: 30,
+                    style: const TextStyle(fontSize: 14),
+                  ),
+                  const SizedBox(height: 12),
+
+                  // 6) Company Requirements (5 lines, 30 chars truncation)
+                  const Text('Company Requirements:', style: TextStyle(fontWeight: FontWeight.bold)),
+                  TextTruncator(
+                    text: requirements,
+                    maxLines: 5,
+                    charThreshold: 30,
+                    style: const TextStyle(fontSize: 14),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // 7) Ready to accept button at the bottom right
+                  Align(
+                    alignment: Alignment.bottomRight,
+                    child: _buildAcceptButton(),
                   ),
                 ],
               ),
-              const SizedBox(height: 12),
-
-              // 5) Event Description (5 lines, 30 chars truncation)
-              const Text('Event Description:', style: TextStyle(fontWeight: FontWeight.bold)),
-              TextTruncator(
-                text: description,
-                maxLines: 5,
-                charThreshold: 30,
-                style: const TextStyle(fontSize: 14),
-              ),
-              const SizedBox(height: 12),
-
-              // 6) Company Requirements (5 lines, 30 chars truncation)
-              const Text('Company Requirements:', style: TextStyle(fontWeight: FontWeight.bold)),
-              TextTruncator(
-                text: requirements,
-                maxLines: 5,
-                charThreshold: 30,
-                style: const TextStyle(fontSize: 14),
-              ),
-              const SizedBox(height: 16),
-
-              // 7) Ready to accept button at the bottom right
-              Align(
-                alignment: Alignment.bottomRight,
-                child: _buildAcceptButton(),
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
@@ -240,6 +270,21 @@ class _ManagerProposalCardState extends State<ManagerProposalCard> {
       );
     }
 
+    if (assignedManagerId != null && assignedManagerId != userId) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          color: Colors.red.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: Colors.red),
+        ),
+        child: Text(
+          _isPastDeadline ? 'Assigned manager & Acceptance closed' : 'Assigned manager',
+          style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
+        ),
+      );
+    }
+
     if (_isManagerWithdrawn) {
       return Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -266,6 +311,21 @@ class _ManagerProposalCardState extends State<ManagerProposalCard> {
         child: const Text(
           'Waiting for approval',
           style: TextStyle(color: Colors.orange, fontWeight: FontWeight.bold),
+        ),
+      );
+    }
+
+    if (_isPastDeadline) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          color: Colors.red.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: Colors.red),
+        ),
+        child: const Text(
+          'Acceptance closed',
+          style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
         ),
       );
     }

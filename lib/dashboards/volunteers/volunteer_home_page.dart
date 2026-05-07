@@ -807,65 +807,7 @@ class _VolunteerHomePageState extends State<VolunteerHomePage> {
             ),
           ),
           const SizedBox(height: 20),
-          // AI Recommendations Entry Card
-          GestureDetector(
-            onTap: () {
-              Navigator.pushNamed(context, '/volunteer-recommendations');
-            },
-            child: Container(
-              margin: const EdgeInsets.symmetric(horizontal: 16),
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [Color(0xFF1E4D40), Color(0xFF2E6356)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                borderRadius: BorderRadius.circular(20),
-                boxShadow: [
-                  BoxShadow(
-                    color: const Color(0xFF1E4D40).withOpacity(0.3),
-                    blurRadius: 15,
-                    offset: const Offset(0, 8),
-                  )
-                ],
-              ),
-              child: const Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Icon(Icons.auto_awesome, color: Colors.orangeAccent, size: 20),
-                            SizedBox(width: 8),
-                            Text(
-                              'AI Suggested Events',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ],
-                        ),
-                        SizedBox(height: 8),
-                         Text(
-                          'Discover events tailored to your skills and impact.',
-                          style: TextStyle(
-                            color: Colors.white70,
-                            fontSize: 13,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Icon(Icons.arrow_forward_ios, color: Colors.white, size: 18),
-                ],
-              ),
-            ),
-          ),
+          // AI Recommendations Entry Card removed
           const SizedBox(height: 24),
           Expanded(
             child: _isLoading
